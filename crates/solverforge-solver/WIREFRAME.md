@@ -645,7 +645,7 @@ Retained-job runtime context passed into `Solvable::solve()`. This is the public
 | Method | Signature |
 |--------|-----------|
 | `detached` | `fn detached() -> Self` |
-| `bind_snapshot_analysis` | `fn(&self, analyze: fn(&S) -> ScoreAnalysis<S::Score>)` |
+| `bind_snapshot_analysis` | `fn(&self, analysis: Option<fn(&S) -> ScoreAnalysis<S::Score>>)` |
 | `job_id` | `fn(&self) -> usize` |
 | `is_cancel_requested` | `fn(&self) -> bool` |
 | `emit_progress` | `fn(&self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry)` |
@@ -656,10 +656,11 @@ Retained-job runtime context passed into `Solvable::solve()`. This is the public
 | `emit_failed` | `fn(&self, error: String)` |
 
 `bind_snapshot_analysis` sets how `SolverManager::analyze_snapshot` analyzes
-the job's snapshots: with the analysis of the constraint set the solve scores
-with. A solve that never binds is analyzed with `Analyzable::analyze`.
-Generated and bridge solves bind it from `score_director` before solving
-starts.
+the job's snapshots: `Some(analyze)` runs the analysis of the constraint set
+the solve scores with, `None` disables snapshot analysis
+(`SnapshotAnalysisDisabled`), and a solve that never binds is analyzed with
+`Analyzable::analyze`. Generated and bridge solves bind it from
+`score_director` before solving starts.
 
 `SolverRuntime::detached()` is for synchronous configured solves that are not
 retained by a `SolverManager`; it owns an internal lifecycle slot and no event
@@ -822,7 +823,7 @@ Snapshots are renderable and analyzable job states with monotonic `snapshot_revi
 
 ### `SolverManagerError`
 
-Lifecycle error surface for invalid transitions and missing retained state: `NoFreeJobSlots`, `JobNotFound`, `InvalidStateTransition`, `NoSnapshotAvailable`, `SnapshotNotFound`.
+Lifecycle error surface for invalid transitions and missing retained state: `NoFreeJobSlots`, `JobNotFound`, `InvalidStateTransition`, `NoSnapshotAvailable`, `SnapshotNotFound`, and `SnapshotAnalysisDisabled` (the job ran with `score_director.constraint_match_enabled = false`).
 
 ### `analyze<S>(solution: &S) -> ScoreAnalysis<S::Score>`
 

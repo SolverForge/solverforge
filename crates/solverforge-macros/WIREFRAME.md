@@ -93,7 +93,8 @@ selects a provider by is its path as written in the attribute, without
 whitespace. `constraint_provider` without `constraints`, and a provider name
 declared twice (including the `constraints` path), are compile errors. The
 generated solve selects the configured provider, binds that provider's
-analysis as the job's snapshot analysis, and fails with
+analysis as the job's snapshot analysis (or disables it when
+`score_director.constraint_match_enabled` is `false`), and fails with
 `RuntimeBuildError::UnknownConstraintProvider` for an undeclared name. Each
 provider is its own monomorphized solve; `Analyzable::analyze` uses the
 `constraints` function.

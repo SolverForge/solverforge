@@ -258,6 +258,12 @@ pub enum SolverManagerError {
         /// The requested revision.
         snapshot_revision: u64,
     },
+    /// The job's solve ran with `score_director.constraint_match_enabled =
+    /// false`, so its snapshots cannot be analyzed.
+    SnapshotAnalysisDisabled {
+        /// The job id.
+        job_id: usize,
+    },
 }
 
 impl Display for SolverManagerError {
@@ -282,6 +288,10 @@ impl Display for SolverManagerError {
             } => write!(
                 f,
                 "job {job_id} has no retained snapshot revision {snapshot_revision}"
+            ),
+            Self::SnapshotAnalysisDisabled { job_id } => write!(
+                f,
+                "job {job_id} was solved with score_director.constraint_match_enabled = false"
             ),
         }
     }

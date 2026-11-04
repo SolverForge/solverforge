@@ -246,19 +246,22 @@ fn move_thread_count_parses_every_documented_form() {
 }
 
 #[test]
-fn score_director_defaults_to_the_constraints_function() {
+fn score_director_defaults_to_the_constraints_function_with_analysis_enabled() {
     let omitted = SolverConfig::from_toml_str("").unwrap();
     assert_eq!(omitted.constraint_provider(), None);
+    assert!(omitted.constraint_match_enabled());
 
     let empty = SolverConfig::from_toml_str("[score_director]\n").unwrap();
     assert_eq!(empty.constraint_provider(), None);
+    assert!(empty.constraint_match_enabled());
 
     let set = SolverConfig::from_toml_str(
-        "[score_director]\nconstraint_provider = \"crate::constraints::relaxed\"\n",
+        "[score_director]\nconstraint_provider = \"crate::constraints::relaxed\"\nconstraint_match_enabled = false\n",
     )
     .unwrap();
     assert_eq!(
         set.constraint_provider(),
         Some("crate::constraints::relaxed")
     );
+    assert!(!set.constraint_match_enabled());
 }

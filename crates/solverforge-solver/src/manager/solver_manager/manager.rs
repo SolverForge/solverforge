@@ -366,7 +366,9 @@ where
     ///
     /// # Errors
     ///
-    /// The same errors as [`Self::get_snapshot`].
+    /// [`SolverManagerError::SnapshotAnalysisDisabled`] when the job's solve
+    /// ran with `score_director.constraint_match_enabled = false`, and
+    /// otherwise the same errors as [`Self::get_snapshot`].
     pub fn analyze_snapshot(
         &self,
         job_id: usize,
@@ -381,6 +383,9 @@ where
                 return Err(SolverManagerError::JobNotFound { job_id });
             }
             let bound = match record.snapshot_analysis {
+                SnapshotAnalysisBinding::Disabled => {
+                    return Err(SolverManagerError::SnapshotAnalysisDisabled { job_id });
+                }
                 SnapshotAnalysisBinding::Analyzable => None,
                 SnapshotAnalysisBinding::Bound(analyze) => Some(analyze),
             };

@@ -47,7 +47,7 @@ pub(super) fn generate_runtime_solve_internal(
     };
     /* `score_director.constraint_provider` selects the constraint set; each
     provider is its own monomorphized solve, and binds its own analysis for
-    the job's snapshots. */
+    the job's snapshots unless `constraint_match_enabled` is false. */
     let declared: Vec<String> = providers.iter().map(|provider| provider.name.clone()).collect();
     let dispatch = |provenance: TokenStream| {
         let arms = providers.iter().enumerate().map(|(index, provider)| {
@@ -61,7 +61,14 @@ pub(super) fn generate_runtime_solve_internal(
             };
             quote! {
                 #pattern => {
-                    runtime.bind_snapshot_analysis(Self::#analyze_fn);
+                    runtime.bind_snapshot_analysis(
+                        snapshot_analysis_enabled.then_some(
+                            Self::#analyze_fn
+                                as fn(&Self) -> ::solverforge::ScoreAnalysis<
+                                    <Self as ::solverforge::__internal::PlanningSolution>::Score,
+                                >,
+                        ),
+                    );
                     #run_solver(
                         self,
                         (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
@@ -78,6 +85,7 @@ pub(super) fn generate_runtime_solve_internal(
             }
         });
         quote! {
+            let snapshot_analysis_enabled = config.constraint_match_enabled();
             let requested_provider = config
                 .constraint_provider()
                 .map(::std::string::ToString::to_string);

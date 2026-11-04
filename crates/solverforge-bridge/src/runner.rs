@@ -120,7 +120,8 @@ fn selected_provider<'p, 'n, S: PlanningSolution, C>(
 /// [`RuntimeBuildError::UnknownConstraintProvider`] before solving starts. The
 /// selected provider builds the constraint set for the working solution and
 /// for every evaluator replica, so `move_thread_count` evaluates dynamic
-/// models in parallel, and its `analyze` serves snapshot analysis.
+/// models in parallel, and its `analyze` serves snapshot analysis unless
+/// `score_director.constraint_match_enabled` is `false`.
 #[allow(clippy::too_many_arguments)]
 pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     solution: S,
@@ -143,7 +144,11 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
 {
     let provider = *selected_provider(&config, constraint_providers)?;
-    runtime.bind_snapshot_analysis(provider.analyze);
+    runtime.bind_snapshot_analysis(
+        config
+            .constraint_match_enabled()
+            .then_some(provider.analyze),
+    );
     try_run_solver_with_config_and_search(
         solution,
         provider.constraints,

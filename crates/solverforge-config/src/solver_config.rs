@@ -31,8 +31,9 @@ pub struct SolverConfig {
     #[serde(default)]
     pub termination: Option<TerminationConfig>,
 
-    /// Score director settings: the constraint provider. Omitted: the
-    /// solution's `constraints` function.
+    /// Score director settings: the constraint provider and whether snapshot
+    /// analysis is enabled. Omitted: the solution's `constraints` function,
+    /// with snapshot analysis enabled.
     #[serde(default)]
     pub score_director: Option<DirectorConfig>,
 
@@ -62,6 +63,14 @@ impl SolverConfig {
         self.score_director
             .as_ref()
             .and_then(|director| director.constraint_provider.as_deref())
+    }
+
+    /// The configured `score_director.constraint_match_enabled`; `true` when
+    /// the section is omitted.
+    pub fn constraint_match_enabled(&self) -> bool {
+        self.score_director
+            .as_ref()
+            .is_none_or(|director| director.constraint_match_enabled)
     }
 
     /// Loads configuration from a TOML file.

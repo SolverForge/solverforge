@@ -232,8 +232,9 @@ no phase builder, selector registration, or alternate construction path.
 `score_director.constraint_provider` selects one by `name`, the first is used
 when it is omitted, and an unknown name fails with
 `RuntimeBuildError::UnknownConstraintProvider` before solving starts. The
-selected provider's `analyze` serves `SolverManager::analyze_snapshot`. The
-selected provider's `constraints` builds a constraint
+selected provider's `analyze` serves `SolverManager::analyze_snapshot` unless
+`score_director.constraint_match_enabled` is `false`, which disables snapshot
+analysis for the job. The selected provider's `constraints` builds a constraint
 set for a given solution; the runtime calls it
 for the working solution and for every evaluator replica, so
 `move_thread_count` evaluates dynamic models in parallel. Bindings rebuild

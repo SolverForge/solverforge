@@ -699,12 +699,15 @@ the path as written in the attribute:
 ```toml
 [score_director]
 constraint_provider = "relaxed_constraints"
+constraint_match_enabled = true
 ```
 
 Without `[score_director]` the solve scores with `constraints`. A name that
 matches no declared provider fails the solve before it starts with
 `RuntimeBuildError::UnknownConstraintProvider`. `SolverManager::analyze_snapshot`
-analyzes a job's snapshots with the provider the job selected.
+analyzes a job's snapshots with the provider the job selected;
+`constraint_match_enabled = false` turns snapshot analysis off for the job,
+which then fails with `SolverManagerError::SnapshotAnalysisDisabled`.
 
 ## SolverManager API
 

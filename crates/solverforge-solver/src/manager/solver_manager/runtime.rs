@@ -132,15 +132,22 @@ impl<S: PlanningSolution> SolverRuntime<S> {
     }
 
     /// Sets how [`SolverManager::analyze_snapshot`](crate::SolverManager::analyze_snapshot)
-    /// analyzes this job's snapshots: with `analyze`, the analysis of the
-    /// constraint set the solve scores with. A solve that never calls this is
-    /// analyzed with [`Analyzable::analyze`](crate::Analyzable::analyze).
+    /// analyzes this job's snapshots: `Some(analyze)` runs `analyze`, the
+    /// analysis of the constraint set the solve scores with; `None` disables
+    /// snapshot analysis, so it fails with
+    /// [`SolverManagerError::SnapshotAnalysisDisabled`](crate::SolverManagerError::SnapshotAnalysisDisabled).
+    /// A solve that never calls this is analyzed with
+    /// [`Analyzable::analyze`](crate::Analyzable::analyze).
     ///
     /// `#[planning_solution]` solves bind it from
-    /// `score_director.constraint_provider` before solving starts.
-    pub fn bind_snapshot_analysis(&self, analyze: fn(&S) -> ScoreAnalysis<S::Score>) {
+    /// `score_director.constraint_provider` and
+    /// `score_director.constraint_match_enabled` before solving starts.
+    pub fn bind_snapshot_analysis(&self, analysis: Option<fn(&S) -> ScoreAnalysis<S::Score>>) {
         self.slot.with_publication(|_, record| {
-            record.snapshot_analysis = SnapshotAnalysisBinding::Bound(analyze);
+            record.snapshot_analysis = match analysis {
+                Some(analyze) => SnapshotAnalysisBinding::Bound(analyze),
+                None => SnapshotAnalysisBinding::Disabled,
+            };
         });
     }
 

@@ -377,7 +377,7 @@ struct SolverProgressRef: pub struct SolverProgressRef<'a, S: PlanningSolution> 
 struct SolverRuntime: pub struct SolverRuntime<S: PlanningSolution> { /* private fields */ }
     SolverRuntime: pub fn pause_with_snapshot( &self, solution: S, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, ) -> bool
     SolverRuntime: pub fn detached() -> Self
-    SolverRuntime: pub fn bind_snapshot_analysis(&self, analyze: fn(&S) -> ScoreAnalysis<S::Score>)
+    SolverRuntime: pub fn bind_snapshot_analysis( &self, analysis: Option<fn(&S) -> ScoreAnalysis<S::Score>>, )
     SolverRuntime: pub fn job_id(&self) -> usize
     SolverRuntime: pub fn is_cancel_requested(&self) -> bool
     SolverRuntime: pub fn emit_progress( &self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, )
@@ -558,7 +558,7 @@ enum SolverEvent: pub enum SolverEvent<S: PlanningSolution> { Progress { metadat
 enum SolverEventTryRecvError: pub enum SolverEventTryRecvError { Empty, Disconnected, }
 enum SolverLifecycleState: pub enum SolverLifecycleState { Solving, PauseRequested, Paused, Completed, Cancelled, Failed, }
     SolverLifecycleState: pub fn is_terminal(self) -> bool
-enum SolverManagerError: pub enum SolverManagerError { NoFreeJobSlots, JobNotFound { job_id: usize, }, InvalidStateTransition { job_id: usize, action: &'static str, state: SolverLifecycleState, }, NoSnapshotAvailable { job_id: usize, }, SnapshotNotFound { job_id: usize, snapshot_revision: u64, }, }
+enum SolverManagerError: pub enum SolverManagerError { NoFreeJobSlots, JobNotFound { job_id: usize, }, InvalidStateTransition { job_id: usize, action: &'static str, state: SolverLifecycleState, }, NoSnapshotAvailable { job_id: usize, }, SnapshotNotFound { job_id: usize, snapshot_revision: u64, }, SnapshotAnalysisDisabled { job_id: usize, }, }
 enum SolverProgressKind: pub enum SolverProgressKind { Progress, BestSolution, }
 enum SolverTerminalReason: pub enum SolverTerminalReason { Completed, TerminatedByConfig, Cancelled, Failed, }
 enum ThreadCount: pub enum ThreadCount { Auto, Unlimited, Specific(usize), }

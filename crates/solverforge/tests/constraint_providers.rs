@@ -1,8 +1,10 @@
 //! `[score_director]`: `constraint_provider` selects the constraint set a
-//! solve scores with.
+//! solve scores with, and `constraint_match_enabled` gates snapshot analysis.
 
 use solverforge::prelude::*;
-use solverforge::{RuntimeBuildError, SolverConfig, SolverEvent, SolverManager};
+use solverforge::{
+    RuntimeBuildError, SolverConfig, SolverEvent, SolverManager, SolverManagerError,
+};
 
 #[path = "constraint_providers/domain/mod.rs"]
 mod domain;
@@ -16,6 +18,7 @@ fn config(score_director: &str) -> SolverConfig {
 
 const RELAXED: &str = "[score_director]\nconstraint_provider = \"relaxed_constraints\"\n";
 const DEFAULT_BY_NAME: &str = "[score_director]\nconstraint_provider = \"define_constraints\"\n";
+const DISABLED: &str = "[score_director]\nconstraint_match_enabled = false\n";
 
 #[test]
 fn the_selected_provider_scores_the_solve() {
@@ -94,4 +97,26 @@ fn snapshot_analysis_uses_the_selected_provider() {
     );
     let analysis = MANAGER.analyze_snapshot(relaxed_job, None).unwrap();
     assert_eq!(analysis.analysis.score, HardSoftScore::of(0, 0));
+}
+
+#[test]
+fn disabled_constraint_matching_rejects_snapshot_analysis() {
+    static MANAGER: SolverManager<Plan> = SolverManager::new();
+
+    let job_id = solve_to_completion(&MANAGER, Plan::new(DISABLED));
+    assert!(MANAGER.get_snapshot(job_id, None).is_ok());
+    assert_eq!(
+        MANAGER.analyze_snapshot(job_id, None).unwrap_err(),
+        SolverManagerError::SnapshotAnalysisDisabled { job_id }
+    );
+
+    // The slot's next job binds its own analysis.
+    MANAGER
+        .delete(job_id)
+        .expect("a completed job can be deleted");
+    let next = solve_to_completion(&MANAGER, Plan::new(""));
+    assert_eq!(
+        analyzed_constraint_names(&MANAGER, next),
+        ["unassigned task", "placement cost"]
+    );
 }

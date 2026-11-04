@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-/// Score director configuration: which constraint set a solve scores with.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+/// Score director configuration: which constraint set a solve scores with and
+/// whether its snapshots can be analyzed.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DirectorConfig {
     /// Name of the constraint provider the solve scores with: the Rust path
@@ -12,8 +13,23 @@ pub struct DirectorConfig {
     /// starts.
     pub constraint_provider: Option<String>,
 
-    /// Whether to enable constraint matching assertions. Default: `false`.
-    /// Not read by the current solver runtime.
-    #[serde(default)]
+    /// Whether the solve's snapshots can be analyzed with
+    /// `SolverManager::analyze_snapshot`. Default: `true`. When `false`,
+    /// snapshot analysis of the job fails with
+    /// `SolverManagerError::SnapshotAnalysisDisabled`.
+    #[serde(default = "constraint_match_enabled_default")]
     pub constraint_match_enabled: bool,
+}
+
+const fn constraint_match_enabled_default() -> bool {
+    true
+}
+
+impl Default for DirectorConfig {
+    fn default() -> Self {
+        Self {
+            constraint_provider: None,
+            constraint_match_enabled: constraint_match_enabled_default(),
+        }
+    }
 }

@@ -32,6 +32,8 @@ pub(super) enum SnapshotAnalysisBinding<S: PlanningSolution> {
     Analyzable,
     /// The analysis of the constraint provider the solve selected.
     Bound(fn(&S) -> ScoreAnalysis<S::Score>),
+    /// The solve ran with `score_director.constraint_match_enabled = false`.
+    Disabled,
 }
 
 impl<S: PlanningSolution> Clone for SnapshotAnalysisBinding<S> {

@@ -4,7 +4,7 @@ use crate::builder::local_search_policy::ConfigValueError;
 use solverforge_config::{
     AcceptorConfig, DiversifiedLateAcceptanceConfig, HardRegressionPolicyConfig,
     LateAcceptanceConfig, SimulatedAnnealingCalibrationConfig, SimulatedAnnealingConfig,
-    TabuSearchConfig,
+    StepCountingHillClimbingConfig, TabuSearchConfig,
 };
 use solverforge_core::score::{HardSoftScore, SoftScore};
 use std::any::Any;
@@ -296,4 +296,19 @@ fn test_acceptor_builder_late_acceptance_rejects_zero_size() {
             "`late_acceptance_size` must be greater than 0"
         );
     }
+}
+
+#[test]
+fn step_counting_hill_climbing_rejects_a_zero_step_count_limit() {
+    let config = AcceptorConfig::StepCountingHillClimbing(StepCountingHillClimbingConfig {
+        step_count_limit: Some(0),
+    });
+    let error = build_acceptor::<TestSolution>(&config).expect_err("zero is rejected");
+    assert_eq!(error.field(), "step_count_limit");
+    assert_eq!(error.message(), "must be greater than 0");
+
+    let config = AcceptorConfig::StepCountingHillClimbing(StepCountingHillClimbingConfig {
+        step_count_limit: Some(1),
+    });
+    assert!(build_acceptor::<TestSolution>(&config).is_ok());
 }

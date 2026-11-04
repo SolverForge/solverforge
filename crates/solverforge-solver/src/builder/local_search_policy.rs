@@ -128,7 +128,16 @@ impl CompiledForager {
 
 fn validate_acceptor(config: &AcceptorConfig, level_count: usize) -> Result<(), ConfigValueError> {
     match config {
-        AcceptorConfig::HillClimbing {} | AcceptorConfig::StepCountingHillClimbing(_) => Ok(()),
+        AcceptorConfig::HillClimbing {} => Ok(()),
+        AcceptorConfig::StepCountingHillClimbing(counting) => {
+            if counting.step_count_limit == Some(0) {
+                return Err(ConfigValueError::new(
+                    "step_count_limit",
+                    "must be greater than 0",
+                ));
+            }
+            Ok(())
+        }
         AcceptorConfig::TabuSearch(tabu) => validate_tabu_search(tabu),
         AcceptorConfig::SimulatedAnnealing(annealing) => {
             validate_simulated_annealing(annealing, level_count)

@@ -31,7 +31,7 @@ pub enum AcceptorConfig {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepCountingHillClimbingConfig {
     /// Steps a non-improving move is accepted for after the last improvement.
-    /// Omitted: `100`.
+    /// Omitted: `100`. Explicit `0` is invalid.
     pub step_count_limit: Option<u64>,
 }
 

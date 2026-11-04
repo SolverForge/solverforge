@@ -18,7 +18,9 @@ pub struct SolverConfig {
     pub environment_mode: EnvironmentMode,
 
     /// Seed for the solver's random choices. Omitted: every run seeds itself
-    /// from the operating system, so runs differ.
+    /// from the operating system under `non_reproducible`, and uses
+    /// [`REPRODUCIBLE_RANDOM_SEED`] under every other environment mode. Read
+    /// it through [`SolverConfig::resolved_random_seed`].
     #[serde(default)]
     pub random_seed: Option<u64>,
 
@@ -71,6 +73,17 @@ impl SolverConfig {
         self.score_director
             .as_ref()
             .is_none_or(|director| director.constraint_match_enabled)
+    }
+
+    /// The seed the solve uses: `random_seed`, or [`REPRODUCIBLE_RANDOM_SEED`]
+    /// when it is omitted under any mode but `non_reproducible`. `None` means
+    /// a seed from the operating system.
+    pub fn resolved_random_seed(&self) -> Option<u64> {
+        match (self.random_seed, self.environment_mode) {
+            (Some(seed), _) => Some(seed),
+            (None, EnvironmentMode::NonReproducible) => None,
+            (None, _) => Some(REPRODUCIBLE_RANDOM_SEED),
+        }
     }
 
     /// Loads configuration from a TOML file.
@@ -191,21 +204,29 @@ impl CandidateTraceConfig {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentMode {
-    /// No extra runtime checks. Default.
+    /// No runtime checks. Without `random_seed`, every run seeds itself from
+    /// the operating system, so runs differ. Default.
     #[default]
     NonReproducible,
 
-    /// Currently runs exactly like `non_reproducible`; repeatable runs come
-    /// from setting `random_seed`.
+    /// No runtime checks. Without `random_seed`, the solve uses
+    /// [`REPRODUCIBLE_RANDOM_SEED`], so runs with the same input,
+    /// configuration and step or move-count limits produce the same result.
+    /// Time limits still end runs at different points.
     Reproducible,
 
-    /// Currently runs exactly like `non_reproducible`.
+    /// Seeds like `reproducible`; no runtime checks yet.
     FastAssert,
 
-    /// On score calculation and best-solution updates, asserts that the
-    /// incremental score equals a fresh full calculation, panicking on drift.
+    /// Seeds like `reproducible`. On score calculation and best-solution
+    /// updates, asserts that the incremental score equals a fresh full
+    /// calculation, panicking on drift.
     FullAssert,
 }
+
+/// The seed a solve without `random_seed` uses in every mode except
+/// `non_reproducible`.
+pub const REPRODUCIBLE_RANDOM_SEED: u64 = 0;
 
 /// Move thread count configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]

@@ -287,7 +287,10 @@ impl Solvable for ZeroVariableLifecycleSolution {
                     DefaultCrossEntityDistanceMeter,
                     DefaultCrossEntityDistanceMeter,
                 >::new(Vec::new());
-                Ok(SearchContext::new(descriptor, model, config.random_seed)?.defaults())
+                Ok(
+                    SearchContext::new(descriptor, model, config.resolved_random_seed())?
+                        .defaults(),
+                )
             },
         );
         assert!(

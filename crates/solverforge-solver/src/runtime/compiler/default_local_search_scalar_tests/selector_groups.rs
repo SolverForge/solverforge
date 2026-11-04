@@ -16,8 +16,12 @@ fn omitted_selector_provenance_keeps_the_explicit_local_search_policy() {
         phases: vec![PhaseConfig::LocalSearch(local_search)],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), dynamic_scalar_model(), config.random_seed)
-        .expect("search context should bind");
+    let context = SearchContext::new(
+        descriptor(),
+        dynamic_scalar_model(),
+        config.resolved_random_seed(),
+    )
+    .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),

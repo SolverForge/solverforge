@@ -77,6 +77,7 @@ pub use phase::{
 };
 pub use solver_config::{
     CandidateTraceConfig, EnvironmentMode, MoveThreadCount, SolverConfig, SolverConfigOverride,
+    REPRODUCIBLE_RANDOM_SEED,
 };
 pub use termination::TerminationConfig;
 

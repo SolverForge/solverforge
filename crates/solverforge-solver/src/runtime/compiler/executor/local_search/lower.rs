@@ -180,7 +180,7 @@ where
                         scalar_neighborhood_kind(kind),
                         &config,
                         slot,
-                        solver_config.random_seed,
+                        solver_config.resolved_random_seed(),
                     )
                     .map(RuntimeNeighborhoodLeaf::Scalar)
                     .map_err(|error| {

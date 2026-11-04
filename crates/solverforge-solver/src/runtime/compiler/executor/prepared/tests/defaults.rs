@@ -197,7 +197,7 @@ fn eager_extension_preparation_precedes_lazy_source_binding() {
         ],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model(), config.random_seed)
+    let context = SearchContext::new(descriptor(), model(), config.resolved_random_seed())
         .expect("search context should bind");
     let input = RuntimeGraphInput::new(
         context,

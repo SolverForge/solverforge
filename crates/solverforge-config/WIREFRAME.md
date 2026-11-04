@@ -59,7 +59,7 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | Field | Type | Default | Note |
 |-------|------|---------|------|
 | `environment_mode` | `EnvironmentMode` | `NonReproducible` | `#[serde(default)]` |
-| `random_seed` | `Option<u64>` | `None` | |
+| `random_seed` | `Option<u64>` | `None` | Read through `resolved_random_seed()` |
 | `move_thread_count` | `MoveThreadCount` | `Auto` | `#[serde(default)]` |
 | `termination` | `Option<TerminationConfig>` | `None` | |
 | `score_director` | `Option<DirectorConfig>` | `None` | Omitted: the `constraints` provider, snapshot analysis enabled |
@@ -73,6 +73,7 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | `new` | `fn() -> Self` | Alias for `Default::default()` |
 | `constraint_provider` | `fn(&self) -> Option<&str>` | `score_director.constraint_provider`; `None` selects `constraints` |
 | `constraint_match_enabled` | `fn(&self) -> bool` | `score_director.constraint_match_enabled`; `true` when omitted |
+| `resolved_random_seed` | `fn(&self) -> Option<u64>` | `random_seed`, or `REPRODUCIBLE_RANDOM_SEED` when omitted outside `NonReproducible`; `None` seeds from the operating system. Every seed consumer reads this |
 | `load` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Delegates to `from_toml_file` |
 | `from_toml_file` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Reads file, parses TOML |
 | `from_toml_str` | `fn(s: &str) -> Result<Self, ConfigError>` | Parses TOML string |
@@ -722,10 +723,15 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`. T
 
 | Variant | Note |
 |---------|------|
-| `NonReproducible` | **Default.** Minimal overhead |
-| `Reproducible` | Deterministic behavior |
-| `FastAssert` | Basic assertions |
-| `FullAssert` | Comprehensive assertions |
+| `NonReproducible` | **Default.** No checks; without `random_seed` each run seeds itself from the operating system |
+| `Reproducible` | No checks; without `random_seed` the solve uses `REPRODUCIBLE_RANDOM_SEED`, so step- or move-bounded runs repeat exactly |
+| `FastAssert` | Seeds as `Reproducible`; no checks |
+| `FullAssert` | Seeds as `Reproducible`; score calculations and best-solution updates are checked against a fresh score (panics on drift) |
+
+### `REPRODUCIBLE_RANDOM_SEED`
+
+`pub const REPRODUCIBLE_RANDOM_SEED: u64 = 0` — the seed of a solve without
+`random_seed` in every mode except `NonReproducible`.
 
 ### `MoveThreadCount`
 

@@ -33,11 +33,11 @@ where
     validate_best_score_limits::<S::Score>(config)?;
     validate_selector_values(config)?;
     let (context, extensions) = input.into_parts();
-    if context.seed() != config.random_seed {
+    if context.seed() != config.resolved_random_seed() {
         return Err(RuntimeCompileError {
             path: "runtime_extension_context.random_seed".to_string(),
             kind: RuntimeCompileErrorKind::ContextSeedMismatch {
-                config_seed: config.random_seed,
+                config_seed: config.resolved_random_seed(),
                 context_seed: context.seed(),
             },
         });
@@ -55,7 +55,7 @@ where
         context.descriptor(),
         context.model(),
         needs_omitted_local_search,
-        config.random_seed,
+        config.resolved_random_seed(),
     )?;
     let phases = if config.phases.is_empty() {
         // Defaults are explicitly retained as a graph node. They are

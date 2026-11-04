@@ -225,7 +225,7 @@ fn compile(
         })],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model(shape), config.random_seed)
+    let context = SearchContext::new(descriptor(), model(shape), config.resolved_random_seed())
         .expect("search context should bind");
     compile_runtime_graph(
         &config,
@@ -249,7 +249,7 @@ fn compile_construction(
         )],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model, config.random_seed)
+    let context = SearchContext::new(descriptor(), model, config.resolved_random_seed())
         .expect("search context should bind");
     compile_runtime_graph(
         &config,

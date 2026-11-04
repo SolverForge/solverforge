@@ -306,7 +306,7 @@ fn default_plan(model: Model) -> DefaultLocalSearchPlan {
 }
 
 fn default_plan_with_config(model: Model, config: SolverConfig) -> DefaultLocalSearchPlan {
-    let context = SearchContext::new(descriptor(), model, config.random_seed)
+    let context = SearchContext::new(descriptor(), model, config.resolved_random_seed())
         .expect("search context should bind");
     compile_runtime_graph(
         &config,
@@ -429,8 +429,12 @@ fn omitted_explicit_acceptor_forager_phase_refs_the_compiled_default_declaration
         })],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), dynamic_scalar_model(), config.random_seed)
-        .expect("search context should bind");
+    let context = SearchContext::new(
+        descriptor(),
+        dynamic_scalar_model(),
+        config.resolved_random_seed(),
+    )
+    .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),

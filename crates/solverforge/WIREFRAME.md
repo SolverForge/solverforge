@@ -138,6 +138,7 @@ The root keeps these; `solverforge::config` has every configuration type:
 - `RecreateHeuristicType`
 - `SolverConfig`
 - `SolverConfigOverride`
+- `REPRODUCIBLE_RANDOM_SEED`
 - `UnionSelectionOrder`
 
 ### Custom Phase Scope (from `solverforge-solver::scope`)

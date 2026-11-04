@@ -107,7 +107,7 @@ fn typed_extensions_lower_names_without_invoking_builders_and_freeze_config() {
         phases: vec![custom("repair"), partitioned(Some("by_task"))],
         ..SolverConfig::default()
     };
-    let declaration = context(config.random_seed)
+    let declaration = context(config.resolved_random_seed())
         .defaults()
         .phase("repair", |_| {
             EXTENSION_BUILD_CALLS.fetch_add(1, Ordering::SeqCst);
@@ -160,7 +160,7 @@ fn typed_extensions_instantiate_fresh_once_per_solve_after_graph_compilation() {
         phases: vec![custom("repair")],
         ..SolverConfig::default()
     };
-    let declaration = extension_context(config.random_seed)
+    let declaration = extension_context(config.resolved_random_seed())
         .defaults()
         .phase("repair", |_| {
             EXTENSION_BUILD_CALLS.fetch_add(1, Ordering::SeqCst);

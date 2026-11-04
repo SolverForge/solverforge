@@ -87,7 +87,7 @@ where
                             acceptor: None,
                             forager: None,
                             score_tie_break: solverforge_config::ScoreTieBreak::Random,
-                            random_seed: solver_config.random_seed,
+                            random_seed: solver_config.resolved_random_seed(),
                             evaluator_count: resolve_evaluator_count(
                                 &solver_config.move_thread_count,
                             ),
@@ -176,7 +176,7 @@ where
                     acceptor,
                     forager,
                     score_tie_break: config.score_tie_break,
-                    random_seed: solver_config.random_seed,
+                    random_seed: solver_config.resolved_random_seed(),
                     evaluator_count: resolve_evaluator_count(&solver_config.move_thread_count),
                 },
                 declaration,

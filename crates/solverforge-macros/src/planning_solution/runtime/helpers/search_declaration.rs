@@ -102,7 +102,7 @@ fn generate_list_search_declaration_fn(input: ListSearchDeclarationInput<'_>) ->
                 let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
-                    config.random_seed,
+                    config.resolved_random_seed(),
                 )?;
                 ::core::result::Result::Ok(#search_fn(context))
             }
@@ -188,7 +188,7 @@ fn generate_list_search_declaration_fn(input: ListSearchDeclarationInput<'_>) ->
                 let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
-                    config.random_seed,
+                    config.resolved_random_seed(),
                 )?;
                 ::core::result::Result::Ok(context.defaults())
             }
@@ -244,7 +244,7 @@ fn generate_scalar_search_declaration_fn(
                 let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
-                    config.random_seed,
+                    config.resolved_random_seed(),
                 )?;
                 ::core::result::Result::Ok(#search_fn(context))
             }
@@ -290,7 +290,7 @@ fn generate_scalar_search_declaration_fn(
                 let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
-                    config.random_seed,
+                    config.resolved_random_seed(),
                 )?;
                 ::core::result::Result::Ok(context.defaults())
             }

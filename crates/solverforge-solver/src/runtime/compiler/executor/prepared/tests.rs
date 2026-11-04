@@ -204,7 +204,7 @@ fn plan(elements: Vec<usize>, routes: Vec<Vec<usize>>) -> Plan {
 fn executor(
     config: &SolverConfig,
 ) -> CompiledRuntimeExecutor<Plan, usize, Meter, Meter, NoDynamicExtensions> {
-    let context = SearchContext::new(descriptor(), model(), config.random_seed)
+    let context = SearchContext::new(descriptor(), model(), config.resolved_random_seed())
         .expect("search context should bind");
     let graph = compile_runtime_graph(config, RuntimeGraphInput::new(context, NoDynamicExtensions))
         .expect("test graph compiles");

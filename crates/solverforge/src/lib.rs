@@ -105,7 +105,7 @@ pub use solverforge_config::{
     AcceptorConfig, CandidateTraceConfig, ConstructionHeuristicType, ConstructionObligation,
     EnvironmentMode, ForagerConfig, HardRegressionPolicyConfig, MoveSelectorConfig,
     MoveThreadCount, PhaseConfig, RecreateHeuristicType, SolverConfig, SolverConfigOverride,
-    UnionSelectionOrder,
+    UnionSelectionOrder, REPRODUCIBLE_RANDOM_SEED,
 };
 pub use solverforge_core::domain::{EntityClassId, ProblemFactClassId, VariableId};
 pub use solverforge_core::score::{

@@ -94,7 +94,7 @@ pub(crate) struct CompiledListNeighborhoodLeafAdapter {
 impl CompiledListNeighborhoodLeafAdapter {
     pub(crate) fn from_solver_config(config: &SolverConfig) -> Self {
         Self {
-            random_seed: config.random_seed,
+            random_seed: config.resolved_random_seed(),
         }
     }
 

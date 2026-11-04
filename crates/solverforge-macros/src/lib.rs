@@ -83,6 +83,7 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         value_range_provider,
         shadow_variable_updates,
         solverforge_constraints_path,
+        solverforge_constraint_provider_path,
         solverforge_config_path,
         solverforge_solver_toml_path,
         solverforge_search_path,

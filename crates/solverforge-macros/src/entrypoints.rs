@@ -32,6 +32,10 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         let p = hidden_path_literal(&p);
         parse_quote! { #[solverforge_constraints_path = #p] }
     }));
+    leading.extend(flags.constraint_provider_paths.iter().map(|p| {
+        let p = hidden_path_literal(p);
+        parse_quote! { #[solverforge_constraint_provider_path = #p] }
+    }));
     leading.extend(flags.config_path.map(|p| {
         let p = hidden_path_literal(&p);
         parse_quote! { #[solverforge_config_path = #p] }

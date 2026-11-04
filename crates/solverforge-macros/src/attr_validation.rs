@@ -60,6 +60,7 @@ const SERDE_FLAG_ARGS: &[AttributeArgSpec] = &[AttributeArgSpec::flag("serde")];
 const SOLUTION_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::flag("serde"),
     AttributeArgSpec::string("constraints"),
+    AttributeArgSpec::repeated_string("constraint_provider"),
     AttributeArgSpec::string("config"),
     AttributeArgSpec::string("solver_toml"),
     AttributeArgSpec::string("search"),
@@ -126,12 +127,13 @@ pub(crate) fn parse_serde_flag(attr: TokenStream, macro_name: &str) -> Result<bo
 }
 
 // Parses planning_solution attribute flags: serde, constraints = "path",
-// config = "path", solver_toml = "path", search = "path",
+// constraint_provider = "path" (repeatable), config = "path", solver_toml = "path", search = "path",
 // conflict_repairs = "path", scalar_groups = "path".
 #[derive(Debug, Default)]
 pub(crate) struct SolutionFlags {
     pub(crate) has_serde: bool,
     pub(crate) constraints_path: Option<syn::Path>,
+    pub(crate) constraint_provider_paths: Vec<syn::Path>,
     pub(crate) config_path: Option<syn::Path>,
     pub(crate) solver_toml_path: Option<String>,
     pub(crate) search_path: Option<syn::Path>,
@@ -148,6 +150,7 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
 
     let nested = parse_meta_args(attr)?;
     validate_meta_args("planning_solution", nested.iter(), SOLUTION_ARGS)?;
+    let mut provider_values: Vec<(String, syn::Expr)> = Vec::new();
     for meta in nested {
         match meta {
             Meta::Path(path) if path_matches_ident(&path, "serde") => {
@@ -155,6 +158,12 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "constraints") => {
                 flags.constraints_path = rust_path_argument("constraints", &nv)?;
+            }
+            Meta::NameValue(nv) if path_matches_ident(&nv.path, "constraint_provider") => {
+                if let Some(path) = rust_path_argument("constraint_provider", &nv)? {
+                    provider_values.push((constraint_provider_name(&path), nv.value.clone()));
+                    flags.constraint_provider_paths.push(path);
+                }
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "config") => {
                 flags.config_path = rust_path_argument("config", &nv)?;
@@ -175,7 +184,45 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
         }
     }
 
+    validate_constraint_providers(&flags, &provider_values)?;
     Ok(flags)
+}
+
+/// `constraint_provider` needs `constraints`, the default provider, and every
+/// provider name is declared once.
+fn validate_constraint_providers(
+    flags: &SolutionFlags,
+    provider_values: &[(String, syn::Expr)],
+) -> Result<(), Error> {
+    let Some(constraints_path) = &flags.constraints_path else {
+        return match provider_values.first() {
+            Some((_, value)) => Err(Error::new_spanned(
+                value,
+                "`constraint_provider` requires `constraints`, the default constraint provider",
+            )),
+            None => Ok(()),
+        };
+    };
+    let mut declared = vec![constraint_provider_name(constraints_path)];
+    for (name, value) in provider_values {
+        if declared.contains(name) {
+            return Err(Error::new_spanned(
+                value,
+                format!("constraint provider `{name}` is declared more than once"),
+            ));
+        }
+        declared.push(name.clone());
+    }
+    Ok(())
+}
+
+/// The name `score_director.constraint_provider` selects a provider by: its
+/// path as written, without whitespace.
+pub(crate) fn constraint_provider_name(path: &syn::Path) -> String {
+    quote::ToTokens::to_token_stream(path)
+        .to_string()
+        .split_whitespace()
+        .collect()
 }
 
 /// Parses a Rust-path argument once, when the attribute is read, so a bad

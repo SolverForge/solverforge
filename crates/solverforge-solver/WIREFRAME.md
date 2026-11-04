@@ -645,6 +645,7 @@ Retained-job runtime context passed into `Solvable::solve()`. This is the public
 | Method | Signature |
 |--------|-----------|
 | `detached` | `fn detached() -> Self` |
+| `bind_snapshot_analysis` | `fn(&self, analyze: fn(&S) -> ScoreAnalysis<S::Score>)` |
 | `job_id` | `fn(&self) -> usize` |
 | `is_cancel_requested` | `fn(&self) -> bool` |
 | `emit_progress` | `fn(&self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry)` |
@@ -653,6 +654,12 @@ Retained-job runtime context passed into `Solvable::solve()`. This is the public
 | `emit_completed` | `fn(&self, solution: S, current_score: Option<S::Score>, best_score: S::Score, telemetry: SolverTelemetry, terminal_reason: SolverTerminalReason)` |
 | `emit_cancelled` | `fn(&self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry)` |
 | `emit_failed` | `fn(&self, error: String)` |
+
+`bind_snapshot_analysis` sets how `SolverManager::analyze_snapshot` analyzes
+the job's snapshots: with the analysis of the constraint set the solve scores
+with. A solve that never binds is analyzed with `Analyzable::analyze`.
+Generated and bridge solves bind it from `score_director` before solving
+starts.
 
 `SolverRuntime::detached()` is for synchronous configured solves that are not
 retained by a `SolverManager`; it owns an internal lifecycle slot and no event
@@ -757,7 +764,8 @@ Static lifetime retained-job manager: `solve()` returns
 while installing an externally validated trace attestation. Other methods are
 `get_status()`, `get_telemetry_detail()`, `pause()`, `resume()`, `cancel()`,
 `delete()`, `get_snapshot()`, `analyze_snapshot()`, `add_problem_change()`, and
-`active_job_count()`.
+`active_job_count()`. `analyze_snapshot()` uses the analysis the job's solve
+bound through `SolverRuntime::bind_snapshot_analysis`.
 The retained lifecycle contract is expressed in neutral `job`, `snapshot`, and
 `checkpoint` terminology. `pause()` settles at a runtime-owned safe boundary
 and `resume()` continues from the exact in-process checkpoint. `delete()` hides
@@ -1063,6 +1071,8 @@ public graph or alternate phase-builder fallback.
 that does not parse; displayed as `solver configuration invalid: ...`),
 `Declaration { message }`,
 `Compilation { path, message }`, `ConstraintWeights { message }`,
+`UnknownConstraintProvider { requested, declared }` (a
+`score_director.constraint_provider` that names no declared provider),
 `Preparation { phase_index, message }`, or
 `Execution { phase_index, message }`; `RuntimeBuildResult<T>` is its result
 alias. This is the public error surface propagated by generated and host

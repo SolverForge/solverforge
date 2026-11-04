@@ -14,7 +14,7 @@ use super::receiver::SolverEventReceiver;
 use super::runtime::{panic_payload_to_string, SolverRuntime};
 #[cfg(test)]
 use super::slot::SLOT_FREE;
-use super::slot::{JobSlot, SLOT_SOLVING};
+use super::slot::{JobRecord, JobSlot, SnapshotAnalysisBinding, SLOT_SOLVING};
 use super::types::{
     SolverEvent, SolverLifecycleState, SolverManagerError, SolverSnapshot, SolverSnapshotAnalysis,
     SolverStatus, SolverTelemetryDetail,
@@ -354,32 +354,15 @@ where
             if slot.public_state().is_none() {
                 return Err(SolverManagerError::JobNotFound { job_id });
             }
-
-            if record.snapshots.is_empty() {
-                return Err(SolverManagerError::NoSnapshotAvailable { job_id });
-            }
-
-            match snapshot_revision {
-                Some(revision) => record
-                    .snapshots
-                    .iter()
-                    .find(|snapshot| snapshot.snapshot_revision == revision)
-                    .cloned()
-                    .ok_or(SolverManagerError::SnapshotNotFound {
-                        job_id,
-                        snapshot_revision: revision,
-                    }),
-                None => Ok(record
-                    .snapshots
-                    .last()
-                    .expect("checked non-empty snapshots")
-                    .clone()),
-            }
+            retained_snapshot(record, job_id, snapshot_revision)
         })
     }
 
-    /// Runs [`Analyzable::analyze`] on a retained snapshot (the latest when
-    /// `snapshot_revision` is `None`).
+    /// Analyzes a retained snapshot (the latest when `snapshot_revision` is
+    /// `None`) with the constraint provider the job's solve selected through
+    /// `score_director.constraint_provider`. A job whose solve bound no
+    /// analysis (see [`SolverRuntime::bind_snapshot_analysis`]) is analyzed
+    /// with [`Analyzable::analyze`].
     ///
     /// # Errors
     ///
@@ -392,13 +375,27 @@ where
     where
         S: Analyzable,
     {
-        let snapshot = self.get_snapshot(job_id, snapshot_revision)?;
+        let slot = self.slot(job_id)?;
+        let (bound, snapshot) = slot.with_publication(|_, record| {
+            if slot.public_state().is_none() {
+                return Err(SolverManagerError::JobNotFound { job_id });
+            }
+            let bound = match record.snapshot_analysis {
+                SnapshotAnalysisBinding::Analyzable => None,
+                SnapshotAnalysisBinding::Bound(analyze) => Some(analyze),
+            };
+            Ok((bound, retained_snapshot(record, job_id, snapshot_revision)?))
+        })?;
+        let analysis = match bound {
+            Some(analyze) => analyze(&snapshot.solution),
+            None => snapshot.solution.analyze(),
+        };
         Ok(SolverSnapshotAnalysis {
             job_id,
             lifecycle_state: snapshot.lifecycle_state,
             terminal_reason: snapshot.terminal_reason,
             snapshot_revision: snapshot.snapshot_revision,
-            analysis: snapshot.solution.analyze(),
+            analysis,
         })
     }
 
@@ -422,5 +419,32 @@ where
         self.slots
             .get(job_id)
             .ok_or(SolverManagerError::JobNotFound { job_id })
+    }
+}
+
+/// The retained snapshot with `snapshot_revision`, or the latest when `None`.
+fn retained_snapshot<S: PlanningSolution>(
+    record: &JobRecord<S>,
+    job_id: usize,
+    snapshot_revision: Option<u64>,
+) -> Result<SolverSnapshot<S>, SolverManagerError> {
+    if record.snapshots.is_empty() {
+        return Err(SolverManagerError::NoSnapshotAvailable { job_id });
+    }
+    match snapshot_revision {
+        Some(revision) => record
+            .snapshots
+            .iter()
+            .find(|snapshot| snapshot.snapshot_revision == revision)
+            .cloned()
+            .ok_or(SolverManagerError::SnapshotNotFound {
+                job_id,
+                snapshot_revision: revision,
+            }),
+        None => Ok(record
+            .snapshots
+            .last()
+            .expect("checked non-empty snapshots")
+            .clone()),
     }
 }

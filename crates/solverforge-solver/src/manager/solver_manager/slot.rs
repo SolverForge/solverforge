@@ -9,6 +9,7 @@ use super::types::{
     SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverSnapshot, SolverStatus,
     SolverTerminalReason,
 };
+use crate::manager::solution_manager::ScoreAnalysis;
 use crate::stats::{CandidateTraceTelemetry, SolverTelemetry};
 
 pub(super) const SLOT_FREE: u8 = 0;
@@ -22,6 +23,24 @@ pub(super) const SLOT_FAILED: u8 = 6;
 const SLOT_VISIBLE: u8 = 0;
 const SLOT_DELETED: u8 = 1;
 const SLOT_DELETING: u8 = 2;
+
+/// How `SolverManager::analyze_snapshot` analyzes a job's snapshots. The
+/// solve binds it once its configuration is resolved; a solve that binds
+/// nothing leaves [`Self::Analyzable`].
+pub(super) enum SnapshotAnalysisBinding<S: PlanningSolution> {
+    /// The solution type's `Analyzable::analyze`.
+    Analyzable,
+    /// The analysis of the constraint provider the solve selected.
+    Bound(fn(&S) -> ScoreAnalysis<S::Score>),
+}
+
+impl<S: PlanningSolution> Clone for SnapshotAnalysisBinding<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S: PlanningSolution> Copy for SnapshotAnalysisBinding<S> {}
 
 pub(super) struct JobRecord<S: PlanningSolution> {
     pub(super) terminal_reason: Option<SolverTerminalReason>,
@@ -39,6 +58,7 @@ pub(super) struct JobRecord<S: PlanningSolution> {
     pub(super) snapshots: Vec<SolverSnapshot<S>>,
     pub(super) failure_message: Option<String>,
     pub(super) problem_changes: ProblemChangeQueue<S>,
+    pub(super) snapshot_analysis: SnapshotAnalysisBinding<S>,
 }
 
 impl<S: PlanningSolution> JobRecord<S> {
@@ -55,6 +75,7 @@ impl<S: PlanningSolution> JobRecord<S> {
             snapshots: Vec::new(),
             failure_message: None,
             problem_changes: ProblemChangeQueue::new(),
+            snapshot_analysis: SnapshotAnalysisBinding::Analyzable,
         }
     }
 
@@ -70,6 +91,7 @@ impl<S: PlanningSolution> JobRecord<S> {
         self.snapshots.clear();
         self.failure_message = None;
         self.problem_changes.reset();
+        self.snapshot_analysis = SnapshotAnalysisBinding::Analyzable;
     }
 
     pub(super) fn push_snapshot(&mut self, mut snapshot: SolverSnapshot<S>) -> u64 {

@@ -5,9 +5,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use solverforge_core::domain::PlanningSolution;
 
 use super::slot::{
-    JobSlot, CONTROL_PAUSE, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED, SLOT_SOLVING,
+    JobSlot, SnapshotAnalysisBinding, CONTROL_PAUSE, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED,
+    SLOT_SOLVING,
 };
 use super::types::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
+use crate::manager::solution_manager::ScoreAnalysis;
 use crate::stats::SolverTelemetry;
 
 mod pause;
@@ -127,6 +129,19 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             job_id: usize::MAX,
             slot,
         }
+    }
+
+    /// Sets how [`SolverManager::analyze_snapshot`](crate::SolverManager::analyze_snapshot)
+    /// analyzes this job's snapshots: with `analyze`, the analysis of the
+    /// constraint set the solve scores with. A solve that never calls this is
+    /// analyzed with [`Analyzable::analyze`](crate::Analyzable::analyze).
+    ///
+    /// `#[planning_solution]` solves bind it from
+    /// `score_director.constraint_provider` before solving starts.
+    pub fn bind_snapshot_analysis(&self, analyze: fn(&S) -> ScoreAnalysis<S::Score>) {
+        self.slot.with_publication(|_, record| {
+            record.snapshot_analysis = SnapshotAnalysisBinding::Bound(analyze);
+        });
     }
 
     /// The job's slot index; `usize::MAX` for a detached runtime.

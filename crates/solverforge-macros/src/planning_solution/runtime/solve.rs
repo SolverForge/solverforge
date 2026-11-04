@@ -1,12 +1,12 @@
 pub(super) fn generate_runtime_solve_internal(
-    constraints_path: &Option<syn::Path>,
+    providers: &[super::config::ConstraintProvider],
     config_path: &Option<syn::Path>,
     solver_toml_path: &Option<String>,
     has_constraint_weights: bool,
 ) -> TokenStream {
-    let Some(constraints_fn) = constraints_path.as_ref() else {
+    if providers.is_empty() {
         return TokenStream::new();
-    };
+    }
     /* The base configuration is the embedded `solver_toml` file or the
     defaults; nothing is read from the working directory. A file that does not
     parse fails the solve through the returned error. */
@@ -45,27 +45,59 @@ pub(super) fn generate_runtime_solve_internal(
     } else {
         quote! { ::solverforge::__internal::try_run_solver_with_config_and_search }
     };
-    let run = |runtime: TokenStream, provenance: TokenStream| {
+    /* `score_director.constraint_provider` selects the constraint set; each
+    provider is its own monomorphized solve, and binds its own analysis for
+    the job's snapshots. */
+    let declared: Vec<String> = providers.iter().map(|provider| provider.name.clone()).collect();
+    let dispatch = |provenance: TokenStream| {
+        let arms = providers.iter().enumerate().map(|(index, provider)| {
+            let constraints_fn = &provider.path;
+            let name = &provider.name;
+            let analyze_fn = constraint_provider_analyze_ident(index);
+            let pattern = if index == 0 {
+                quote! { ::core::option::Option::None | ::core::option::Option::Some(#name) }
+            } else {
+                quote! { ::core::option::Option::Some(#name) }
+            };
+            quote! {
+                #pattern => {
+                    runtime.bind_snapshot_analysis(Self::#analyze_fn);
+                    #run_solver(
+                        self,
+                        (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
+                        Self::descriptor(),
+                        Self::entity_count,
+                        runtime,
+                        config,
+                        Self::__solverforge_default_time_limit_secs(),
+                        Self::__solverforge_log_scale,
+                        #provenance,
+                        Self::__solverforge_search_declaration,
+                    )
+                }
+            }
+        });
         quote! {
-            #run_solver(
-                self,
-                (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
-                Self::descriptor(),
-                Self::entity_count,
-                #runtime,
-                config,
-                Self::__solverforge_default_time_limit_secs(),
-                Self::__solverforge_log_scale,
-                #provenance,
-                Self::__solverforge_search_declaration,
-            )
+            let requested_provider = config
+                .constraint_provider()
+                .map(::std::string::ToString::to_string);
+            match requested_provider.as_deref() {
+                #(#arms)*
+                ::core::option::Option::Some(requested) => {
+                    ::core::result::Result::Err(
+                        ::solverforge::RuntimeBuildError::UnknownConstraintProvider {
+                            requested: ::std::string::ToString::to_string(requested),
+                            declared: ::std::vec![
+                                #(::std::string::ToString::to_string(#declared)),*
+                            ],
+                        },
+                    )
+                }
+            }
         }
     };
-    let retained_run = run(quote! { runtime }, quote! { qualified_candidate_trace_provenance });
-    let detached_run = run(
-        quote! { ::solverforge::SolverRuntime::detached() },
-        quote! { ::core::option::Option::None },
-    );
+    let retained_run = dispatch(quote! { qualified_candidate_trace_provenance });
+    let detached_run = dispatch(quote! { ::core::option::Option::None });
     quote! {
         fn solve_internal(
             self,
@@ -90,6 +122,7 @@ pub(super) fn generate_runtime_solve_internal(
             config: ::solverforge::SolverConfig,
         ) -> ::solverforge::RuntimeBuildResult<Self> {
             ::solverforge::__internal::init_console();
+            let runtime = ::solverforge::SolverRuntime::detached();
             #detached_run
         }
     }

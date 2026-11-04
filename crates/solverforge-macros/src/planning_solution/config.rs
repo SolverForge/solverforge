@@ -1,6 +1,7 @@
 use syn::{Error, Lit, LitStr, Meta, Result};
 
 use crate::attr_parse::{get_attribute, parse_attribute_list, parse_attribute_string};
+use crate::attr_validation::constraint_provider_name;
 
 #[derive(Default)]
 pub(super) struct ShadowConfig {
@@ -47,6 +48,55 @@ fn hidden_rust_path_attr(attrs: &[syn::Attribute], attr_name: &str) -> Result<Op
 
 pub(super) fn parse_constraints_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {
     hidden_rust_path_attr(attrs, "solverforge_constraints_path")
+}
+
+/// One constraint set a solve can score with: the Rust path of its function
+/// and the name `score_director.constraint_provider` selects it by.
+pub(super) struct ConstraintProvider {
+    pub(super) name: String,
+    pub(super) path: syn::Path,
+}
+
+/// The solution's constraint providers, the `constraints` function first,
+/// then every `constraint_provider` in attribute order; empty without a
+/// `constraints` function. `#[planning_solution]` has already checked that
+/// `constraint_provider` comes with `constraints` and that names are unique.
+pub(super) fn parse_constraint_providers(
+    attrs: &[syn::Attribute],
+    constraints_path: &Option<syn::Path>,
+) -> Result<Vec<ConstraintProvider>> {
+    let Some(constraints_path) = constraints_path else {
+        return Ok(Vec::new());
+    };
+    let mut providers = vec![ConstraintProvider {
+        name: constraint_provider_name(constraints_path),
+        path: constraints_path.clone(),
+    }];
+    for attr in attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("solverforge_constraint_provider_path"))
+    {
+        let Meta::NameValue(nv) = &attr.meta else {
+            continue;
+        };
+        let syn::Expr::Lit(syn::ExprLit {
+            lit: Lit::Str(lit), ..
+        }) = &nv.value
+        else {
+            continue;
+        };
+        let path = lit.parse::<syn::Path>().map_err(|_| {
+            Error::new_spanned(
+                lit,
+                "`constraint_provider` must be a valid Rust path string",
+            )
+        })?;
+        providers.push(ConstraintProvider {
+            name: constraint_provider_name(&path),
+            path,
+        });
+    }
+    Ok(providers)
 }
 
 pub(super) fn parse_config_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {

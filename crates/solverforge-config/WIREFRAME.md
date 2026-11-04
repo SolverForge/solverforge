@@ -62,7 +62,7 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | `random_seed` | `Option<u64>` | `None` | |
 | `move_thread_count` | `MoveThreadCount` | `Auto` | `#[serde(default)]` |
 | `termination` | `Option<TerminationConfig>` | `None` | |
-| `score_director` | `Option<DirectorConfig>` | `None` | |
+| `score_director` | `Option<DirectorConfig>` | `None` | Omitted: the `constraints` provider |
 | `phases` | `Vec<PhaseConfig>` | `[]` | `#[serde(default)]` |
 | `candidate_trace` | `Option<CandidateTraceConfig>` | `None` | Opt-in bounded candidate-pull diagnostics |
 
@@ -71,6 +71,7 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | Method | Signature | Note |
 |--------|-----------|------|
 | `new` | `fn() -> Self` | Alias for `Default::default()` |
+| `constraint_provider` | `fn(&self) -> Option<&str>` | `score_director.constraint_provider`; `None` selects `constraints` |
 | `load` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Delegates to `from_toml_file` |
 | `from_toml_file` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Reads file, parses TOML |
 | `from_toml_str` | `fn(s: &str) -> Result<Self, ConfigError>` | Parses TOML string |
@@ -118,7 +119,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Note |
 |-------|------|------|
-| `constraint_provider` | `Option<String>` | Fully qualified constraint provider name |
+| `constraint_provider` | `Option<String>` | Constraint provider the solve scores with: a `constraints` or `constraint_provider` path as written in `#[planning_solution]`. Omitted: `constraints`. Unknown: the solve fails before it starts |
 | `constraint_match_enabled` | `bool` | Default: `false` |
 
 ### `ConstructionHeuristicConfig`

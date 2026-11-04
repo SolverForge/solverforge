@@ -31,8 +31,8 @@ pub struct SolverConfig {
     #[serde(default)]
     pub termination: Option<TerminationConfig>,
 
-    /// Score director settings. Parsed and serialized, but not read by the
-    /// current solver runtime.
+    /// Score director settings: the constraint provider. Omitted: the
+    /// solution's `constraints` function.
     #[serde(default)]
     pub score_director: Option<DirectorConfig>,
 
@@ -54,6 +54,14 @@ impl SolverConfig {
     /// Creates an empty configuration; equivalent to `SolverConfig::default()`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The configured `score_director.constraint_provider` name, or `None`
+    /// for the solution's `constraints` function.
+    pub fn constraint_provider(&self) -> Option<&str> {
+        self.score_director
+            .as_ref()
+            .and_then(|director| director.constraint_provider.as_deref())
     }
 
     /// Loads configuration from a TOML file.

@@ -20,7 +20,7 @@ pub use backend::{
     DynamicScalarAssignmentMetadata, DynamicScalarAssignmentMetadataCapabilities,
 };
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
-pub use runner::try_run_dynamic_solver_with_config_parts;
+pub use runner::{try_run_dynamic_solver_with_config_parts, DynamicConstraintProvider};
 pub use score::{
     active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
 };

@@ -377,6 +377,7 @@ struct SolverProgressRef: pub struct SolverProgressRef<'a, S: PlanningSolution> 
 struct SolverRuntime: pub struct SolverRuntime<S: PlanningSolution> { /* private fields */ }
     SolverRuntime: pub fn pause_with_snapshot( &self, solution: S, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, ) -> bool
     SolverRuntime: pub fn detached() -> Self
+    SolverRuntime: pub fn bind_snapshot_analysis(&self, analyze: fn(&S) -> ScoreAnalysis<S::Score>)
     SolverRuntime: pub fn job_id(&self) -> usize
     SolverRuntime: pub fn is_cancel_requested(&self) -> bool
     SolverRuntime: pub fn emit_progress( &self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, )
@@ -550,7 +551,7 @@ enum ExplorationType: pub enum ExplorationType { DepthFirst, BreadthFirst, Score
 enum ForagerDecision: pub enum ForagerDecision { Keep, Release, Replace(CandidateId), }
 enum MoveCandidateRef: pub enum MoveCandidateRef<'a, S, M> where S: PlanningSolution, M: Move<S>,{ Borrowed(&'a M), Sequential(SequentialCompositeMoveRef<'a, S, M>), }
 enum MoveCandidateUndo: pub enum MoveCandidateUndo<U> { Borrowed(U), Sequential { first: U, second: U, }, }
-enum RuntimeBuildError: pub enum RuntimeBuildError { Configuration { message: String, }, Declaration { message: String, }, Compilation { path: String, message: String, }, Preparation { phase_index: usize, message: String, }, ConstraintWeights { message: String, }, Execution { phase_index: usize, message: String, }, }
+enum RuntimeBuildError: pub enum RuntimeBuildError { Configuration { message: String, }, Declaration { message: String, }, Compilation { path: String, message: String, }, Preparation { phase_index: usize, message: String, }, ConstraintWeights { message: String, }, UnknownConstraintProvider { requested: String, declared: Vec<String>, }, Execution { phase_index: usize, message: String, }, }
     RuntimeBuildError: pub fn declaration(message: impl Into<String>) -> Self
 enum SolverEvent: pub enum SolverEvent<S: PlanningSolution> { Progress { metadata: SolverEventMetadata<S::Score>, }, BestSolution { metadata: SolverEventMetadata<S::Score>, solution: S, }, PauseRequested { metadata: SolverEventMetadata<S::Score>, }, Paused { metadata: SolverEventMetadata<S::Score>, }, Resumed { metadata: SolverEventMetadata<S::Score>, }, Completed { metadata: SolverEventMetadata<S::Score>, solution: S, }, Cancelled { metadata: SolverEventMetadata<S::Score>, }, Failed { metadata: SolverEventMetadata<S::Score>, error: String, }, }
     SolverEvent: pub fn metadata(&self) -> &SolverEventMetadata<S::Score>

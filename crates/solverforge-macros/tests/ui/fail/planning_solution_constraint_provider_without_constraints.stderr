@@ -1,0 +1,5 @@
+error: `constraint_provider` requires `constraints`, the default constraint provider
+ --> tests/ui/fail/planning_solution_constraint_provider_without_constraints.rs:9:43
+  |
+9 | #[planning_solution(constraint_provider = "relaxed_constraints")]
+  |                                           ^^^^^^^^^^^^^^^^^^^^^

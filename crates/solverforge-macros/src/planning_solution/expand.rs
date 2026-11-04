@@ -9,8 +9,9 @@ use crate::attr_validation::{
 };
 
 use super::config::{
-    parse_config_path, parse_conflict_repairs_path, parse_constraints_path,
-    parse_scalar_groups_path, parse_search_path, parse_shadow_config, parse_solver_toml_path,
+    parse_config_path, parse_conflict_repairs_path, parse_constraint_providers,
+    parse_constraints_path, parse_scalar_groups_path, parse_search_path, parse_shadow_config,
+    parse_solver_toml_path,
 };
 use super::list_operations::generate_list_operations;
 use super::runtime::{
@@ -119,6 +120,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let shadow_config = parse_shadow_config(&input.attrs);
     let shadow_support_impl = generate_shadow_support(&shadow_config, fields, name)?;
     let constraints_path = parse_constraints_path(&input.attrs)?;
+    let constraint_providers = parse_constraint_providers(&input.attrs, &constraints_path)?;
     let config_path = parse_config_path(&input.attrs)?;
     let solver_toml_path = parse_solver_toml_path(&input.attrs);
     let search_path = parse_search_path(&input.attrs)?;
@@ -178,13 +180,13 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     );
     let has_constraint_weights = !constraint_weights_accessor.is_empty();
     let runtime_solve_internal = generate_runtime_solve_internal(
-        &constraints_path,
+        &constraint_providers,
         &config_path,
         &solver_toml_path,
         has_constraint_weights,
     );
     let solvable_solution_impl =
-        generate_solvable_solution(name, &constraints_path, has_constraint_weights);
+        generate_solvable_solution(name, &constraint_providers, has_constraint_weights);
 
     let collection_source_methods = generate_collection_source_methods(fields);
     let constraint_stream_extensions = generate_constraint_stream_extensions(fields, name);

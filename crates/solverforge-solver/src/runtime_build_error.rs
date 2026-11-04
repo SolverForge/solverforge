@@ -42,6 +42,14 @@ pub enum RuntimeBuildError {
         /// Actionable explanation, including close-match suggestions.
         message: String,
     },
+    /// `score_director.constraint_provider` names no constraint provider the
+    /// solution declares.
+    UnknownConstraintProvider {
+        /// The configured provider name.
+        requested: String,
+        /// The provider names the solution declares, `constraints` first.
+        declared: Vec<String>,
+    },
     /// A reached runtime phase could not bind or execute its declared work.
     Execution {
         /// Configured phase index that reached the failure boundary.
@@ -74,6 +82,16 @@ impl fmt::Display for RuntimeBuildError {
             }
             Self::ConstraintWeights { message } => {
                 write!(formatter, "invalid constraint weights: {message}")
+            }
+            Self::UnknownConstraintProvider {
+                requested,
+                declared,
+            } => {
+                write!(
+                    formatter,
+                    "unknown constraint provider `{requested}`; declared providers: {}",
+                    declared.join(", ")
+                )
             }
             Self::Preparation {
                 phase_index,
@@ -135,6 +153,18 @@ mod tests {
             }
             .to_string(),
             "runtime execution failed at phase 3: source callback failed"
+        );
+        assert_eq!(
+            RuntimeBuildError::UnknownConstraintProvider {
+                requested: "crate::constraints::missing".to_string(),
+                declared: vec![
+                    "crate::constraints::define".to_string(),
+                    "crate::constraints::relaxed".to_string(),
+                ],
+            }
+            .to_string(),
+            "unknown constraint provider `crate::constraints::missing`; declared providers: \
+             crate::constraints::define, crate::constraints::relaxed"
         );
         assert_eq!(
             RuntimeBuildError::ConstraintWeights {

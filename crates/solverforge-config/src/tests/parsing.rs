@@ -244,3 +244,21 @@ fn move_thread_count_parses_every_documented_form() {
         MoveThreadCount::Auto
     );
 }
+
+#[test]
+fn score_director_defaults_to_the_constraints_function() {
+    let omitted = SolverConfig::from_toml_str("").unwrap();
+    assert_eq!(omitted.constraint_provider(), None);
+
+    let empty = SolverConfig::from_toml_str("[score_director]\n").unwrap();
+    assert_eq!(empty.constraint_provider(), None);
+
+    let set = SolverConfig::from_toml_str(
+        "[score_director]\nconstraint_provider = \"crate::constraints::relaxed\"\n",
+    )
+    .unwrap();
+    assert_eq!(
+        set.constraint_provider(),
+        Some("crate::constraints::relaxed")
+    );
+}

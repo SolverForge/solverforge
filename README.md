@@ -692,6 +692,20 @@ scalar variable is assigned. If a limit is reached first, the solve ends as
 `Failed`; an incomplete construction state is never emitted as a best or
 completed solution.
 
+A solution can declare further constraint sets next to `constraints` with
+`constraint_provider = "path"` (repeatable), and a configuration picks one by
+the path as written in the attribute:
+
+```toml
+[score_director]
+constraint_provider = "relaxed_constraints"
+```
+
+Without `[score_director]` the solve scores with `constraints`. A name that
+matches no declared provider fails the solve before it starts with
+`RuntimeBuildError::UnknownConstraintProvider`. `SolverManager::analyze_snapshot`
+analyzes a job's snapshots with the provider the job selected.
+
 ## SolverManager API
 
 The `SolverManager` owns the retained runtime lifecycle for each job. The public contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process state rather than restarting from the best solution. Before mandatory construction completes, that state remains an internal resumable pause and is not exposed as a solution snapshot. Built-in search phases poll retained-runtime control during large neighborhood generation and evaluation, so config time limits, `pause()`, and `cancel()` unwind promptly without app-side watchdogs. Declare a `static` instance so it satisfies the `'static` lifetime requirement:

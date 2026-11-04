@@ -1,0 +1,11 @@
+error: constraint provider `relaxed_constraints` is declared more than once
+  --> tests/ui/fail/planning_solution_duplicate_constraint_provider.rs:12:27
+   |
+12 |     constraint_provider = "relaxed_constraints"
+   |                           ^^^^^^^^^^^^^^^^^^^^^
+
+error: constraint provider `define_constraints` is declared more than once
+  --> tests/ui/fail/planning_solution_duplicate_constraint_provider.rs:22:79
+   |
+22 | #[planning_solution(constraints = "define_constraints", constraint_provider = "define_constraints")]
+   |                                                                               ^^^^^^^^^^^^^^^^^^^^

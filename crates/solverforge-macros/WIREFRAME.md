@@ -84,9 +84,19 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support
 derive output. Accepted arguments are `serde`, `constraints = "path"`,
-`config = "path"`, `solver_toml = "path"`, `search = "path"`,
+`constraint_provider = "path"` (repeatable), `config = "path"`, `solver_toml = "path"`, `search = "path"`,
 `conflict_repairs = "path"`, and `scalar_groups = "path"`. Unknown or malformed
 arguments are compile errors.
+Each `constraint_provider` names a further constraint function next to
+`constraints`, the default; the name `score_director.constraint_provider`
+selects a provider by is its path as written in the attribute, without
+whitespace. `constraint_provider` without `constraints`, and a provider name
+declared twice (including the `constraints` path), are compile errors. The
+generated solve selects the configured provider, binds that provider's
+analysis as the job's snapshot analysis, and fails with
+`RuntimeBuildError::UnknownConstraintProvider` for an undeclared name. Each
+provider is its own monomorphized solve; `Analyzable::analyze` uses the
+`constraints` function.
 The `constraints` flag embeds a `#[solverforge_constraints_path = "path"]`
 attribute for the derive to consume. The `config` flag embeds a
 `#[solverforge_config_path = "path"]` attribute for the derive to consume; the
@@ -210,6 +220,7 @@ arguments are compile errors.
 **Consumed attributes on struct:**
 - `#[shadow_variable_updates(...)]` — configures descriptor-aware shadow updates for the canonical solver path
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
+- `#[solverforge_constraint_provider_path = "path"]` — generated bridge attribute, one per `constraint_provider`
 - `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the embedded `solver_toml` config, or `SolverConfig::default()` when the solution has no `solver_toml`
 - `#[solverforge_solver_toml_path = "path"]` — generated bridge attribute for an explicit solver TOML source
 - `#[solverforge_search_path = "path"]` — generated bridge attribute for a typed custom-search function consumed by runtime phase support
@@ -287,6 +298,7 @@ semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 | Function | Signature | Note |
 |----------|-----------|------|
 | `parse_constraints_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_constraints_path = "..."]`; an unparsable path is a spanned error |
+| `parse_constraint_providers` | `fn(&[Attribute], &Option<syn::Path>) -> syn::Result<Vec<ConstraintProvider>>` | The `constraints` provider followed by every `#[solverforge_constraint_provider_path = "..."]`, each with its selection name |
 | `parse_config_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_config_path = "..."]`; an unparsable path is a spanned error |
 | `parse_solver_toml_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_solver_toml_path = "..."]` |
 | `parse_search_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_search_path = "..."]`; an unparsable path is a spanned error |

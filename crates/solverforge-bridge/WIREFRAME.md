@@ -42,7 +42,7 @@ pub use backend::{
     DynamicScalarAssignmentMetadata, DynamicScalarAssignmentMetadataCapabilities,
 };
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
-pub use runner::try_run_dynamic_solver_with_config_parts;
+pub use runner::{try_run_dynamic_solver_with_config_parts, DynamicConstraintProvider};
 pub use score::{
     active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
 };
@@ -206,7 +206,7 @@ threads need no scope.
 ```rust
 pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     solution: S,
-    constraints: fn(&S) -> C,
+    constraint_providers: &[DynamicConstraintProvider<'_, S, C>],
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -228,7 +228,13 @@ where
 This is the binding-oriented entrypoint. It consumes frozen dynamic model parts
 into the same compiled graph and phase runner used by native models. It accepts
 no phase builder, selector registration, or alternate construction path.
-`constraints` builds a constraint set for a given solution; the runtime calls it
+`constraint_providers` lists the constraint sets the solve can score with;
+`score_director.constraint_provider` selects one by `name`, the first is used
+when it is omitted, and an unknown name fails with
+`RuntimeBuildError::UnknownConstraintProvider` before solving starts. The
+selected provider's `analyze` serves `SolverManager::analyze_snapshot`. The
+selected provider's `constraints` builds a constraint
+set for a given solution; the runtime calls it
 for the working solution and for every evaluator replica, so
 `move_thread_count` evaluates dynamic models in parallel. Bindings rebuild
 their host constraint set from the solution they receive. Replicas score on
@@ -236,6 +242,16 @@ Rayon worker threads, so a binding whose host runtime has a global lock must
 release it on the calling thread for the duration of the solve.
 The optional qualified provenance changes only the candidate-trace header; it
 does not select another runner.
+
+### `DynamicConstraintProvider<'a, S, C>`
+
+One named constraint set a dynamic solve can score with. `Clone + Copy`.
+
+| Field | Type | Note |
+|-------|------|------|
+| `name` | `&'a str` | The name `score_director.constraint_provider` selects it by |
+| `constraints` | `fn(&S) -> C` | Builds the constraint set for a solution |
+| `analyze` | `fn(&S) -> ScoreAnalysis<S::Score>` | Snapshot analysis with this provider's constraint set |
 
 ## Scope
 

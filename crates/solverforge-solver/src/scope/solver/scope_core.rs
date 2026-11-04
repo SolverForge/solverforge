@@ -215,8 +215,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.yielded_to_parent
     }
 
-    /// Sets the environment mode; `FullAssert` checks every calculated score
-    /// against a fresh recalculation.
+    /// Sets the environment mode. `FastAssert` and `FullAssert` check every
+    /// scope-level score calculation and best-solution update against a fresh
+    /// recalculation.
     pub fn with_environment_mode(mut self, environment_mode: EnvironmentMode) -> Self {
         self.environment_mode = environment_mode;
         self
@@ -415,8 +416,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     ///
     /// # Panics
     ///
-    /// In `FullAssert` mode, panics when the score differs from a fresh
-    /// recalculation.
+    /// In `FastAssert` and `FullAssert` mode, panics when the score differs
+    /// from a fresh recalculation.
     pub fn calculate_score(&mut self) -> S::Score {
         self.record_score_calculation();
         let score = self.score_director.calculate_score();
@@ -426,7 +427,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub(crate) fn assert_score_consistent(&self, context: &str, score: S::Score) {
-        if self.environment_mode != EnvironmentMode::FullAssert {
+        if !self.environment_mode.asserts_steps() {
             return;
         }
         let Some(fresh_score) = self.score_director.fresh_score() else {

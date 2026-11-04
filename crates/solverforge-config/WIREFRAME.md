@@ -725,8 +725,12 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`. T
 |---------|------|
 | `NonReproducible` | **Default.** No checks; without `random_seed` each run seeds itself from the operating system |
 | `Reproducible` | No checks; without `random_seed` the solve uses `REPRODUCIBLE_RANDOM_SEED`, so step- or move-bounded runs repeat exactly |
-| `FastAssert` | Seeds as `Reproducible`; no checks |
-| `FullAssert` | Seeds as `Reproducible`; score calculations and best-solution updates are checked against a fresh score (panics on drift) |
+| `FastAssert` | As `Reproducible`, plus every committed step and best-solution update is checked against a fresh score (panics on drift) |
+| `FullAssert` | As `FastAssert` |
+
+| Method | Signature | Note |
+|--------|-----------|------|
+| `asserts_steps` | `const fn(self) -> bool` | `FastAssert` and `FullAssert` |
 
 ### `REPRODUCIBLE_RANDOM_SEED`
 

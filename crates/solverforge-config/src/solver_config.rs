@@ -215,18 +215,26 @@ pub enum EnvironmentMode {
     /// Time limits still end runs at different points.
     Reproducible,
 
-    /// Seeds like `reproducible`; no runtime checks yet.
+    /// Like `reproducible`, and at every committed step and best-solution
+    /// update asserts that the incremental score equals a fresh full
+    /// calculation, panicking on drift.
     FastAssert,
 
-    /// Seeds like `reproducible`. On score calculation and best-solution
-    /// updates, asserts that the incremental score equals a fresh full
-    /// calculation, panicking on drift.
+    /// Like `fast_assert`; the same scope-level checks.
     FullAssert,
 }
 
 /// The seed a solve without `random_seed` uses in every mode except
 /// `non_reproducible`.
 pub const REPRODUCIBLE_RANDOM_SEED: u64 = 0;
+
+impl EnvironmentMode {
+    /// Whether committed steps and best-solution updates are checked against a
+    /// fresh score: `fast_assert` and `full_assert`.
+    pub const fn asserts_steps(self) -> bool {
+        matches!(self, Self::FastAssert | Self::FullAssert)
+    }
+}
 
 /// Move thread count configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]

@@ -470,5 +470,6 @@ fn working_solution_generation_is_monotonic_across_commits_and_replacement() {
     assert_eq!(scope.working_solution_generation(), after_commits + 1);
 }
 
+mod environment_mode;
 mod problem_change;
 mod weight_mode;

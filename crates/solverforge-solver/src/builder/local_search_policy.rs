@@ -148,7 +148,13 @@ fn validate_acceptor(config: &AcceptorConfig, level_count: usize) -> Result<(), 
         AcceptorConfig::DiversifiedLateAcceptance(late) => {
             positive("late_acceptance_size", late.late_acceptance_size)
         }
-        AcceptorConfig::GreatDeluge(_) => Ok(()),
+        AcceptorConfig::GreatDeluge(deluge) => match deluge.water_level_increase_ratio {
+            Some(ratio) if !(ratio.is_finite() && ratio > 0.0) => Err(ConfigValueError::new(
+                "water_level_increase_ratio",
+                format!("must be finite and greater than 0, found {ratio}"),
+            )),
+            _ => Ok(()),
+        },
     }
 }
 

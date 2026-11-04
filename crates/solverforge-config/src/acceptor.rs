@@ -129,6 +129,6 @@ pub struct DiversifiedLateAcceptanceConfig {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GreatDelugeConfig {
     /// Fraction of the initial score's magnitude the water level rises per
-    /// step. Omitted: `0.001`.
+    /// step. Omitted: `0.001`. Must be finite and greater than 0.
     pub water_level_increase_ratio: Option<f64>,
 }

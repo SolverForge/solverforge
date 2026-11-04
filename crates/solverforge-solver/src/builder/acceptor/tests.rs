@@ -2,7 +2,7 @@ use super::*;
 use crate::builder::local_search_policy::CompiledAcceptor;
 use crate::builder::local_search_policy::ConfigValueError;
 use solverforge_config::{
-    AcceptorConfig, DiversifiedLateAcceptanceConfig, HardRegressionPolicyConfig,
+    AcceptorConfig, DiversifiedLateAcceptanceConfig, GreatDelugeConfig, HardRegressionPolicyConfig,
     LateAcceptanceConfig, SimulatedAnnealingCalibrationConfig, SimulatedAnnealingConfig,
     StepCountingHillClimbingConfig, TabuSearchConfig,
 };
@@ -309,6 +309,24 @@ fn step_counting_hill_climbing_rejects_a_zero_step_count_limit() {
 
     let config = AcceptorConfig::StepCountingHillClimbing(StepCountingHillClimbingConfig {
         step_count_limit: Some(1),
+    });
+    assert!(build_acceptor::<TestSolution>(&config).is_ok());
+}
+
+#[test]
+fn great_deluge_rejects_a_ratio_that_does_not_rise() {
+    for ratio in [0.0, -0.1, f64::NAN, f64::INFINITY] {
+        let config = AcceptorConfig::GreatDeluge(GreatDelugeConfig {
+            water_level_increase_ratio: Some(ratio),
+        });
+        let error = build_acceptor::<TestSolution>(&config).expect_err("invalid ratio");
+        assert_eq!(error.field(), "water_level_increase_ratio");
+        assert!(error
+            .message()
+            .starts_with("must be finite and greater than 0"));
+    }
+    let config = AcceptorConfig::GreatDeluge(GreatDelugeConfig {
+        water_level_increase_ratio: Some(0.01),
     });
     assert!(build_acceptor::<TestSolution>(&config).is_ok());
 }

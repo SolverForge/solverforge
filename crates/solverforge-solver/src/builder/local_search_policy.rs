@@ -195,6 +195,12 @@ fn validate_simulated_annealing(
             for &temperature in temperatures {
                 non_negative("level_temperatures", Some(temperature))?;
             }
+            if config.calibration.is_some() {
+                return Err(ConfigValueError::new(
+                    "calibration",
+                    "cannot be combined with `level_temperatures`, which set the temperatures calibration would measure",
+                ));
+            }
             Ok(())
         }
         None => validate_calibration(config.calibration.as_ref()),

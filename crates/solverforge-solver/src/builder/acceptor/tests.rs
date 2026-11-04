@@ -330,3 +330,14 @@ fn great_deluge_rejects_a_ratio_that_does_not_rise() {
     });
     assert!(build_acceptor::<TestSolution>(&config).is_ok());
 }
+
+#[test]
+fn simulated_annealing_rejects_calibration_beside_level_temperatures() {
+    let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+        level_temperatures: Some(vec![1.0]),
+        calibration: Some(SimulatedAnnealingCalibrationConfig::default()),
+        ..Default::default()
+    });
+    let error = build_acceptor::<TestSolution>(&config).expect_err("exclusive keys");
+    assert_eq!(error.field(), "calibration");
+}

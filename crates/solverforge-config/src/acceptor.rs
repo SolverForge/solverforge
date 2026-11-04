@@ -76,7 +76,8 @@ pub struct SimulatedAnnealingConfig {
     /// Hard-regression policy. Omitted: `temperature_controlled`.
     pub hard_regression_policy: Option<HardRegressionPolicyConfig>,
 
-    /// Sampled auto-calibration settings used when level_temperatures is omitted.
+    /// Sampled auto-calibration settings used when `level_temperatures` is
+    /// omitted. Setting both is invalid.
     pub calibration: Option<SimulatedAnnealingCalibrationConfig>,
 }
 

@@ -21,7 +21,7 @@ use super::decision::{
 };
 use super::StepMoveLabelCounts;
 
-pub(super) struct CandidateLoopState {
+pub(crate) struct CandidateLoopState {
     pub(super) interrupted: bool,
     pub(super) accepted_moves: u64,
     pub(super) generated_moves: u64,

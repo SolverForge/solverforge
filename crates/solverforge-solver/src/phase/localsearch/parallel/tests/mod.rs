@@ -2,6 +2,7 @@
 
 mod support;
 
+mod auto;
 mod pool;
 mod sizing;
 mod trajectory;

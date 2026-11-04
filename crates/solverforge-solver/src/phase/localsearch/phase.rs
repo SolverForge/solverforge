@@ -10,7 +10,7 @@ use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{CandidateId, MoveCandidateRef};
-use crate::phase::localsearch::parallel::EvaluatorPool;
+use crate::phase::localsearch::parallel::{EvaluationPolicy, EvaluatorPool};
 use crate::phase::localsearch::{
     Acceptor, LocalSearchForager, MoveCursorSource, SelectorCursorSource,
 };
@@ -18,6 +18,7 @@ use crate::phase::Phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope};
 use crate::stats::{format_duration, whole_units_per_second, CandidateTracePullToken};
 
+mod adaptive;
 mod candidates;
 mod decision;
 mod evaluator;
@@ -26,6 +27,7 @@ mod step;
 
 pub(in crate::phase::localsearch) use decision::WindowSlot;
 
+pub(crate) use adaptive::AdaptiveEvaluator;
 use evaluator::{SequentialEvaluator, StepEvaluator};
 use step::{execute_step, StepOutcome};
 
@@ -239,9 +241,10 @@ where
 
 /// Executes the local-search phase while borrowing its resource only for
 /// cursor opening and individual candidate pulls. Both stock phases and the
-/// compiled runtime call this function. The evaluator count selects the step
-/// loop once, before the first step: one evaluator runs the sequential loop,
-/// more run parallel windows across evaluator replicas.
+/// compiled runtime call this function. The evaluation policy selects the
+/// step loop once, before the first step: the sequential loop, parallel
+/// windows across a fixed number of evaluator replicas, or the `auto` loop
+/// that picks one of the two per step.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     move_source: &mut Source,
@@ -249,7 +252,7 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     acceptor: &mut A,
     forager: &mut Fo,
     step_limit: Option<u64>,
-    evaluator_count: usize,
+    policy: EvaluationPolicy,
     solver_scope: &mut SolverScope<S, D, BestCb>,
 ) where
     S: PlanningSolution,
@@ -260,18 +263,8 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
-    if evaluator_count > 1 {
-        run_local_search(
-            move_source,
-            resources,
-            acceptor,
-            forager,
-            step_limit,
-            &mut EvaluatorPool::<S, D, M>::new(evaluator_count),
-            solver_scope,
-        );
-    } else {
-        run_local_search(
+    match policy {
+        EvaluationPolicy::Sequential => run_local_search(
             move_source,
             resources,
             acceptor,
@@ -279,8 +272,59 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
             step_limit,
             &mut SequentialEvaluator,
             solver_scope,
-        );
+        ),
+        EvaluationPolicy::Fixed(evaluators) => run_local_search(
+            move_source,
+            resources,
+            acceptor,
+            forager,
+            step_limit,
+            &mut EvaluatorPool::<S, D, M>::new(evaluators),
+            solver_scope,
+        ),
+        EvaluationPolicy::Auto(evaluators) => run_local_search(
+            move_source,
+            resources,
+            acceptor,
+            forager,
+            step_limit,
+            &mut AdaptiveEvaluator::<S, D, M>::new(evaluators),
+            solver_scope,
+        ),
     }
+}
+
+/// Runs one phase with an explicit evaluator, so tests can drive the `auto`
+/// evaluator with a fixed policy.
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn solve_local_search_with_evaluator<S, D, BestCb, M, Source, A, Fo, E>(
+    move_source: &mut Source,
+    resources: &mut Source::Resources,
+    acceptor: &mut A,
+    forager: &mut Fo,
+    step_limit: Option<u64>,
+    evaluator: &mut E,
+    solver_scope: &mut SolverScope<S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+    Source: MoveCursorSource<S, M> + Debug + Send,
+    A: Acceptor<S>,
+    Fo: LocalSearchForager<S, M>,
+    E: StepEvaluator<S, D, M>,
+{
+    run_local_search(
+        move_source,
+        resources,
+        acceptor,
+        forager,
+        step_limit,
+        evaluator,
+        solver_scope,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -397,7 +441,7 @@ where
             acceptor,
             forager,
             *step_limit,
-            1,
+            EvaluationPolicy::Sequential,
             solver_scope,
         );
     }

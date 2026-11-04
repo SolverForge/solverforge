@@ -744,7 +744,7 @@ Derives: `Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `Auto` | **Default.** Sequential until benchmarks set an automatic policy |
+| `Auto` | **Default.** Per step, sequential or parallel windows from measured costs |
 | `None` | Single-threaded |
 | `Count(NonZeroUsize)` | Explicit count; `{ count = 0 }` is rejected when the configuration is read |
 
@@ -757,10 +757,11 @@ sizes partitioned search separately.
 | `move_thread_count` | Acceptor-forager local search |
 |---|---|
 | `None` | sequential |
-| `Auto` | sequential |
+| `Auto` | up to `min(4, rayon::current_num_threads())` evaluators; each step runs sequentially or in parallel windows, whichever its measured trial time, the previous step's candidate count, the calibrated fork-join cost of one window and the last replica rebuild say is faster, switching after 8 consecutive steps favour the other mode; sequential on a one-thread pool |
 | `Count(1)` | sequential |
 | `Count(n >= 2)` | `min(n, rayon::current_num_threads(), 32)` evaluators: the main director plus that many minus one replicas; 32 is one full evaluation window |
 
+Every policy reaches the sequential trajectory; `auto` changes speed only.
 `PartitionedSearchConfig::thread_count`: `auto` runs one thread per partition
 up to the available CPU cores, `none` one thread, `{ count = n }` at most `n`.
 

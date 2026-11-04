@@ -248,7 +248,11 @@ impl EnvironmentMode {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MoveThreadCount {
-    /// Sequential until benchmarks set an automatic policy.
+    /// Per step, sequential evaluation or parallel windows, whichever the
+    /// measured trial, window and replica costs say is faster; up to four
+    /// evaluators, bounded by the solve's Rayon threads. Results are the same
+    /// either way: parallel evaluation reaches the sequential trajectory.
+    /// Default.
     #[default]
     Auto,
 

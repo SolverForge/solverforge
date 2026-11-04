@@ -4,19 +4,61 @@ use crate::scope::SolverScope;
 use crate::test_utils::{create_nqueens_descriptor, NQueensSolution};
 
 #[test]
-fn evaluator_count_resolution() {
+fn evaluation_policy_resolution() {
+    use std::num::NonZeroUsize;
+
     use solverforge_config::MoveThreadCount;
 
-    use super::super::resolve_evaluator_count;
+    use super::super::config::AUTO_MAX_EVALUATORS;
+    use super::super::{resolve_evaluation_policy, EvaluationPolicy};
 
-    assert_eq!(resolve_evaluator_count(&MoveThreadCount::None), 1);
-    assert_eq!(resolve_evaluator_count(&MoveThreadCount::Auto), 1);
-    let count = |n| MoveThreadCount::Count(std::num::NonZeroUsize::new(n).unwrap());
-    assert_eq!(resolve_evaluator_count(&count(1)), 1);
-    assert_eq!(
-        resolve_evaluator_count(&count(2)),
-        2.min(rayon::current_num_threads())
-    );
+    let count = |n: usize| MoveThreadCount::Count(NonZeroUsize::new(n).unwrap());
+    let in_pool = |threads: usize, check: &(dyn Fn() + Sync)| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .unwrap()
+            .install(check);
+    };
+
+    in_pool(8, &|| {
+        assert_eq!(
+            resolve_evaluation_policy(&MoveThreadCount::None),
+            EvaluationPolicy::Sequential
+        );
+        assert_eq!(
+            resolve_evaluation_policy(&MoveThreadCount::Auto),
+            EvaluationPolicy::Auto(AUTO_MAX_EVALUATORS)
+        );
+        assert_eq!(
+            resolve_evaluation_policy(&count(1)),
+            EvaluationPolicy::Sequential
+        );
+        assert_eq!(
+            resolve_evaluation_policy(&count(6)),
+            EvaluationPolicy::Fixed(6)
+        );
+        assert_eq!(
+            resolve_evaluation_policy(&count(64)),
+            EvaluationPolicy::Fixed(8)
+        );
+    });
+    in_pool(2, &|| {
+        assert_eq!(
+            resolve_evaluation_policy(&MoveThreadCount::Auto),
+            EvaluationPolicy::Auto(2)
+        );
+    });
+    in_pool(1, &|| {
+        assert_eq!(
+            resolve_evaluation_policy(&MoveThreadCount::Auto),
+            EvaluationPolicy::Sequential
+        );
+        assert_eq!(
+            resolve_evaluation_policy(&count(4)),
+            EvaluationPolicy::Sequential
+        );
+    });
 }
 
 #[test]

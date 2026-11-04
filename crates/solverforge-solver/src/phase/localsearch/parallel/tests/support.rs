@@ -8,6 +8,7 @@ use solverforge_scoring::IncrementalUniConstraint;
 
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::move_selector::ChangeMoveSelector;
+use crate::phase::localsearch::parallel::EvaluationPolicy;
 use crate::phase::localsearch::{
     solve_local_search_with_resources, HillClimbingAcceptor, LocalSearchForager,
     SelectorCursorSource,
@@ -94,8 +95,17 @@ pub(super) struct RunResult {
     pub(super) steps: u64,
 }
 
+/// The policy of an explicit evaluator count: one evaluator is sequential.
+pub(super) fn fixed(evaluators: usize) -> EvaluationPolicy {
+    if evaluators <= 1 {
+        EvaluationPolicy::Sequential
+    } else {
+        EvaluationPolicy::Fixed(evaluators)
+    }
+}
+
 pub(super) fn run<Fo>(
-    evaluator_count: usize,
+    policy: EvaluationPolicy,
     mut forager: Fo,
     steps: u64,
     move_limit: Option<u64>,
@@ -116,7 +126,7 @@ where
         &mut acceptor,
         &mut forager,
         Some(steps),
-        evaluator_count,
+        policy,
         &mut solver_scope,
     );
     let stats = solver_scope.stats();

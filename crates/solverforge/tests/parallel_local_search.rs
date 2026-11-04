@@ -90,7 +90,8 @@ fn solve(manager: &'static SolverManager<Plan>, move_threads: usize) -> Run {
 fn fixed_work_trajectory_is_identical_across_thread_counts() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
-    let runs: Vec<_> = [1, 2, 4]
+    // 0 runs `move_thread_count = "auto"`.
+    let runs: Vec<_> = [1, 2, 4, 0]
         .into_iter()
         .map(|move_threads| solve(&MANAGER, move_threads))
         .collect();
@@ -134,8 +135,6 @@ fn fixed_work_trajectory_is_identical_across_thread_counts() {
 fn sequential_resolution_reports_no_speculation() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
-    for move_threads in [0, 1] {
-        let run = solve(&MANAGER, move_threads);
-        assert_eq!(run.telemetry.moves_speculative, 0);
-    }
+    let run = solve(&MANAGER, 1);
+    assert_eq!(run.telemetry.moves_speculative, 0);
 }

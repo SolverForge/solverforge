@@ -24,6 +24,6 @@ pub(crate) use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
     FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,
 };
-pub(crate) use parallel::resolve_evaluator_count;
+pub(crate) use parallel::{resolve_evaluation_policy, EvaluationPolicy};
 pub(crate) use phase::solve_local_search_with_resources;
 pub(crate) use phase::LocalSearchPhase;

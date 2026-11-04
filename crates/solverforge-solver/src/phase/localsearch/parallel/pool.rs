@@ -130,15 +130,15 @@ where
     }
 
     /// Rebuilds the replicas when the working solution was written since they
-    /// last synced. Each replica clones the working solution once; this is the
-    /// evaluator replica clone boundary.
-    pub(crate) fn sync<BestCb>(&mut self, solver_scope: &SolverScope<'_, S, D, BestCb>)
+    /// last synced, and returns whether it did. Each replica clones the
+    /// working solution once; this is the evaluator replica clone boundary.
+    pub(crate) fn sync<BestCb>(&mut self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool
     where
         BestCb: ProgressCallback<S>,
     {
         let generation = solver_scope.working_solution_generation();
         if self.evaluators <= 1 || self.synced_generation == Some(generation) {
-            return;
+            return false;
         }
         self.replicas.clear();
         for _ in 1..self.evaluators {
@@ -152,6 +152,14 @@ where
             });
         }
         self.synced_generation = Some(generation);
+        true
+    }
+
+    /// Drops the replicas, so the next `sync` rebuilds them. Steps evaluated
+    /// without the pool do not keep replicas at the committed solution.
+    pub(crate) fn release(&mut self) {
+        self.replicas.clear();
+        self.synced_generation = None;
     }
 
     /// Applies the selected move to every replica by borrow, ahead of the

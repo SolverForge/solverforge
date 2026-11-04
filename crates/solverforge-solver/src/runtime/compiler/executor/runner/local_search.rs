@@ -16,8 +16,8 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::localsearch::vnd::solve_vnd_with_resources;
 use crate::phase::localsearch::{
     solve_local_search_with_resources, AcceptedCountForager, BestScoreForager,
-    DiversifiedLateAcceptanceAcceptor, FirstLastStepScoreImprovingForager, LateAcceptanceAcceptor,
-    SimulatedAnnealingAcceptor,
+    DiversifiedLateAcceptanceAcceptor, EvaluationPolicy, FirstLastStepScoreImprovingForager,
+    LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
 };
 use crate::runtime::compiler::{
     DefaultLocalSearchAcceptorPolicy, DefaultLocalSearchComponents, DefaultLocalSearchForagerPolicy,
@@ -46,7 +46,7 @@ where
         forager: Option<CompiledForager>,
         score_tie_break: ScoreTieBreak,
         random_seed: Option<u64>,
-        evaluator_count: usize,
+        evaluation_policy: EvaluationPolicy,
     },
     VariableNeighborhoodDescent {
         phase_termination: Option<solverforge_config::TerminationConfig>,
@@ -79,7 +79,7 @@ where
                 forager,
                 score_tie_break,
                 random_seed,
-                evaluator_count,
+                evaluation_policy,
             } => {
                 let (mut acceptor, mut forager) = build_acceptor_and_forager::<S>(
                     *components,
@@ -96,7 +96,7 @@ where
                         &mut acceptor,
                         &mut forager,
                         None,
-                        *evaluator_count,
+                        *evaluation_policy,
                         solver_scope,
                     );
                 });

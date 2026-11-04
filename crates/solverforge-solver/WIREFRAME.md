@@ -253,7 +253,8 @@ src/
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
 │   │   ├── phase/candidates.rs          — Step candidate state and the parallel window loop
 │   │   ├── phase/decision.rs            — Generated-candidate records and in-order candidate consumption for windows
-│   │   ├── phase/evaluator.rs           — Step evaluation strategy, selected once per phase: sequential loop or evaluator pool
+│   │   ├── phase/adaptive.rs            — AdaptiveEvaluator: the `auto` strategy, sequential or windows per step
+│   │   ├── phase/evaluator.rs           — Step evaluation strategy, selected once per phase: sequential loop, evaluator pool, or adaptive
 │   │   ├── phase/sequential.rs          — One-evaluator candidate loop
 │   │   ├── phase/step.rs                — One step: candidate selection and commit
 │   │   ├── phase/tests.rs               — Tests
@@ -262,11 +263,12 @@ src/
 │   │   ├── forager/improving.rs        — FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager
 │   │   ├── forager/tests.rs             — Tests
 │   │   ├── parallel/mod.rs              — Parallel evaluation module declarations
+│   │   ├── parallel/auto.rs             — AutoPolicy: the `auto` cost model, calibration and hysteresis
 │   │   ├── parallel/budget.rs           — Remaining in-phase evaluation budget for window sizing
-│   │   ├── parallel/config.rs           — move_thread_count resolution to an evaluator count
+│   │   ├── parallel/config.rs           — move_thread_count resolution to an EvaluationPolicy
 │   │   ├── parallel/pool.rs             — EvaluatorPool: evaluator replicas, sync, and post-commit advance
 │   │   ├── parallel/window.rs           — Window evaluation across the main director and replicas
-│   │   ├── parallel/tests/              — Pool ceiling, window sizing, trajectory parity, and allocation-free window tests
+│   │   ├── parallel/tests/              — Pool ceiling, window sizing, auto policy, trajectory parity, and allocation-free window tests
 │   │   └── acceptor/
 │   │       ├── mod.rs                   — Acceptor module declarations and re-exports
 │   │       ├── traits.rs                — Acceptor<S> trait

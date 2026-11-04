@@ -142,3 +142,32 @@ fn unparsable_best_score_limits_fail_compilation_with_the_key_path() {
     };
     validate_best_score_limits::<HardSoftScore>(&valid).expect("valid limits compile");
 }
+
+fn fixed_union(weights: Vec<u64>) -> MoveSelectorConfig {
+    use solverforge_config::{UnionMoveSelectorConfig, UnionSelectionOrder, UnionWeighting};
+    MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selection_order: UnionSelectionOrder::StratifiedRandom,
+        weighting: UnionWeighting::Fixed,
+        weights,
+        selectors: vec![
+            MoveSelectorConfig::ListChangeMoveSelector(ListChangeMoveConfig::default()),
+            MoveSelectorConfig::ListRuinMoveSelector(ListRuinMoveSelectorConfig::default()),
+        ],
+    })
+}
+
+#[test]
+fn a_zero_fixed_union_weight_disables_its_child() {
+    compile(PrecedenceShape::Absent, fixed_union(vec![1, 0]))
+        .expect("a zero weight disables the child instead of failing");
+}
+
+#[test]
+fn fixed_union_weights_that_are_all_zero_are_rejected() {
+    let error = compile(PrecedenceShape::Absent, fixed_union(vec![0, 0]))
+        .expect_err("a union without a live child is rejected");
+    assert!(
+        error.to_string().contains("at least one positive weight"),
+        "{error}"
+    );
+}

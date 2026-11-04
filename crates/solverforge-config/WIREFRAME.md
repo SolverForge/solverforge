@@ -633,7 +633,8 @@ Enum: `Sequential`, `RoundRobin`, `RotatingRoundRobin`, `Random`, and
 ### `UnionWeighting`
 
 Enum: `Equal` (default), `Fixed`, and `CandidateCount`. `Fixed` consumes the
-explicit `weights` vector; `CandidateCount` derives scheduling weight from the
+explicit `weights` vector; a zero weight disables its child (never opened, not
+counted in the union size), and at least one weight must be positive; `CandidateCount` derives scheduling weight from the
 children's declared candidate counts.
 
 ### `CartesianProductConfig`

@@ -44,8 +44,8 @@ pub(crate) fn resolve_union_weights(
                 "fixed union weight count must match child count"
             );
             assert!(
-                fixed.iter().all(|weight| *weight > 0),
-                "fixed union weights must all be positive"
+                fixed.iter().any(|weight| *weight > 0),
+                "fixed union weights need at least one positive weight"
             );
             fixed.to_vec()
         }

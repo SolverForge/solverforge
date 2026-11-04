@@ -54,8 +54,9 @@ pub struct UnionMoveSelectorConfig {
     #[serde(default)]
     pub weighting: UnionWeighting,
     /// One weight per child for `weighting = "fixed"`; a zero weight disables
-    /// that child. Weights other than `1` need `random` or `stratified_random`
-    /// order. Default: empty.
+    /// that child, which is then never opened nor counted in the union's
+    /// size. At least one weight must be positive. Weights other than `1`
+    /// need `random` or `stratified_random` order. Default: empty.
     #[serde(default)]
     pub weights: Vec<u64>,
     /// Child selectors.

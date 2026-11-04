@@ -286,8 +286,10 @@ where
                 {
                     Some("fixed union weight count must match selector count")
                 }
-                solverforge_config::UnionWeighting::Fixed if union.weights.contains(&0) => {
-                    Some("fixed union weights must all be positive")
+                solverforge_config::UnionWeighting::Fixed
+                    if union.weights.iter().all(|weight| *weight == 0) =>
+                {
+                    Some("fixed union weights need at least one positive weight; zero disables a child")
                 }
                 solverforge_config::UnionWeighting::CandidateCount if !union.weights.is_empty() => {
                     Some("candidate_count union weighting does not accept explicit weights")

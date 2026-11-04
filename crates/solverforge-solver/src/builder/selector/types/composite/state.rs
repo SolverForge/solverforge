@@ -172,8 +172,11 @@ where
                     context,
                     resolve_union_weights(*weighting, weights, &sizes),
                 );
-                for &child in children {
-                    self.open_node(child, resources, director, child_context);
+                // A disabled child is never scheduled, so it is never opened.
+                for (index, &child) in children.iter().enumerate() {
+                    if union_child_enabled(*weighting, weights, index) {
+                        self.open_node(child, resources, director, child_context);
+                    }
                 }
                 CursorNode::Union(union)
             }
@@ -226,9 +229,16 @@ where
             } => self
                 .selector_size(*selector, director)
                 .min(*selected_count_limit),
-            SelectorCompositionNode::Union { children, .. } => children
+            SelectorCompositionNode::Union {
+                weighting,
+                weights,
+                children,
+                ..
+            } => children
                 .iter()
-                .map(|&child| self.selector_size(child, director))
+                .enumerate()
+                .filter(|&(index, _)| union_child_enabled(*weighting, weights, index))
+                .map(|(_, &child)| self.selector_size(child, director))
                 .sum(),
             SelectorCompositionNode::Cartesian { left, right, .. } => self
                 .selector_size(*left, director)
@@ -405,4 +415,14 @@ where
     fn selector_index(&self, id: CandidateId) -> Option<usize> {
         self.selector_index_at(self.selector.root(), id)
     }
+}
+
+/// Whether a union child takes part: every child does, except one a fixed
+/// weighting gives weight `0`, which is disabled.
+fn union_child_enabled(
+    weighting: solverforge_config::UnionWeighting,
+    weights: &[u64],
+    index: usize,
+) -> bool {
+    !(weighting == solverforge_config::UnionWeighting::Fixed && weights[index] == 0)
 }

@@ -483,3 +483,6 @@ fn arena_rejects_shared_mutable_child_nodes() {
     });
     let _ = SelectorCompositionState::<_, _, _, _, ()>::new(graph);
 }
+
+#[path = "tests/union_weights.rs"]
+mod union_weights;

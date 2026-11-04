@@ -41,6 +41,14 @@ pub trait Director<S: PlanningSolution>: Send {
         None
     }
 
+    /// Turns score assertion on or off: while on, every [`Self::calculate_score`]
+    /// panics when the score differs from [`Self::fresh_score`]. A director
+    /// without a fresh calculation (`fresh_score` returns `None`) has nothing
+    /// to compare against, so the default does nothing.
+    fn set_score_assertion(&mut self, enabled: bool) {
+        let _ = enabled;
+    }
+
     /// Returns the solution descriptor for this solution type.
     fn solution_descriptor(&self) -> &SolutionDescriptor;
 

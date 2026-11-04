@@ -1,5 +1,5 @@
-// Score assertion per environment mode: `fast_assert` and `full_assert`
-// check scope-level score calculations.
+// Score assertion per environment mode: `fast_assert` checks scope-level
+// score calculations, `full_assert` also every director calculation.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -111,9 +111,30 @@ fn fast_assert_checks_scope_calculations_only() {
 }
 
 #[test]
-fn full_assert_checks_scope_calculations() {
+fn full_assert_checks_every_director_calculation() {
+    let mut scope = drifted_scope(EnvironmentMode::FullAssert);
+    assert!(panics(|| {
+        scope.score_director_mut().calculate_score();
+    }));
+
     let mut scope = drifted_scope(EnvironmentMode::FullAssert);
     assert!(panics(|| {
         scope.calculate_score();
+    }));
+}
+
+#[test]
+fn full_assert_reaches_evaluator_replicas() {
+    let scope = drifted_scope(EnvironmentMode::FullAssert);
+    let mut replica = scope
+        .score_director()
+        .fork_replica()
+        .expect("a descriptor director forks replicas");
+    // The replica starts from the drifted solution with fresh state, so it
+    // agrees with itself until it, too, is changed without notification.
+    assert_eq!(replica.calculate_score(), SoftScore::of(-2));
+    replica.working_solution_mut().values[2] = None;
+    assert!(panics(|| {
+        replica.calculate_score();
     }));
 }

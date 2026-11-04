@@ -220,7 +220,9 @@ pub enum EnvironmentMode {
     /// calculation, panicking on drift.
     FastAssert,
 
-    /// Like `fast_assert`; the same scope-level checks.
+    /// Like `fast_assert`, and every score calculation of the score director,
+    /// including every evaluated move on the main director and on evaluator
+    /// replicas, is checked against a fresh full calculation.
     FullAssert,
 }
 
@@ -233,6 +235,12 @@ impl EnvironmentMode {
     /// fresh score: `fast_assert` and `full_assert`.
     pub const fn asserts_steps(self) -> bool {
         matches!(self, Self::FastAssert | Self::FullAssert)
+    }
+
+    /// Whether every score calculation is checked against a fresh score:
+    /// `full_assert`.
+    pub const fn asserts_every_score_calculation(self) -> bool {
+        matches!(self, Self::FullAssert)
     }
 }
 

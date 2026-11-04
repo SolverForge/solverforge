@@ -217,9 +217,13 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     /// Sets the environment mode. `FastAssert` and `FullAssert` check every
     /// scope-level score calculation and best-solution update against a fresh
-    /// recalculation.
+    /// recalculation; `FullAssert` also turns on the score director's own
+    /// assertion, which checks every score calculation, including evaluated
+    /// moves.
     pub fn with_environment_mode(mut self, environment_mode: EnvironmentMode) -> Self {
         self.environment_mode = environment_mode;
+        self.score_director
+            .set_score_assertion(environment_mode.asserts_every_score_calculation());
         self
     }
 

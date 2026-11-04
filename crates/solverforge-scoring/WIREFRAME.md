@@ -392,6 +392,7 @@ pub use stream::{
 | `working_solution_mut` | `fn working_solution_mut(&mut self) -> &mut S` | Mutable solution reference |
 | `calculate_score` | `fn calculate_score(&mut self) -> S::Score` | Full score calculation |
 | `fresh_score` | `fn fresh_score(&self) -> Option<S::Score>` | Optional scratch score without mutating committed director state; default `None` |
+| `set_score_assertion` | `fn set_score_assertion(&mut self, enabled: bool)` | While enabled, every `calculate_score` panics when it differs from `fresh_score`; `ScoreDirector` implements it and its replicas inherit it; the default does nothing (no fresh score to compare) |
 | `solution_descriptor` | `fn solution_descriptor(&self) -> &SolutionDescriptor` | Runtime metadata |
 | `clone_working_solution` | `fn clone_working_solution(&self) -> S` | Deep copy |
 | `before_variable_changed` | `fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize)` | Pre-change notification |

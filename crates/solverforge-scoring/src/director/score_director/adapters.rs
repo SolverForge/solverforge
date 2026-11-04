@@ -53,6 +53,10 @@ where
         Some(self.fresh_score_impl())
     }
 
+    fn set_score_assertion(&mut self, enabled: bool) {
+        self.score_assertion = enabled;
+    }
+
     fn solution_descriptor(&self) -> &SolutionDescriptor {
         self.solution_descriptor.solution_descriptor()
     }

@@ -97,6 +97,8 @@ where
     pub(super) constraints: C,
     pub(super) cached_score: S::Score,
     pub(super) initialized: bool,
+    /// Whether every score calculation is checked against a fresh one.
+    pub(super) score_assertion: bool,
     pub(super) list_shadow_rows: ListShadowRows,
     /// The weight mode and, for `WeightedMode`, its bound multipliers.
     pub(super) weight_mode: M,
@@ -134,6 +136,7 @@ where
             descriptor,
             self.entity_counter,
         );
+        replica.score_assertion = self.score_assertion;
         replica.calculate_score_impl();
         Some(replica)
     }
@@ -154,7 +157,22 @@ where
             self.initialized = true;
         }
         self.working_solution.set_score(Some(self.cached_score));
+        if self.score_assertion {
+            self.assert_cached_score_is_fresh();
+        }
         self.cached_score
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn assert_cached_score_is_fresh(&self) {
+        let fresh = self.fresh_score_impl();
+        assert!(
+            self.cached_score == fresh,
+            "score director drift: incremental score {:?} != fresh score {:?}",
+            self.cached_score,
+            fresh
+        );
     }
 
     pub(crate) fn fresh_score_impl(&self) -> S::Score {

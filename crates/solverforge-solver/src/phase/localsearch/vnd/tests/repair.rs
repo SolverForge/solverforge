@@ -16,6 +16,7 @@ fn vnd_rejects_hard_neutral_repair_move_when_hard_improvement_required() {
         &mut neighborhoods,
         &mut resources,
         None,
+        solverforge_config::ScoreTieBreak::First,
         &mut solver_scope,
     );
 

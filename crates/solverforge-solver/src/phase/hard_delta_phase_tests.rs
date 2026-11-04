@@ -31,6 +31,7 @@ fn vnd_accepts_required_repair_that_improves_later_hard_level() {
         &mut neighborhoods,
         &mut resources,
         None,
+        solverforge_config::ScoreTieBreak::First,
         &mut solver_scope,
     );
 

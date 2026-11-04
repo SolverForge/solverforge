@@ -51,6 +51,7 @@ where
     VariableNeighborhoodDescent {
         phase_termination: Option<solverforge_config::TerminationConfig>,
         neighborhoods: Vec<RuntimeNeighborhoodState<S, V, DM, IDM>>,
+        score_tie_break: ScoreTieBreak,
     },
 }
 
@@ -104,13 +105,20 @@ where
             Self::VariableNeighborhoodDescent {
                 phase_termination,
                 neighborhoods,
+                score_tie_break,
             } => {
                 let mut sources = neighborhoods
                     .iter_mut()
                     .map(RuntimeNeighborhoodState::borrowed_source)
                     .collect::<Vec<_>>();
                 solver_scope.with_phase_termination(phase_termination.as_ref(), |solver_scope| {
-                    solve_vnd_with_resources(&mut sources, resources, None, solver_scope);
+                    solve_vnd_with_resources(
+                        &mut sources,
+                        resources,
+                        None,
+                        *score_tie_break,
+                        solver_scope,
+                    );
                 });
             }
         }

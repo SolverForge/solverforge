@@ -21,6 +21,9 @@ use crate::scope::SolverScope;
 #[path = "tests/repair.rs"]
 mod repair;
 
+#[path = "tests/ties.rs"]
+mod ties;
+
 #[derive(Clone, Debug)]
 struct InterruptPlan {
     value: i64,
@@ -244,6 +247,7 @@ fn vnd_single_neighborhood_applies_best_improving_move() {
         &mut neighborhoods,
         &mut resources,
         None,
+        solverforge_config::ScoreTieBreak::First,
         &mut solver_scope,
     );
 
@@ -280,6 +284,7 @@ fn vnd_cancel_mid_neighborhood_does_not_commit_partial_best() {
         &mut neighborhoods,
         &mut resources,
         None,
+        solverforge_config::ScoreTieBreak::First,
         &mut solver_scope,
     );
 
@@ -305,6 +310,7 @@ fn vnd_polling_advances_through_non_doable_tail_after_cancel_request() {
         &mut neighborhoods,
         &mut resources,
         None,
+        solverforge_config::ScoreTieBreak::First,
         &mut solver_scope,
     );
 

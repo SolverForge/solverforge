@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::time::Instant;
 
 use rand::RngExt;
+use solverforge_config::ScoreTieBreak;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 use tracing::info;
@@ -17,6 +18,7 @@ use crate::phase::control::{
 use crate::phase::localsearch::evaluation::{
     evaluate_candidate, record_evaluated_move, CandidateEvaluation,
 };
+use crate::phase::localsearch::forager::reservoir_pick;
 use crate::phase::localsearch::vnd::telemetry::{candidate_selector_label, VndProgress};
 use crate::phase::localsearch::{CursorResources, MoveCursorSource};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
@@ -28,10 +30,15 @@ use crate::stats::{
 /// Executes the one VND loop while lending the caller-owned resource only at
 /// cursor opening and candidate pull boundaries. The compiled runner passes
 /// its one solve-owned provider resource directly.
+///
+/// `score_tie_break` chooses among equally scored best improving moves of a
+/// neighborhood: `Random` by seeded reservoir selection from the step's seed,
+/// `First` the first one.
 pub(crate) fn solve_vnd_with_resources<S, D, ProgressCb, M, Source>(
     neighborhoods: &mut [Source],
     resources: &mut Source::Resources,
     step_limit: Option<u64>,
+    score_tie_break: ScoreTieBreak,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) where
     S: PlanningSolution,
@@ -67,15 +74,12 @@ pub(crate) fn solve_vnd_with_resources<S, D, ProgressCb, M, Source>(
         }
 
         let mut step_scope = StepScope::new(&mut phase_scope);
-        let stream_context = MoveStreamContext::new(
-            step_scope.step_index(),
-            step_scope
-                .phase_scope_mut()
-                .solver_scope_mut()
-                .rng()
-                .random::<u64>(),
-            None,
-        );
+        let step_seed = step_scope
+            .phase_scope_mut()
+            .solver_scope_mut()
+            .rng()
+            .random::<u64>();
+        let stream_context = MoveStreamContext::new(step_scope.step_index(), step_seed, None);
         let mut cursor =
             neighborhoods[k].open_cursor(resources, step_scope.score_director(), stream_context);
 
@@ -85,6 +89,7 @@ pub(crate) fn solve_vnd_with_resources<S, D, ProgressCb, M, Source>(
             &mut step_scope,
             &current_score,
             &mut progress,
+            TieBreak::new(score_tie_break, step_seed),
         );
         resources.flush_step_telemetry(step_scope.phase_scope_mut().stats_mut());
         match search {
@@ -186,6 +191,7 @@ fn find_best_improving_move<S, D, ProgressCb, M, C, Resources>(
     step_scope: &mut StepScope<'_, '_, '_, S, D, ProgressCb>,
     current_score: &S::Score,
     progress: &mut VndProgress,
+    mut ties: TieBreak,
 ) -> MoveSearchResult<S::Score>
 where
     S: PlanningSolution,
@@ -345,8 +351,15 @@ where
         progress.maybe_report(step_scope);
 
         if move_score > *current_score {
+            let replaces_best = match &best {
+                Some((_, best_score, _)) => ties.replaces(move_score.cmp(best_score)),
+                None => {
+                    ties.first();
+                    false
+                }
+            };
             match &best {
-                Some((_, best_score, _)) if move_score > *best_score => {
+                Some(_) if replaces_best => {
                     let (previous_best, _, previous_token) = best
                         .take()
                         .expect("VND best candidate must exist before replacement");
@@ -408,6 +421,46 @@ where
             MoveSearchResult::Found(index, score, selector_index, token)
         }
         None => MoveSearchResult::NotFound,
+    }
+}
+
+/// Tie state of one VND step: how many equally scored best improving moves
+/// were seen, and whether a later one may replace the current best.
+struct TieBreak {
+    random: bool,
+    step_seed: u64,
+    equal_count: u64,
+}
+
+impl TieBreak {
+    fn new(score_tie_break: ScoreTieBreak, step_seed: u64) -> Self {
+        Self {
+            random: matches!(score_tie_break, ScoreTieBreak::Random),
+            step_seed,
+            equal_count: 0,
+        }
+    }
+
+    /// Records the first improving move of the step.
+    fn first(&mut self) {
+        self.equal_count = 1;
+    }
+
+    /// Whether an improving move comparing `ordering` to the current best
+    /// replaces it: a better one always does, an equal one by seeded
+    /// reservoir selection under `Random`.
+    fn replaces(&mut self, ordering: std::cmp::Ordering) -> bool {
+        match ordering {
+            std::cmp::Ordering::Greater => {
+                self.equal_count = 1;
+                true
+            }
+            std::cmp::Ordering::Equal => {
+                self.equal_count += 1;
+                self.random && reservoir_pick(self.step_seed, self.equal_count)
+            }
+            std::cmp::Ordering::Less => false,
+        }
     }
 }
 

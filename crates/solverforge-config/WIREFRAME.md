@@ -220,7 +220,8 @@ profile. Explicit `acceptor`, `forager`, `move_selector`, and VND
 
 `score_tie_break` defaults to `ScoreTieBreak::Random`, which uses the seeded
 step stream for reservoir tie selection. `ScoreTieBreak::First` keeps the first
-equally scored accepted candidate.
+equally scored accepted candidate. Variable neighborhood descent applies the
+same rule to equally scored best improving moves of a neighborhood.
 
 ### `VariableTargetConfig`
 

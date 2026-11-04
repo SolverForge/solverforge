@@ -168,7 +168,9 @@ pub struct LocalSearchConfig {
     /// Forager configuration.
     pub forager: Option<ForagerConfig>,
 
-    /// Selection among equally scored accepted candidates.
+    /// Selection among equally scored accepted candidates; under
+    /// `variable_neighborhood_descent`, among equally scored best improving
+    /// moves of a neighborhood.
     #[serde(default)]
     pub score_tie_break: ScoreTieBreak,
 

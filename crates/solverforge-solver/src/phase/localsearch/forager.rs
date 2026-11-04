@@ -138,7 +138,10 @@ where
     }
 }
 
-fn reservoir_pick(step_seed: u64, equal_count: u64) -> bool {
+/// Seeded reservoir selection: whether the `equal_count`-th equally scored
+/// candidate of a step replaces the current one, so every tie is kept with
+/// probability `1 / equal_count`.
+pub(crate) fn reservoir_pick(step_seed: u64, equal_count: u64) -> bool {
     let mixed = splitmix64(
         step_seed ^ equal_count.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0xF04A_63E2_39B7_4D11,
     );

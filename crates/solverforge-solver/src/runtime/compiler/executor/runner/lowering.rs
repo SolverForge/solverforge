@@ -199,6 +199,7 @@ where
                 RuntimeLocalSearch::VariableNeighborhoodDescent {
                     phase_termination: config.termination,
                     neighborhoods,
+                    score_tie_break: config.score_tie_break,
                 },
                 declaration,
             ))

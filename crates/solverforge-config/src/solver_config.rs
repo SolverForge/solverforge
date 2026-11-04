@@ -256,8 +256,9 @@ pub enum MoveThreadCount {
     None,
 
     /// Evaluator count, main director included; bounded by the solve's
-    /// Rayon threads and by one 32-candidate evaluation window.
-    Count(usize),
+    /// Rayon threads and by one 32-candidate evaluation window. Zero is
+    /// rejected when the configuration is read.
+    Count(NonZeroUsize),
 }
 
 /// Runtime configuration overrides.

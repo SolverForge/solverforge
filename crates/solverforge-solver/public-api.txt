@@ -561,7 +561,7 @@ enum SolverLifecycleState: pub enum SolverLifecycleState { Solving, PauseRequest
 enum SolverManagerError: pub enum SolverManagerError { NoFreeJobSlots, JobNotFound { job_id: usize, }, InvalidStateTransition { job_id: usize, action: &'static str, state: SolverLifecycleState, }, NoSnapshotAvailable { job_id: usize, }, SnapshotNotFound { job_id: usize, snapshot_revision: u64, }, SnapshotAnalysisDisabled { job_id: usize, }, }
 enum SolverProgressKind: pub enum SolverProgressKind { Progress, BestSolution, }
 enum SolverTerminalReason: pub enum SolverTerminalReason { Completed, TerminatedByConfig, Cancelled, Failed, }
-enum ThreadCount: pub enum ThreadCount { Auto, Unlimited, Specific(usize), }
+enum ThreadCount: pub enum ThreadCount { Auto, Unlimited, Specific(NonZeroUsize), }
     ThreadCount: pub fn resolve(&self, partition_count: usize) -> usize
 enum ValueSource: pub enum ValueSource<S> { Empty, CountableRange { from: usize, to: usize, }, SolutionCount { count_fn: fn(&S, usize) -> usize, provider_index: usize, }, EntitySlice { values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize], }, }
 enum VariableSlot: pub enum VariableSlot<S, V, DM, IDM> { Scalar(ScalarVariableSlot<S>), List(ListVariableSlot<S, V, DM, IDM>), DynamicScalar(DynamicScalarVariableSlot<S>), DynamicList(DynamicListVariableSlot<S>), }

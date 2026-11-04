@@ -4,6 +4,7 @@
 //! solved independently (potentially in parallel), then merged back together.
 
 use std::fmt::Debug;
+use std::num::NonZeroUsize;
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -136,13 +137,13 @@ where
 /// Thread count configuration for partitioned search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThreadCount {
-    /// Automatically determine based on available CPU cores.
+    /// One thread per partition, at most one per available CPU core.
     #[default]
     Auto,
-    /// Use all available CPU cores.
+    /// One thread per available CPU core.
     Unlimited,
-    /// Use a specific number of threads.
-    Specific(usize),
+    /// At most this many threads, and at most one per partition.
+    Specific(NonZeroUsize),
 }
 
 impl ThreadCount {
@@ -166,7 +167,7 @@ impl ThreadCount {
             ThreadCount::Unlimited => std::thread::available_parallelism()
                 .map(|p| p.get())
                 .unwrap_or(1),
-            ThreadCount::Specific(n) => std::cmp::min(*n, partition_count),
+            ThreadCount::Specific(n) => std::cmp::min(n.get(), partition_count),
         }
     }
 }

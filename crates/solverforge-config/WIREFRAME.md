@@ -746,7 +746,7 @@ Derives: `Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize`.
 |---------|------|
 | `Auto` | **Default.** Sequential until benchmarks set an automatic policy |
 | `None` | Single-threaded |
-| `Count(usize)` | Explicit count |
+| `Count(NonZeroUsize)` | Explicit count; `{ count = 0 }` is rejected when the configuration is read |
 
 TOML: `move_thread_count = "auto"`, `"none"`, or `{ count = 4 }`.
 
@@ -758,8 +758,11 @@ sizes partitioned search separately.
 |---|---|
 | `None` | sequential |
 | `Auto` | sequential |
-| `Count(0)`, `Count(1)` | sequential |
+| `Count(1)` | sequential |
 | `Count(n >= 2)` | `min(n, rayon::current_num_threads(), 32)` evaluators: the main director plus that many minus one replicas; 32 is one full evaluation window |
+
+`PartitionedSearchConfig::thread_count`: `auto` runs one thread per partition
+up to the available CPU cores, `none` one thread, `{ count = n }` at most `n`.
 
 ### `PhaseConfig`
 

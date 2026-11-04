@@ -1,5 +1,7 @@
 //! Partitioned search phase configuration.
 
+use std::num::NonZeroUsize;
+
 use solverforge_config::MoveThreadCount;
 
 use super::partitioner::ThreadCount;
@@ -23,14 +25,15 @@ impl Default for PartitionedSearchConfig {
 }
 
 impl PartitionedSearchConfig {
-    /// Converts the TOML configuration: thread count `none` becomes one
-    /// thread and an explicit count is at least one.
+    /// Converts the TOML configuration: thread count `auto` is one thread per
+    /// partition up to the available CPU cores, `none` is one thread, and an
+    /// explicit count is at most that many threads.
     pub fn from_serialized(config: &solverforge_config::PartitionedSearchConfig) -> Self {
         Self {
             thread_count: match config.thread_count {
                 MoveThreadCount::Auto => ThreadCount::Auto,
-                MoveThreadCount::None => ThreadCount::Specific(1),
-                MoveThreadCount::Count(count) => ThreadCount::Specific(count.max(1)),
+                MoveThreadCount::None => ThreadCount::Specific(NonZeroUsize::MIN),
+                MoveThreadCount::Count(count) => ThreadCount::Specific(count),
             },
             log_progress: config.log_progress,
         }

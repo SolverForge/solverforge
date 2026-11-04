@@ -15,7 +15,7 @@ Partitioned search splits a large problem into independent sub-problems
 use solverforge_solver::phase::partitioned::{PartitionedSearchConfig, ThreadCount};
 
 let config = PartitionedSearchConfig {
-thread_count: ThreadCount::Specific(4),
+thread_count: ThreadCount::Specific(std::num::NonZeroUsize::new(4).unwrap()),
 log_progress: true,
 };
 ```

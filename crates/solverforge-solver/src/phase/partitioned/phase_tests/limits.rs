@@ -19,7 +19,7 @@ fn sequential_partitioned_search_shares_step_limit_across_children() {
         |_original, mut partitions| partitions.pop().unwrap(),
     );
     let config = PartitionedSearchConfig {
-        thread_count: ThreadCount::Specific(1),
+        thread_count: ThreadCount::Specific(std::num::NonZeroUsize::new(1).unwrap()),
         log_progress: false,
     };
     let mut phase = PartitionedSearchPhase::with_config(
@@ -62,7 +62,7 @@ fn sequential_partitioned_search_shares_move_limit_across_children() {
         |_original, mut partitions| partitions.pop().unwrap(),
     );
     let config = PartitionedSearchConfig {
-        thread_count: ThreadCount::Specific(1),
+        thread_count: ThreadCount::Specific(std::num::NonZeroUsize::new(1).unwrap()),
         log_progress: false,
     };
     let mut phase = PartitionedSearchPhase::with_config(
@@ -105,7 +105,7 @@ fn sequential_partitioned_search_shares_score_limit_across_children() {
         |_original, mut partitions| partitions.pop().unwrap(),
     );
     let config = PartitionedSearchConfig {
-        thread_count: ThreadCount::Specific(1),
+        thread_count: ThreadCount::Specific(std::num::NonZeroUsize::new(1).unwrap()),
         log_progress: false,
     };
     let mut phase = PartitionedSearchPhase::with_config(

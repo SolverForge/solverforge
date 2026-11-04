@@ -7,6 +7,6 @@ use solverforge_config::MoveThreadCount;
 pub(crate) fn resolve_evaluator_count(count: &MoveThreadCount) -> usize {
     match count {
         MoveThreadCount::Auto | MoveThreadCount::None => 1,
-        MoveThreadCount::Count(count) => (*count).clamp(1, rayon::current_num_threads().max(1)),
+        MoveThreadCount::Count(count) => count.get().min(rayon::current_num_threads().max(1)),
     }
 }

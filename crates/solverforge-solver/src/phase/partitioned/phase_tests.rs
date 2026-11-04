@@ -395,7 +395,7 @@ fn partitioned_search_honors_specific_thread_count() {
         |_original, mut partitions| partitions.pop().unwrap(),
     );
     let config = PartitionedSearchConfig {
-        thread_count: ThreadCount::Specific(2),
+        thread_count: ThreadCount::Specific(std::num::NonZeroUsize::new(2).unwrap()),
         log_progress: false,
     };
     let mut phase = PartitionedSearchPhase::with_config(

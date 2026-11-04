@@ -91,7 +91,7 @@ fn custom(name: &str) -> PhaseConfig {
 fn partitioned(name: Option<&str>) -> PhaseConfig {
     PhaseConfig::PartitionedSearch(PartitionedSearchConfig {
         partitioner: name.map(str::to_string),
-        thread_count: MoveThreadCount::Count(3),
+        thread_count: MoveThreadCount::Count(std::num::NonZeroUsize::new(3).unwrap()),
         log_progress: true,
         child_phases: vec![custom("child_extension")],
         termination: None,
@@ -139,7 +139,10 @@ fn typed_extensions_lower_names_without_invoking_builders_and_freeze_config() {
     };
     assert_eq!(name, "by_task");
     assert_eq!(frozen.partitioner.as_deref(), Some("by_task"));
-    assert_eq!(frozen.thread_count, MoveThreadCount::Count(3));
+    assert_eq!(
+        frozen.thread_count,
+        MoveThreadCount::Count(std::num::NonZeroUsize::new(3).unwrap())
+    );
     assert!(frozen.log_progress);
     assert_eq!(frozen.child_phases.len(), 1);
 
@@ -149,7 +152,10 @@ fn typed_extensions_lower_names_without_invoking_builders_and_freeze_config() {
     live.partitioner = Some("mutated_after_compile".to_string());
     live.thread_count = MoveThreadCount::None;
     assert_eq!(frozen.partitioner.as_deref(), Some("by_task"));
-    assert_eq!(frozen.thread_count, MoveThreadCount::Count(3));
+    assert_eq!(
+        frozen.thread_count,
+        MoveThreadCount::Count(std::num::NonZeroUsize::new(3).unwrap())
+    );
 }
 
 #[test]

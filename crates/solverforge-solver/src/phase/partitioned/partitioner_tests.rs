@@ -28,13 +28,25 @@ fn test_thread_count_default() {
 fn test_thread_count_display() {
     assert_eq!(format!("{}", ThreadCount::Auto), "Auto");
     assert_eq!(format!("{}", ThreadCount::Unlimited), "Unlimited");
-    assert_eq!(format!("{}", ThreadCount::Specific(4)), "4");
+    assert_eq!(
+        format!(
+            "{}",
+            ThreadCount::Specific(std::num::NonZeroUsize::new(4).unwrap())
+        ),
+        "4"
+    );
 }
 
 #[test]
 fn test_thread_count_resolve_specific() {
-    assert_eq!(ThreadCount::Specific(4).resolve(10), 4);
-    assert_eq!(ThreadCount::Specific(10).resolve(4), 4);
+    assert_eq!(
+        ThreadCount::Specific(std::num::NonZeroUsize::new(4).unwrap()).resolve(10),
+        4
+    );
+    assert_eq!(
+        ThreadCount::Specific(std::num::NonZeroUsize::new(10).unwrap()).resolve(4),
+        4
+    );
 }
 
 #[test]

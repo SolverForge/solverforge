@@ -79,6 +79,8 @@ step_count_limit = 40
 fn parallel_config(solution: &RoutePlan, _base: SolverConfig) -> SolverConfig {
     let mut config = SolverConfig::from_toml_str(PARALLEL_SOLVER_TOML)
         .expect("parallel list local-search fixture config must parse");
-    config.move_thread_count = MoveThreadCount::Count(solution.move_threads);
+    config.move_thread_count = MoveThreadCount::Count(
+        std::num::NonZeroUsize::new(solution.move_threads).expect("a non-zero count"),
+    );
     config
 }

@@ -238,10 +238,25 @@ fn move_thread_count_parses_every_documented_form() {
 
     assert_eq!(parse("\"auto\""), MoveThreadCount::Auto);
     assert_eq!(parse("\"none\""), MoveThreadCount::None);
-    assert_eq!(parse("{ count = 4 }"), MoveThreadCount::Count(4));
+    assert_eq!(
+        parse("{ count = 4 }"),
+        MoveThreadCount::Count(std::num::NonZeroUsize::new(4).unwrap())
+    );
     assert_eq!(
         SolverConfig::from_toml_str("").unwrap().move_thread_count,
         MoveThreadCount::Auto
+    );
+
+    let zero = SolverConfig::from_toml_str("move_thread_count = { count = 0 }")
+        .expect_err("a zero evaluator count is rejected");
+    assert!(zero.to_string().contains("nonzero"), "{zero}");
+    let partitioned_zero = SolverConfig::from_toml_str(
+        "[[phases]]\ntype = \"partitioned_search\"\nthread_count = { count = 0 }\n",
+    )
+    .expect_err("a zero partition thread count is rejected");
+    assert!(
+        partitioned_zero.to_string().contains("nonzero"),
+        "{partitioned_zero}"
     );
 }
 

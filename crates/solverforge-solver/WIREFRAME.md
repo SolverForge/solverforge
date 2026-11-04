@@ -711,7 +711,7 @@ working solution without cloning.
 
 **`FunctionalPartitioner<S, PF, MF>`** — Closure-based partitioner.
 
-**`ThreadCount`** — `Auto`, `Unlimited`, `Specific(usize)`. `PartitionedSearchPhase` solves child partitions sequentially when the resolved count is `1`, otherwise it installs a dedicated Rayon pool whose worker count matches the resolved value.
+**`ThreadCount`** — `Auto` (one thread per partition, at most one per available core), `Unlimited` (one per available core), `Specific(NonZeroUsize)` (at most that many, at most one per partition). `PartitionedSearchPhase` solves child partitions sequentially when the resolved count is `1`, otherwise it installs a dedicated Rayon pool whose worker count matches the resolved value.
 
 ## Scope Hierarchy
 

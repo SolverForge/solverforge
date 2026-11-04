@@ -59,7 +59,7 @@ fn parallel_config(solution: &Plan, _base: SolverConfig) -> SolverConfig {
     config.move_thread_count = if solution.move_threads == 0 {
         MoveThreadCount::Auto
     } else {
-        MoveThreadCount::Count(solution.move_threads)
+        MoveThreadCount::Count(std::num::NonZeroUsize::new(solution.move_threads).expect("a non-zero count"))
     };
     config
 }

@@ -11,10 +11,10 @@ fn evaluator_count_resolution() {
 
     assert_eq!(resolve_evaluator_count(&MoveThreadCount::None), 1);
     assert_eq!(resolve_evaluator_count(&MoveThreadCount::Auto), 1);
-    assert_eq!(resolve_evaluator_count(&MoveThreadCount::Count(0)), 1);
-    assert_eq!(resolve_evaluator_count(&MoveThreadCount::Count(1)), 1);
+    let count = |n| MoveThreadCount::Count(std::num::NonZeroUsize::new(n).unwrap());
+    assert_eq!(resolve_evaluator_count(&count(1)), 1);
     assert_eq!(
-        resolve_evaluator_count(&MoveThreadCount::Count(2)),
+        resolve_evaluator_count(&count(2)),
         2.min(rayon::current_num_threads())
     );
 }

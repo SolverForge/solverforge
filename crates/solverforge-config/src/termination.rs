@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct TerminationConfig {
-    /// Maximum seconds to spend solving.
+    /// Maximum seconds to spend solving; added to `minutes_spent_limit`.
     pub seconds_spent_limit: Option<u64>,
 
-    /// Maximum minutes to spend solving.
+    /// Maximum minutes to spend solving; added to `seconds_spent_limit`.
     pub minutes_spent_limit: Option<u64>,
 
     /// Target best score to achieve (as string, e.g., "0hard/0soft").
@@ -26,16 +26,16 @@ pub struct TerminationConfig {
 }
 
 impl TerminationConfig {
-    /// Sum of `seconds_spent_limit` and `minutes_spent_limit`; `None` when the
-    /// sum is zero.
+    /// Sum of `seconds_spent_limit` and `minutes_spent_limit`; `None` when
+    /// neither is set. Zero is a limit of zero; a sum past `Duration::MAX`
+    /// saturates there.
     pub fn time_limit(&self) -> Option<Duration> {
-        let seconds =
-            self.seconds_spent_limit.unwrap_or(0) + self.minutes_spent_limit.unwrap_or(0) * 60;
-        if seconds > 0 {
-            Some(Duration::from_secs(seconds))
-        } else {
-            None
+        if self.seconds_spent_limit.is_none() && self.minutes_spent_limit.is_none() {
+            return None;
         }
+        let seconds = Duration::from_secs(self.seconds_spent_limit.unwrap_or(0));
+        let minutes = Duration::from_secs(self.minutes_spent_limit.unwrap_or(0)).saturating_mul(60);
+        Some(seconds.saturating_add(minutes))
     }
 
     /// `unimproved_seconds_spent_limit` as a `Duration`.

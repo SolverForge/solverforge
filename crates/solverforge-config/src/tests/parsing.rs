@@ -280,3 +280,26 @@ fn score_director_defaults_to_the_constraints_function_with_analysis_enabled() {
     );
     assert!(!set.constraint_match_enabled());
 }
+
+#[test]
+fn time_limit_is_literal_and_saturating() {
+    use crate::TerminationConfig;
+    use std::time::Duration;
+
+    let limit = |seconds, minutes| {
+        TerminationConfig {
+            seconds_spent_limit: seconds,
+            minutes_spent_limit: minutes,
+            ..TerminationConfig::default()
+        }
+        .time_limit()
+    };
+    assert_eq!(limit(None, None), None);
+    assert_eq!(limit(Some(0), None), Some(Duration::ZERO));
+    assert_eq!(limit(None, Some(0)), Some(Duration::ZERO));
+    assert_eq!(limit(Some(30), Some(2)), Some(Duration::from_secs(150)));
+    assert_eq!(
+        limit(Some(u64::MAX), Some(u64::MAX)),
+        Some(Duration::from_secs(u64::MAX).saturating_add(Duration::MAX))
+    );
+}

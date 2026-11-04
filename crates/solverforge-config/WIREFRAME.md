@@ -112,7 +112,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Method | Signature | Note |
 |--------|-----------|------|
-| `time_limit` | `fn(&self) -> Option<Duration>` | Combines seconds + minutes × 60 |
+| `time_limit` | `fn(&self) -> Option<Duration>` | Seconds + minutes × 60, saturating at `Duration::MAX`; `None` only when neither is set, so `0` is a zero limit |
 | `unimproved_time_limit` | `fn(&self) -> Option<Duration>` | Maps unimproved seconds to Duration |
 
 ### `DirectorConfig`

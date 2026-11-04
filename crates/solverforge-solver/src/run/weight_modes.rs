@@ -37,7 +37,6 @@ pub fn try_run_weighted_solver_with_config_and_search<S, C, V, DM, IDM, Declarat
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
     config: SolverConfig,
-    default_time_limit_secs: u64,
     log_scale: fn(&S),
     qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
     build_search: BuildSearch,
@@ -70,7 +69,6 @@ where
         entity_count_by_descriptor,
         runtime,
         config,
-        default_time_limit_secs,
         log_scale,
         qualified_candidate_trace_provenance,
         build_search,
@@ -89,7 +87,6 @@ pub(super) struct ModeSolve<'d, 'c, S: PlanningSolution, C> {
     pub(super) entity_count_by_descriptor: fn(&S, usize) -> usize,
     pub(super) runtime: SolverRuntime<S>,
     pub(super) config: &'c SolverConfig,
-    pub(super) default_time_limit_secs: u64,
     pub(super) qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
 }
 
@@ -112,7 +109,6 @@ where
         entity_count_by_descriptor,
         runtime,
         config,
-        default_time_limit_secs,
         qualified_candidate_trace_provenance,
     } = solve;
     let start_weighted = W::WEIGHTED && requires_weighted_mode(&solution);
@@ -126,7 +122,6 @@ where
     let start = SessionStart {
         runner,
         config,
-        default_time_limit_secs,
         runtime,
         qualified_candidate_trace_provenance,
         control,
@@ -179,7 +174,6 @@ where
 struct SessionStart<'c, S: PlanningSolution, Runner> {
     runner: Runner,
     config: &'c SolverConfig,
-    default_time_limit_secs: u64,
     runtime: SolverRuntime<S>,
     qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
     control: WeightModeControl,
@@ -199,10 +193,8 @@ where
         M: WeightMode,
         Runner: Phase<S, ModeDirector<'d, S, C, M>, ChannelProgressCallback<S>>,
     {
-        let (termination, time_limit) =
-            build_solver_termination::<S>(self.config, self.default_time_limit_secs);
-        let execution_policy =
-            configured_execution_policy::<S>(self.config, self.default_time_limit_secs, time_limit);
+        let (termination, time_limit) = build_solver_termination::<S>(self.config);
+        let execution_policy = configured_execution_policy::<S>(self.config);
         let mut solver = Solver::new(self.runner)
             .with_config(self.config.clone())
             .with_candidate_trace_execution_policy(execution_policy)

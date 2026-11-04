@@ -211,7 +211,6 @@ pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
     config: SolverConfig,
-    default_time_limit_secs: u64,
     log_scale: fn(&S),
     qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
     model: RuntimeModel<S, V, DM, IDM>,

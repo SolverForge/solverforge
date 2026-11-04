@@ -76,7 +76,6 @@ pub(super) fn generate_runtime_solve_internal(
                         Self::entity_count,
                         runtime,
                         config,
-                        Self::__solverforge_default_time_limit_secs(),
                         Self::__solverforge_log_scale,
                         #provenance,
                         Self::__solverforge_search_declaration,

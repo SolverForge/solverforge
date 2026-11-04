@@ -3,7 +3,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 /// Termination configuration. Every configured criterion applies, combined
-/// with OR: the solve (or phase) stops at whichever is reached first.
+/// with OR: the solve (or phase) stops at whichever is reached first. Nothing
+/// is added that is not configured; without a time limit there is no time
+/// limit.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct TerminationConfig {

@@ -210,7 +210,6 @@ fn zero_variable_run_builds_the_normal_graph_and_search_declaration() {
         test_entity_count,
         SolverRuntime::detached(),
         SolverConfig::default(),
-        30,
         noop_log_scale,
         None,
         move |config, descriptor| {
@@ -239,7 +238,7 @@ fn termination_config(termination: solverforge_config::TerminationConfig) -> Sol
 #[test]
 fn build_termination_preserves_missing_time_limit_as_unlimited() {
     let (termination, time_limit) =
-        build_solver_termination::<TestSolution>(&SolverConfig::default(), 180);
+        build_solver_termination::<TestSolution>(&SolverConfig::default());
 
     assert!(termination.is_unbounded());
     assert_eq!(time_limit, None);
@@ -247,17 +246,16 @@ fn build_termination_preserves_missing_time_limit_as_unlimited() {
 
 #[test]
 fn build_termination_treats_an_empty_config_as_unlimited() {
-    let (termination, time_limit) = build_solver_termination::<TestSolution>(
-        &termination_config(solverforge_config::TerminationConfig::default()),
-        180,
-    );
+    let (termination, time_limit) = build_solver_termination::<TestSolution>(&termination_config(
+        solverforge_config::TerminationConfig::default(),
+    ));
 
     assert!(termination.is_unbounded());
     assert_eq!(time_limit, None);
 }
 
 #[test]
-fn work_criteria_get_the_entrypoint_fallback_time_limit() {
+fn work_criteria_install_no_time_limit_of_their_own() {
     for termination in [
         solverforge_config::TerminationConfig {
             best_score_limit: Some("0".to_string()),
@@ -277,22 +275,21 @@ fn work_criteria_get_the_entrypoint_fallback_time_limit() {
         },
     ] {
         let (termination, time_limit) =
-            build_solver_termination::<TestSolution>(&termination_config(termination), 180);
+            build_solver_termination::<TestSolution>(&termination_config(termination));
         assert!(!termination.is_unbounded());
-        assert_eq!(time_limit, Some(Duration::from_secs(180)));
+        assert_eq!(time_limit, None);
     }
 }
 
 #[test]
 fn build_termination_keeps_the_configured_time_limit() {
-    let (_, time_limit) = build_solver_termination::<TestSolution>(
-        &termination_config(solverforge_config::TerminationConfig {
+    let (_, time_limit) = build_solver_termination::<TestSolution>(&termination_config(
+        solverforge_config::TerminationConfig {
             step_count_limit: Some(10),
             seconds_spent_limit: Some(5),
             ..Default::default()
-        }),
-        180,
-    );
+        },
+    ));
 
     assert_eq!(time_limit, Some(Duration::from_secs(5)));
 }
@@ -306,7 +303,7 @@ fn config_best_score_limit_stops_active_phase_loop() {
         }),
         ..Default::default()
     };
-    let (termination, time_limit) = build_solver_termination::<TestSolution>(&config, 180);
+    let (termination, time_limit) = build_solver_termination::<TestSolution>(&config);
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
     let director = ScoreDirector::with_descriptor(
         TestSolution {
@@ -343,7 +340,7 @@ fn every_configured_criterion_applies() {
         step_count_limit: Some(3),
         ..Default::default()
     });
-    let (termination, _) = build_solver_termination::<TestSolution>(&config, 180);
+    let (termination, _) = build_solver_termination::<TestSolution>(&config);
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
     let director = ScoreDirector::with_descriptor(
         TestSolution {

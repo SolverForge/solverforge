@@ -241,14 +241,6 @@ pub(super) fn generate_runtime_phase_support(
             impl #solution_name {
                 #scalar_candidate_count_helper
 
-                fn __solverforge_default_time_limit_secs() -> u64 {
-                    if Self::__solverforge_has_list_variable() {
-                        60
-                    } else {
-                        30
-                    }
-                }
-
                 #[inline]
                 fn __solverforge_has_list_variable() -> bool {
                     false #(|| #has_list_variable_terms)*
@@ -293,10 +285,6 @@ pub(super) fn generate_runtime_phase_support(
     quote! {
         impl #solution_name {
             #scalar_candidate_count_helper
-
-            const fn __solverforge_default_time_limit_secs() -> u64 {
-                30
-            }
 
             fn __solverforge_log_scale(solution: &Self) {
                 let descriptor = Self::descriptor();

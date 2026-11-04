@@ -138,21 +138,19 @@ where
 }
 
 /// Builds the solver-wide termination from config, returning it and the
-/// effective time limit. A score or work criterion without a configured time
-/// limit is paired with the entrypoint's `default_secs` time guard.
+/// configured time limit. Nothing is added that the configuration does not
+/// state: without a time limit there is no time guard.
 pub(crate) fn build_solver_termination<S>(
     config: &SolverConfig,
-    default_secs: u64,
 ) -> (ConfiguredSolverTermination<S>, Option<Duration>)
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
 {
     let configured = parse_configured_termination::<S>(config.termination.as_ref());
-    let time_limit = effective_time_limit(&configured, default_secs);
     (
         ConfiguredSolverTermination {
-            time: time_limit.map(TimeTermination::new),
+            time: configured.time_limit.map(TimeTermination::new),
             best_score: configured.best_score.map(BestScoreTermination::new),
             step_count: configured.step_count.map(StepCountTermination::new),
             unimproved_step_count: configured
@@ -162,50 +160,21 @@ where
                 .unimproved_time
                 .map(UnimprovedTimeTermination::new),
         },
-        time_limit,
+        configured.time_limit,
     )
 }
 
-/// The configured time limit, or the entrypoint fallback when only a score or
-/// work criterion is configured.
-fn effective_time_limit<Sc>(
-    configured: &ConfiguredTermination<Sc>,
-    default_secs: u64,
-) -> Option<Duration> {
-    let has_criterion = configured.best_score.is_some()
-        || configured.step_count.is_some()
-        || configured.unimproved_step_count.is_some()
-        || configured.unimproved_time.is_some();
-    configured
-        .time_limit
-        .or_else(|| has_criterion.then(|| Duration::from_secs(default_secs)))
-}
-
 /// Records the termination policy the configured runtime installed: the
-/// effective time limit and every configured criterion, all combined with OR.
-///
-/// The time guard comes from `build_solver_termination`'s returned effective
-/// limit rather than from the input TOML: a score or work criterion without
-/// a time limit gets the entrypoint's fallback guard, and that injected guard
-/// is material to both bounded-work and fixed-budget comparisons.
-pub(crate) fn configured_execution_policy<S>(
-    config: &SolverConfig,
-    default_secs: u64,
-    effective_time_limit: Option<Duration>,
-) -> CandidateTraceExecutionPolicy
+/// configured time limit and every configured criterion, all combined with OR.
+pub(crate) fn configured_execution_policy<S>(config: &SolverConfig) -> CandidateTraceExecutionPolicy
 where
     S: PlanningSolution,
     S::Score: ParseableScore + std::fmt::Display,
 {
     let configured = parse_configured_termination::<S>(config.termination.as_ref());
     let none = || "none".to_string();
-    let time_limit_source = match (configured.time_limit, effective_time_limit) {
-        (Some(_), Some(_)) => "configured",
-        (None, Some(_)) => "configured_entrypoint_fallback",
-        (_, None) => "not_installed",
-    };
     let mut criteria = Vec::new();
-    if effective_time_limit.is_some() {
+    if configured.time_limit.is_some() {
         criteria.push("time");
     }
     if configured.best_score.is_some() {
@@ -230,18 +199,6 @@ where
         (
             "configured_time_limit_ns".to_string(),
             configured.time_limit.map_or_else(none, duration_nanos),
-        ),
-        (
-            "configured_entrypoint_default_time_limit_ns".to_string(),
-            duration_nanos(Duration::from_secs(default_secs)),
-        ),
-        (
-            "effective_time_limit_ns".to_string(),
-            effective_time_limit.map_or_else(none, duration_nanos),
-        ),
-        (
-            "time_limit_source".to_string(),
-            time_limit_source.to_string(),
         ),
         (
             "best_score_limit".to_string(),

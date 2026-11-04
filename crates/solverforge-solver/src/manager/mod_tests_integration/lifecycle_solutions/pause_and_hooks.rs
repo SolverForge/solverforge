@@ -277,7 +277,6 @@ impl Solvable for ZeroVariableLifecycleSolution {
             zero_variable_entity_count,
             runtime,
             solverforge_config::SolverConfig::default(),
-            30,
             zero_variable_log_scale,
             None,
             |config, descriptor| {

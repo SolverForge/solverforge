@@ -100,7 +100,9 @@ Constructor: `const fn new(max_entries: NonZeroUsize) -> Self`.
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 Every configured criterion applies, combined with OR, at solver and phase
-level alike: the solve or phase stops at whichever is reached first.
+level alike: the solve or phase stops at whichever is reached first. Nothing is
+added that is not configured; a score or work criterion without a time limit
+runs without a time limit.
 
 | Field | Type | Note |
 |-------|------|------|

@@ -19,7 +19,7 @@ type ModeDirector<'d, S, C, M> = ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>
 type ModeSession<'d, S, C, M, Runner> = SolveSession<
     'static,
     Runner,
-    Option<AnyTermination<S, ModeDirector<'d, S, C, M>>>,
+    Option<ConfiguredSolverTermination<S>>,
     S,
     ModeDirector<'d, S, C, M>,
     ChannelProgressCallback<S>,
@@ -75,24 +75,6 @@ where
         qualified_candidate_trace_provenance,
         build_search,
     )
-}
-
-impl<S: PlanningSolution, D: Director<S>> AnyTermination<S, D> {
-    /// The same termination, with its state, checked against director `D2`.
-    pub(crate) fn retarget<D2: Director<S>>(self) -> AnyTermination<S, D2> {
-        match self {
-            Self::None(t) => AnyTermination::None(t),
-            Self::Default(t) => AnyTermination::Default(OrTermination::new(t.0)),
-            Self::WithBestScore(t) => AnyTermination::WithBestScore(OrTermination::new(t.0)),
-            Self::WithStepCount(t) => AnyTermination::WithStepCount(OrTermination::new(t.0)),
-            Self::WithUnimprovedStep(t) => {
-                AnyTermination::WithUnimprovedStep(OrTermination::new(t.0))
-            }
-            Self::WithUnimprovedTime(t) => {
-                AnyTermination::WithUnimprovedTime(OrTermination::new(t.0))
-            }
-        }
-    }
 }
 
 enum Running<A, B> {
@@ -176,7 +158,7 @@ where
                 }
                 Running::Weighted(
                     session.switch_director(ScoreDirector::into_weight_mode::<W>, |termination| {
-                        termination.map(AnyTermination::retarget)
+                        termination
                     }),
                 )
             }
@@ -186,7 +168,7 @@ where
                 }
                 Running::Unweighted(session.switch_director(
                     ScoreDirector::into_weight_mode::<UnweightedMode>,
-                    |termination| termination.map(AnyTermination::retarget),
+                    |termination| termination,
                 ))
             }
         };
@@ -218,7 +200,7 @@ where
         Runner: Phase<S, ModeDirector<'d, S, C, M>, ChannelProgressCallback<S>>,
     {
         let (termination, time_limit) =
-            build_director_termination(self.config, self.default_time_limit_secs);
+            build_solver_termination::<S>(self.config, self.default_time_limit_secs);
         let execution_policy =
             configured_execution_policy::<S>(self.config, self.default_time_limit_secs, time_limit);
         let mut solver = Solver::new(self.runner)

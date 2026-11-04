@@ -99,6 +99,9 @@ Constructor: `const fn new(max_entries: NonZeroUsize) -> Self`.
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
+Every configured criterion applies, combined with OR, at solver and phase
+level alike: the solve or phase stops at whichever is reached first.
+
 | Field | Type | Note |
 |-------|------|------|
 | `seconds_spent_limit` | `Option<u64>` | Max seconds |

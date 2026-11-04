@@ -124,26 +124,6 @@ fn test_unimproved_step_count_termination_with_improvement() {
 }
 
 #[test]
-fn test_or_termination() {
-    let mut scope = create_scope_with_score(SoftScore::of(-10));
-
-    // Either: best score >= 0 OR step count >= 3
-    let mut term = OrTermination::new((
-        BestScoreTermination::new(SoftScore::of(0)),
-        StepCountTermination::new(3),
-    ));
-
-    // Neither condition met
-    assert!(!term.is_terminated(&scope));
-
-    // Step count condition met
-    scope.increment_step_count();
-    scope.increment_step_count();
-    scope.increment_step_count();
-    assert!(term.is_terminated(&scope));
-}
-
-#[test]
 fn test_unimproved_time_termination_no_score() {
     let scope = create_scope();
     let mut term = UnimprovedTimeTermination::<TestSolution>::new(Duration::from_millis(10));

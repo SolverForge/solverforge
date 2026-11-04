@@ -1,31 +1,24 @@
 use super::*;
 
 /// Parsed solver termination policy shared by runtime phase assembly and the
-/// top-level termination builder.
-///
-/// `TerminationConfig` historically chooses the first configured score/work
-/// criterion in this order: best score, step count, unimproved steps,
-/// unimproved time. A configured time limit is paired with that criterion, or
-/// is the policy itself when no other criterion is present. Keeping that
-/// precedence here prevents phase assembly from treating an empty or
-/// unparsable configuration as a finite solver boundary.
+/// top-level termination builder: every configured criterion, combined with
+/// OR, so the solve stops at whichever is reached first.
 #[derive(Clone, Copy)]
 pub(crate) struct ConfiguredTermination<Sc> {
     pub(super) time_limit: Option<Duration>,
-    criterion: Option<ConfiguredTerminationCriterion<Sc>>,
-}
-
-#[derive(Clone, Copy)]
-enum ConfiguredTerminationCriterion<Sc> {
-    BestScore(Sc),
-    StepCount(u64),
-    UnimprovedStepCount(u64),
-    UnimprovedTime(Duration),
+    best_score: Option<Sc>,
+    step_count: Option<u64>,
+    unimproved_step_count: Option<u64>,
+    unimproved_time: Option<Duration>,
 }
 
 impl<Sc> ConfiguredTermination<Sc> {
     pub(crate) fn has_effective_limit(&self) -> bool {
-        self.time_limit.is_some() || self.criterion.is_some()
+        self.time_limit.is_some()
+            || self.best_score.is_some()
+            || self.step_count.is_some()
+            || self.unimproved_step_count.is_some()
+            || self.unimproved_time.is_some()
     }
 }
 
@@ -51,115 +44,150 @@ where
     S: PlanningSolution,
     S::Score: ParseableScore,
 {
-    let time_limit = config.and_then(TerminationConfig::time_limit);
-    let criterion = config.and_then(|config| {
-        configured_best_score_limit::<S::Score>(config)
-            .map(ConfiguredTerminationCriterion::BestScore)
-            .or_else(|| {
-                config
-                    .step_count_limit
-                    .map(ConfiguredTerminationCriterion::StepCount)
-            })
-            .or_else(|| {
-                config
-                    .unimproved_step_count_limit
-                    .map(ConfiguredTerminationCriterion::UnimprovedStepCount)
-            })
-            .or_else(|| {
-                config
-                    .unimproved_time_limit()
-                    .map(ConfiguredTerminationCriterion::UnimprovedTime)
-            })
-    });
     ConfiguredTermination {
-        time_limit,
-        criterion,
+        time_limit: config.and_then(TerminationConfig::time_limit),
+        best_score: config.and_then(configured_best_score_limit::<S::Score>),
+        step_count: config.and_then(|config| config.step_count_limit),
+        unimproved_step_count: config.and_then(|config| config.unimproved_step_count_limit),
+        unimproved_time: config.and_then(TerminationConfig::unimproved_time_limit),
     }
 }
 
-/// Builds a termination from config, returning both the termination and the time limit.
-pub(crate) fn build_director_termination<S, D>(
+/// The solver-wide termination: every criterion of `[termination]`, combined
+/// with OR. Each criterion is its own concrete termination; an absent one is
+/// never checked.
+pub(crate) struct ConfiguredSolverTermination<S: PlanningSolution> {
+    time: Option<TimeTermination>,
+    best_score: Option<BestScoreTermination<S::Score>>,
+    step_count: Option<StepCountTermination>,
+    unimproved_step_count: Option<UnimprovedStepCountTermination<S>>,
+    unimproved_time: Option<UnimprovedTimeTermination<S>>,
+}
+
+impl<S: PlanningSolution> fmt::Debug for ConfiguredSolverTermination<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConfiguredSolverTermination")
+            .field("time", &self.time)
+            .field("best_score", &self.best_score.is_some())
+            .field("step_count", &self.step_count)
+            .field("unimproved_step_count", &self.unimproved_step_count)
+            .field("unimproved_time", &self.unimproved_time.is_some())
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution> ConfiguredSolverTermination<S> {
+    /// Whether no criterion is configured, so the solve runs until its phases
+    /// end or it is cancelled.
+    #[cfg(test)]
+    pub(crate) fn is_unbounded(&self) -> bool {
+        self.time.is_none()
+            && self.best_score.is_none()
+            && self.step_count.is_none()
+            && self.unimproved_step_count.is_none()
+            && self.unimproved_time.is_none()
+    }
+}
+
+impl<S, D, ProgressCb> Termination<S, D, ProgressCb> for ConfiguredSolverTermination<S>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool {
+        // Every criterion is checked, so stateful ones (the unimproved
+        // trackers) observe each step even when another one fires first.
+        let mut terminated = false;
+        if let Some(time) = &mut self.time {
+            terminated |= Termination::<S, D, ProgressCb>::is_terminated(time, solver_scope);
+        }
+        if let Some(best_score) = &mut self.best_score {
+            terminated |= Termination::<S, D, ProgressCb>::is_terminated(best_score, solver_scope);
+        }
+        if let Some(step_count) = &mut self.step_count {
+            terminated |= Termination::<S, D, ProgressCb>::is_terminated(step_count, solver_scope);
+        }
+        if let Some(unimproved) = &mut self.unimproved_step_count {
+            terminated |= Termination::<S, D, ProgressCb>::is_terminated(unimproved, solver_scope);
+        }
+        if let Some(unimproved) = &mut self.unimproved_time {
+            terminated |= Termination::<S, D, ProgressCb>::is_terminated(unimproved, solver_scope);
+        }
+        terminated
+    }
+
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>) {
+        if let Some(time) = &self.time {
+            Termination::<S, D, ProgressCb>::install_inphase_limits(time, solver_scope);
+        }
+        if let Some(best_score) = &self.best_score {
+            Termination::<S, D, ProgressCb>::install_inphase_limits(best_score, solver_scope);
+        }
+        if let Some(step_count) = &self.step_count {
+            Termination::<S, D, ProgressCb>::install_inphase_limits(step_count, solver_scope);
+        }
+        if let Some(unimproved) = &self.unimproved_step_count {
+            Termination::<S, D, ProgressCb>::install_inphase_limits(unimproved, solver_scope);
+        }
+        if let Some(unimproved) = &self.unimproved_time {
+            Termination::<S, D, ProgressCb>::install_inphase_limits(unimproved, solver_scope);
+        }
+    }
+}
+
+/// Builds the solver-wide termination from config, returning it and the
+/// effective time limit. A score or work criterion without a configured time
+/// limit is paired with the entrypoint's `default_secs` time guard.
+pub(crate) fn build_solver_termination<S>(
     config: &SolverConfig,
     default_secs: u64,
-) -> (AnyTermination<S, D>, Option<Duration>)
+) -> (ConfiguredSolverTermination<S>, Option<Duration>)
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
-    D: Director<S>,
 {
-    let ConfiguredTermination {
-        time_limit: configured_time_limit,
-        criterion,
-    } = parse_configured_termination::<S>(config.termination.as_ref());
-    let fallback_time_limit = Duration::from_secs(default_secs);
-
-    let (termination, effective_time_limit) = match criterion {
-        Some(ConfiguredTerminationCriterion::BestScore(target)) => {
-            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-            let time = TimeTermination::new(effective_time_limit);
-            (
-                AnyTermination::WithBestScore(OrTermination::new((
-                    time,
-                    BestScoreTermination::new(target),
-                ))),
-                Some(effective_time_limit),
-            )
-        }
-        Some(ConfiguredTerminationCriterion::StepCount(step_limit)) => {
-            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-            let time = TimeTermination::new(effective_time_limit);
-            (
-                AnyTermination::WithStepCount(OrTermination::new((
-                    time,
-                    StepCountTermination::new(step_limit),
-                ))),
-                Some(effective_time_limit),
-            )
-        }
-        Some(ConfiguredTerminationCriterion::UnimprovedStepCount(unimproved_step_limit)) => {
-            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-            let time = TimeTermination::new(effective_time_limit);
-            (
-                AnyTermination::WithUnimprovedStep(OrTermination::new((
-                    time,
-                    UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
-                ))),
-                Some(effective_time_limit),
-            )
-        }
-        Some(ConfiguredTerminationCriterion::UnimprovedTime(unimproved_time)) => {
-            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-            let time = TimeTermination::new(effective_time_limit);
-            (
-                AnyTermination::WithUnimprovedTime(OrTermination::new((
-                    time,
-                    UnimprovedTimeTermination::<S>::new(unimproved_time),
-                ))),
-                Some(effective_time_limit),
-            )
-        }
-        None => configured_time_limit.map_or_else(
-            || (AnyTermination::None(NoTermination), None),
-            |limit| {
-                let time = TimeTermination::new(limit);
-                (
-                    AnyTermination::Default(OrTermination::new((time,))),
-                    Some(limit),
-                )
-            },
-        ),
-    };
-
-    (termination, effective_time_limit)
+    let configured = parse_configured_termination::<S>(config.termination.as_ref());
+    let time_limit = effective_time_limit(&configured, default_secs);
+    (
+        ConfiguredSolverTermination {
+            time: time_limit.map(TimeTermination::new),
+            best_score: configured.best_score.map(BestScoreTermination::new),
+            step_count: configured.step_count.map(StepCountTermination::new),
+            unimproved_step_count: configured
+                .unimproved_step_count
+                .map(UnimprovedStepCountTermination::new),
+            unimproved_time: configured
+                .unimproved_time
+                .map(UnimprovedTimeTermination::new),
+        },
+        time_limit,
+    )
 }
 
-/// Records the termination policy the configured runtime actually installed.
+/// The configured time limit, or the entrypoint fallback when only a score or
+/// work criterion is configured.
+fn effective_time_limit<Sc>(
+    configured: &ConfiguredTermination<Sc>,
+    default_secs: u64,
+) -> Option<Duration> {
+    let has_criterion = configured.best_score.is_some()
+        || configured.step_count.is_some()
+        || configured.unimproved_step_count.is_some()
+        || configured.unimproved_time.is_some();
+    configured
+        .time_limit
+        .or_else(|| has_criterion.then(|| Duration::from_secs(default_secs)))
+}
+
+/// Records the termination policy the configured runtime installed: the
+/// effective time limit and every configured criterion, all combined with OR.
 ///
-/// This deliberately derives its time guard from `build_termination`'s
-/// returned effective limit rather than from the input TOML.  In particular,
-/// a score/work criterion without an explicit time limit gets the configured
-/// entrypoint's fallback guard, and that injected guard is material to both
-/// bounded-work and fixed-budget comparisons.
+/// The time guard comes from `build_solver_termination`'s returned effective
+/// limit rather than from the input TOML: a score or work criterion without
+/// a time limit gets the entrypoint's fallback guard, and that injected guard
+/// is material to both bounded-work and fixed-budget comparisons.
 pub(crate) fn configured_execution_policy<S>(
     config: &SolverConfig,
     default_secs: u64,
@@ -170,85 +198,75 @@ where
     S::Score: ParseableScore + std::fmt::Display,
 {
     let configured = parse_configured_termination::<S>(config.termination.as_ref());
-    let configured_time_limit = configured.time_limit;
-    let criterion = configured.criterion;
-    let fallback_time_limit = Duration::from_secs(default_secs);
-
-    let time_limit_source = match (configured_time_limit, effective_time_limit) {
+    let none = || "none".to_string();
+    let time_limit_source = match (configured.time_limit, effective_time_limit) {
         (Some(_), Some(_)) => "configured",
-        (None, Some(_)) if criterion.is_some() => "configured_entrypoint_fallback",
-        (None, Some(_)) => "internal",
+        (None, Some(_)) => "configured_entrypoint_fallback",
         (_, None) => "not_installed",
     };
-    let mut attributes = vec![
+    let mut criteria = Vec::new();
+    if effective_time_limit.is_some() {
+        criteria.push("time");
+    }
+    if configured.best_score.is_some() {
+        criteria.push("best_score");
+    }
+    if configured.step_count.is_some() {
+        criteria.push("step_count");
+    }
+    if configured.unimproved_step_count.is_some() {
+        criteria.push("unimproved_step_count");
+    }
+    if configured.unimproved_time.is_some() {
+        criteria.push("unimproved_time");
+    }
+    let composition = if criteria.is_empty() {
+        "unbounded".to_string()
+    } else {
+        criteria.join("_or_")
+    };
+    let attributes = vec![
         ("entrypoint".to_string(), "configured_runtime".to_string()),
         (
             "configured_time_limit_ns".to_string(),
-            configured_time_limit.map_or_else(|| "none".to_string(), duration_nanos),
+            configured.time_limit.map_or_else(none, duration_nanos),
         ),
         (
             "configured_entrypoint_default_time_limit_ns".to_string(),
-            duration_nanos(fallback_time_limit),
+            duration_nanos(Duration::from_secs(default_secs)),
         ),
         (
             "effective_time_limit_ns".to_string(),
-            effective_time_limit.map_or_else(|| "none".to_string(), duration_nanos),
+            effective_time_limit.map_or_else(none, duration_nanos),
         ),
         (
             "time_limit_source".to_string(),
             time_limit_source.to_string(),
         ),
+        (
+            "best_score_limit".to_string(),
+            configured
+                .best_score
+                .map_or_else(none, |score| score.to_string()),
+        ),
+        (
+            "step_count_limit".to_string(),
+            configured
+                .step_count
+                .map_or_else(none, |limit| limit.to_string()),
+        ),
+        (
+            "unimproved_step_count_limit".to_string(),
+            configured
+                .unimproved_step_count
+                .map_or_else(none, |limit| limit.to_string()),
+        ),
+        (
+            "unimproved_time_limit_ns".to_string(),
+            configured.unimproved_time.map_or_else(none, duration_nanos),
+        ),
+        ("termination_composition".to_string(), composition),
     ];
-
-    match criterion {
-        Some(ConfiguredTerminationCriterion::BestScore(target)) => {
-            attributes.push(("criterion".to_string(), "best_score".to_string()));
-            attributes.push(("criterion_target".to_string(), target.to_string()));
-            attributes.push((
-                "termination_composition".to_string(),
-                "time_or_best_score".to_string(),
-            ));
-        }
-        Some(ConfiguredTerminationCriterion::StepCount(limit)) => {
-            attributes.push(("criterion".to_string(), "step_count".to_string()));
-            attributes.push(("criterion_target".to_string(), limit.to_string()));
-            attributes.push((
-                "termination_composition".to_string(),
-                "time_or_step_count".to_string(),
-            ));
-        }
-        Some(ConfiguredTerminationCriterion::UnimprovedStepCount(limit)) => {
-            attributes.push(("criterion".to_string(), "unimproved_step_count".to_string()));
-            attributes.push(("criterion_target".to_string(), limit.to_string()));
-            attributes.push((
-                "termination_composition".to_string(),
-                "time_or_unimproved_step_count".to_string(),
-            ));
-        }
-        Some(ConfiguredTerminationCriterion::UnimprovedTime(limit)) => {
-            attributes.push(("criterion".to_string(), "unimproved_time".to_string()));
-            attributes.push(("criterion_target_ns".to_string(), duration_nanos(limit)));
-            attributes.push((
-                "termination_composition".to_string(),
-                "time_or_unimproved_time".to_string(),
-            ));
-        }
-        None if effective_time_limit.is_some() => {
-            attributes.push(("criterion".to_string(), "none".to_string()));
-            attributes.push((
-                "termination_composition".to_string(),
-                "time_only".to_string(),
-            ));
-        }
-        None => {
-            attributes.push(("criterion".to_string(), "none".to_string()));
-            attributes.push((
-                "termination_composition".to_string(),
-                "unbounded".to_string(),
-            ));
-        }
-    }
-
     CandidateTraceExecutionPolicy::known("solverforge.execution_policy", attributes)
 }
 

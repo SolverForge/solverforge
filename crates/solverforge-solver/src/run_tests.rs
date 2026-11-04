@@ -1,8 +1,7 @@
-use super::{log_solve_start, try_run_solver_with_config_and_search, AnyTermination};
+use super::{build_solver_termination, log_solve_start, try_run_solver_with_config_and_search};
 use crate::builder::{RuntimeModel, SearchContext};
 use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
-use crate::run::termination::build_director_termination;
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::solver::Solver;
 use crate::stats::{
@@ -230,44 +229,72 @@ fn zero_variable_run_builds_the_normal_graph_and_search_declaration() {
     assert_eq!(declarations.load(Ordering::SeqCst), 1);
 }
 
+fn termination_config(termination: solverforge_config::TerminationConfig) -> SolverConfig {
+    SolverConfig {
+        termination: Some(termination),
+        ..SolverConfig::default()
+    }
+}
+
 #[test]
 fn build_termination_preserves_missing_time_limit_as_unlimited() {
-    let config = SolverConfig::default();
     let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
+        build_solver_termination::<TestSolution>(&SolverConfig::default(), 180);
 
-    assert!(matches!(termination, AnyTermination::None(_)));
+    assert!(termination.is_unbounded());
     assert_eq!(time_limit, None);
 }
 
 #[test]
 fn build_termination_treats_an_empty_config_as_unlimited() {
-    let config = SolverConfig {
-        termination: Some(solverforge_config::TerminationConfig::default()),
-        ..SolverConfig::default()
-    };
-    let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
+    let (termination, time_limit) = build_solver_termination::<TestSolution>(
+        &termination_config(solverforge_config::TerminationConfig::default()),
+        180,
+    );
 
-    assert!(matches!(termination, AnyTermination::None(_)));
+    assert!(termination.is_unbounded());
     assert_eq!(time_limit, None);
 }
 
 #[test]
-fn build_termination_returns_fallback_time_for_best_score_limit() {
-    let config = SolverConfig {
-        termination: Some(solverforge_config::TerminationConfig {
+fn work_criteria_get_the_entrypoint_fallback_time_limit() {
+    for termination in [
+        solverforge_config::TerminationConfig {
             best_score_limit: Some("0".to_string()),
             ..Default::default()
+        },
+        solverforge_config::TerminationConfig {
+            step_count_limit: Some(10),
+            ..Default::default()
+        },
+        solverforge_config::TerminationConfig {
+            unimproved_step_count_limit: Some(10),
+            ..Default::default()
+        },
+        solverforge_config::TerminationConfig {
+            unimproved_seconds_spent_limit: Some(10),
+            ..Default::default()
+        },
+    ] {
+        let (termination, time_limit) =
+            build_solver_termination::<TestSolution>(&termination_config(termination), 180);
+        assert!(!termination.is_unbounded());
+        assert_eq!(time_limit, Some(Duration::from_secs(180)));
+    }
+}
+
+#[test]
+fn build_termination_keeps_the_configured_time_limit() {
+    let (_, time_limit) = build_solver_termination::<TestSolution>(
+        &termination_config(solverforge_config::TerminationConfig {
+            step_count_limit: Some(10),
+            seconds_spent_limit: Some(5),
+            ..Default::default()
         }),
-        ..Default::default()
-    };
+        180,
+    );
 
-    let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
-
-    assert!(matches!(termination, AnyTermination::WithBestScore(_)));
-    assert_eq!(time_limit, Some(Duration::from_secs(180)));
+    assert_eq!(time_limit, Some(Duration::from_secs(5)));
 }
 
 #[test]
@@ -279,10 +306,7 @@ fn config_best_score_limit_stops_active_phase_loop() {
         }),
         ..Default::default()
     };
-    let (termination, time_limit) = build_director_termination::<
-        TestSolution,
-        ScoreDirector<TestSolution, ScoreFromSolutionConstraints>,
-    >(&config, 180);
+    let (termination, time_limit) = build_solver_termination::<TestSolution>(&config, 180);
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
     let director = ScoreDirector::with_descriptor(
         TestSolution {
@@ -311,72 +335,36 @@ fn config_best_score_limit_stops_active_phase_loop() {
 }
 
 #[test]
-fn build_termination_returns_fallback_time_for_step_limit() {
-    let config = SolverConfig {
-        termination: Some(solverforge_config::TerminationConfig {
-            step_count_limit: Some(10),
-            ..Default::default()
-        }),
+fn every_configured_criterion_applies() {
+    // The step limit (3) comes before the best-score limit (5), which used to
+    // take precedence and hide it.
+    let config = termination_config(solverforge_config::TerminationConfig {
+        best_score_limit: Some("5".to_string()),
+        step_count_limit: Some(3),
         ..Default::default()
-    };
+    });
+    let (termination, _) = build_solver_termination::<TestSolution>(&config, 180);
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let director = ScoreDirector::with_descriptor(
+        TestSolution {
+            score: Some(SoftScore::of(0)),
+        },
+        ScoreFromSolutionConstraints,
+        descriptor,
+        |_, _| 1,
+    );
 
-    let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
+    let result = Solver::new(IncrementScorePhase { max_score: 10 })
+        .with_config(config)
+        .with_termination(termination)
+        .solve(director);
 
-    assert!(matches!(termination, AnyTermination::WithStepCount(_)));
-    assert_eq!(time_limit, Some(Duration::from_secs(180)));
-}
-
-#[test]
-fn build_termination_returns_fallback_time_for_unimproved_step_limit() {
-    let config = SolverConfig {
-        termination: Some(solverforge_config::TerminationConfig {
-            unimproved_step_count_limit: Some(10),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
-
-    assert!(matches!(termination, AnyTermination::WithUnimprovedStep(_)));
-    assert_eq!(time_limit, Some(Duration::from_secs(180)));
-}
-
-#[test]
-fn build_termination_returns_fallback_time_for_unimproved_time_limit() {
-    let config = SolverConfig {
-        termination: Some(solverforge_config::TerminationConfig {
-            unimproved_seconds_spent_limit: Some(10),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
-
-    assert!(matches!(termination, AnyTermination::WithUnimprovedTime(_)));
-    assert_eq!(time_limit, Some(Duration::from_secs(180)));
-}
-
-#[test]
-fn build_termination_explicit_time_overrides_fallback() {
-    let config = SolverConfig {
-        termination: Some(solverforge_config::TerminationConfig {
-            step_count_limit: Some(10),
-            seconds_spent_limit: Some(5),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    let (termination, time_limit) =
-        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
-
-    assert!(matches!(termination, AnyTermination::WithStepCount(_)));
-    assert_eq!(time_limit, Some(Duration::from_secs(5)));
+    assert_eq!(
+        result.terminal_reason,
+        SolverTerminalReason::TerminatedByConfig
+    );
+    assert_eq!(result.stats.step_count(), 3);
+    assert_eq!(result.best_score, SoftScore::of(3));
 }
 
 #[test]

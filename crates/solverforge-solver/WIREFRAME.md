@@ -384,7 +384,6 @@ src/
 │   ├── step_count.rs                    — StepCountTermination
 │   ├── best_score.rs                    — BestScoreTermination<Sc>
 │   ├── unimproved.rs                    — UnimprovedStepCountTermination<S>, UnimprovedTimeTermination<S>
-│   ├── composite.rs                     — OrTermination<T, S, D> (tuple impls up to 8)
 │   └── tests.rs                         — Tests
 │
 └── realtime/

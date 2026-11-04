@@ -25,34 +25,21 @@ use crate::runtime::compiler::executor::{
 use crate::runtime::compiler::{compile_runtime_graph, CompiledRuntimeExecutor, RuntimeGraphInput};
 use crate::runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
-use crate::solver::{NoTermination, Solver};
+use crate::solver::Solver;
 use crate::stats::{
     format_duration, whole_units_per_second, CandidateTraceExecutionPolicy,
     QualifiedCandidateTraceRunProvenance,
 };
 use crate::termination::{
-    BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
+    BestScoreTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
 pub(crate) mod termination;
-use termination::build_director_termination;
+use termination::{build_solver_termination, ConfiguredSolverTermination};
 pub(crate) use termination::{
     configured_best_score_limit, configured_execution_policy, parse_configured_termination,
 };
-
-/// Monomorphized termination enum for config-driven solver configurations.
-///
-/// Avoids repeated branching across termination overloads by capturing the
-/// selected termination variant upfront.
-pub(crate) enum AnyTermination<S: PlanningSolution, D: Director<S>> {
-    None(NoTermination),
-    Default(OrTermination<(TimeTermination,), S, D>),
-    WithBestScore(OrTermination<(TimeTermination, BestScoreTermination<S::Score>), S, D>),
-    WithStepCount(OrTermination<(TimeTermination, StepCountTermination), S, D>),
-    WithUnimprovedStep(OrTermination<(TimeTermination, UnimprovedStepCountTermination<S>), S, D>),
-    WithUnimprovedTime(OrTermination<(TimeTermination, UnimprovedTimeTermination<S>), S, D>),
-}
 
 #[derive(Clone)]
 pub(crate) struct ChannelProgressCallback<S: PlanningSolution> {
@@ -95,47 +82,6 @@ impl<S: PlanningSolution> ProgressCallback<S> for ChannelProgressCallback<S> {
                     );
                 }
             }
-        }
-    }
-}
-
-impl<S: PlanningSolution, D: Director<S>> fmt::Debug for AnyTermination<S, D> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::None(_) => write!(f, "AnyTermination::None"),
-            Self::Default(_) => write!(f, "AnyTermination::Default"),
-            Self::WithBestScore(_) => write!(f, "AnyTermination::WithBestScore"),
-            Self::WithStepCount(_) => write!(f, "AnyTermination::WithStepCount"),
-            Self::WithUnimprovedStep(_) => write!(f, "AnyTermination::WithUnimprovedStep"),
-            Self::WithUnimprovedTime(_) => write!(f, "AnyTermination::WithUnimprovedTime"),
-        }
-    }
-}
-
-impl<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
-    Termination<S, D, ProgressCb> for AnyTermination<S, D>
-where
-    S::Score: Score,
-{
-    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool {
-        match self {
-            Self::None(t) => t.is_terminated(solver_scope),
-            Self::Default(t) => t.is_terminated(solver_scope),
-            Self::WithBestScore(t) => t.is_terminated(solver_scope),
-            Self::WithStepCount(t) => t.is_terminated(solver_scope),
-            Self::WithUnimprovedStep(t) => t.is_terminated(solver_scope),
-            Self::WithUnimprovedTime(t) => t.is_terminated(solver_scope),
-        }
-    }
-
-    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>) {
-        match self {
-            Self::None(t) => t.install_inphase_limits(solver_scope),
-            Self::Default(t) => t.install_inphase_limits(solver_scope),
-            Self::WithBestScore(t) => t.install_inphase_limits(solver_scope),
-            Self::WithStepCount(t) => t.install_inphase_limits(solver_scope),
-            Self::WithUnimprovedStep(t) => t.install_inphase_limits(solver_scope),
-            Self::WithUnimprovedTime(t) => t.install_inphase_limits(solver_scope),
         }
     }
 }

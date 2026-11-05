@@ -77,6 +77,15 @@ impl SolverConfig {
             .is_none_or(|director| director.constraint_match_enabled)
     }
 
+    /// This configuration with `overrides` applied: each field the override
+    /// sets replaces the configured one.
+    pub fn with_override(mut self, overrides: &SolverConfigOverride) -> Self {
+        if let Some(termination) = &overrides.termination {
+            self.termination = Some(termination.clone());
+        }
+        self
+    }
+
     /// The seed the solve uses: `random_seed`, or [`REPRODUCIBLE_RANDOM_SEED`]
     /// when it is omitted under any mode but `non_reproducible`. `None` means
     /// a seed from the operating system.
@@ -267,10 +276,12 @@ pub enum MoveThreadCount {
     Count(NonZeroUsize),
 }
 
-/// Runtime configuration overrides.
+/// Runtime configuration overrides, applied with
+/// [`SolverConfig::with_override`].
 #[derive(Debug, Clone, Default)]
 pub struct SolverConfigOverride {
-    /// Override termination configuration.
+    /// When set, replaces the solver-level `termination`. Phase-level
+    /// terminations are unchanged.
     pub termination: Option<TerminationConfig>,
 }
 

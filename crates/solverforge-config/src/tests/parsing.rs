@@ -303,3 +303,38 @@ fn time_limit_is_literal_and_saturating() {
         Some(Duration::from_secs(u64::MAX).saturating_add(Duration::MAX))
     );
 }
+
+#[test]
+fn an_override_replaces_only_what_it_sets() {
+    use crate::{SolverConfigOverride, TerminationConfig};
+
+    let config = SolverConfig::from_toml_str(
+        "random_seed = 3\n[termination]\nseconds_spent_limit = 30\n\n\
+         [[phases]]\ntype = \"local_search\"\n[phases.termination]\nstep_count_limit = 9\n",
+    )
+    .unwrap();
+
+    let overridden = config
+        .clone()
+        .with_override(&SolverConfigOverride::with_termination(TerminationConfig {
+            step_count_limit: Some(5),
+            ..TerminationConfig::default()
+        }));
+    let termination = overridden.termination.as_ref().unwrap();
+    assert_eq!(termination.step_count_limit, Some(5));
+    assert_eq!(termination.seconds_spent_limit, None);
+    assert_eq!(overridden.random_seed, Some(3));
+    let PhaseConfig::LocalSearch(phase) = &overridden.phases[0] else {
+        panic!("the phase is kept");
+    };
+    assert_eq!(
+        phase.termination.as_ref().unwrap().step_count_limit,
+        Some(9)
+    );
+
+    let untouched = config.with_override(&SolverConfigOverride::default());
+    assert_eq!(
+        untouched.termination.as_ref().unwrap().seconds_spent_limit,
+        Some(30)
+    );
+}

@@ -376,6 +376,12 @@ struct stream::projected::Grouped: pub struct Grouped<S, Out, K, Src, F, KF, C, 
 struct stream::projected::GroupedBuilder: pub struct GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> where Sc: Score,{ /* private fields */ }
     stream::projected::GroupedBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, GroupNode<FilterNode<SourceNode<S, Out, Src>, impl Fn(&S, &ProjectedRow<'_, Out>) -> bool + Send + Sync>, impl Fn(&ProjectedRow<'_, Out>) -> K + Send + Sync, ProjectedCollector<C, V, R, Acc>, K, Acc, V, R>, GroupAdapter<K, R>, OperatorScorer<GroupWeight<W>, Sc>, Sc>
 struct stream::projected::JoinedSource: pub struct JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> { /* private fields */ }
+struct stream::projected::RowCoordinate: pub struct RowCoordinate { pub primary_owner: RowOwner, pub secondary_owner: Option<RowOwner>, pub emit_index: usize, }
+    stream::projected::RowCoordinate: pub fn single( source_slot: usize, entity_index: usize, emit_index: usize, ) -> Self
+    stream::projected::RowCoordinate: pub fn pair( left_slot: usize, left_index: usize, right_slot: usize, right_index: usize, emit_index: usize, ) -> Self
+    stream::projected::RowCoordinate: pub fn for_each_owner<V>(&self, visit: V) where V: FnMut(RowOwner),
+    stream::projected::RowCoordinate: pub fn offset_source_slots(self, offset: usize) -> Self
+struct stream::projected::RowOwner: pub struct RowOwner { pub source_slot: usize, pub entity_index: usize, }
 struct stream::projected::Stream: pub struct Stream<S, Out, Src, F, Sc> where Sc: Score,{ /* private fields */ }
     stream::projected::Stream: pub fn filter<P>( self, predicate: P, ) -> Stream<S, Out, Src, AndUniFilter<F, FnUniFilter<impl Fn(&S, &Out) -> bool + Send + Sync>>, Sc> where P: Fn(&Out) -> bool + Send + Sync + 'static,
     stream::projected::Stream: pub fn merge<OtherSrc, OtherF>( self, other: Stream<S, Out, OtherSrc, OtherF, Sc>, ) -> Stream<S, Out, MergedSource<FilteredSource<S, Out, Src, F>, FilteredSource<S, Out, OtherSrc, OtherF>>, TrueFilter, Sc> where OtherSrc: Source<S, Out>, OtherF: UniFilter<S, Out>,
@@ -596,6 +602,16 @@ trait stream::projected::Projection: pub trait Projection<A>: Send + Sync { type
     stream::projected::Projection: fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>,
 trait stream::projected::ProjectionSink: pub trait ProjectionSink<Out> { // Required method fn emit(&mut self, output: Out); }
     stream::projected::ProjectionSink: fn emit(&mut self, output: Out)
+trait stream::projected::Source: pub trait Source<S, Out>: Send + Sync { type State: Send + Sync; const MAX_EMITS: usize; // Required methods fn source_count(&self) -> usize; fn change_source(&self, slot: usize) -> ChangeSource; fn build_state(&self, solution: &S) -> Self::State; fn collect_all<V>(&self, solution: &S, state: &Self::State, visit: V) where V: FnMut(RowCoordinate, Out); fn collect_entity<V>( &self, solution: &S, state: &Self::State, slot: usize, entity_index: usize, visit: V, ) where V: FnMut(RowCoordinate, Out); fn insert_entity_state( &self, solution: &S, state: &mut Self::State, slot: usize, entity_index: usize, ); fn retract_entity_state( &self, solution: &S, state: &mut Self::State, slot: usize, entity_index: usize, ); }
+    stream::projected::Source: const MAX_EMITS: usize
+    stream::projected::Source: type State: Send + Sync
+    stream::projected::Source: fn source_count(&self) -> usize
+    stream::projected::Source: fn change_source(&self, slot: usize) -> ChangeSource
+    stream::projected::Source: fn build_state(&self, solution: &S) -> Self::State
+    stream::projected::Source: fn collect_all<V>(&self, solution: &S, state: &Self::State, visit: V) where V: FnMut(RowCoordinate, Out),
+    stream::projected::Source: fn collect_entity<V>( &self, solution: &S, state: &Self::State, slot: usize, entity_index: usize, visit: V, ) where V: FnMut(RowCoordinate, Out),
+    stream::projected::Source: fn insert_entity_state( &self, solution: &S, state: &mut Self::State, slot: usize, entity_index: usize, )
+    stream::projected::Source: fn retract_entity_state( &self, solution: &S, state: &mut Self::State, slot: usize, entity_index: usize, )
 trait stream::relational::operator::FilterPredicate: pub trait FilterPredicate<S, V>: Send + Sync { // Required method fn accepts(&self, solution: &S, row: &V) -> bool; }
     stream::relational::operator::FilterPredicate: fn accepts(&self, solution: &S, row: &V) -> bool
 trait stream::relational::operator::FlattenSource: pub trait FlattenSource<S: 'static, O: Operator<S>> { type Item: 'static; // Required method fn flatten<'a>( &self, solution: &'a S, view: O::View<'a>, ) -> &'a [Self::Item]; }

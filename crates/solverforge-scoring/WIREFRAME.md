@@ -795,8 +795,21 @@ callers obtain these opaque carriers through fluent operations and continue on
 
 **`stream::projected::DirectedBiBuilder`** — `named()` → `constraint::projected::DirectedBi`
 
-**`RowCoordinate`** — Hidden support coordinate for projected rows:
-`{ primary_owner, secondary_owner, emit_index }`. `primary_owner` is always
+**`stream::projected::Source<S, Out>`** — The producer behind a projected
+stream: `type State`, `const MAX_EMITS`, `source_count()`, `change_source(slot)`,
+`build_state(solution)`, `collect_all(solution, state, visit)`,
+`collect_entity(solution, state, slot, entity_index, visit)`, and
+`insert_entity_state`/`retract_entity_state`. Single-source projections,
+filters, merges and joined pairs implement it; the fluent `project`, `filter`,
+`merge` and `join` methods build them.
+
+**`RowOwner`** — `{ source_slot, entity_index }`: one entity a projected row
+derives from.
+
+**`RowCoordinate`** — The stable identity of a projected row:
+`{ primary_owner, secondary_owner, emit_index }`, built with `single(...)` or
+`pair(...)`, visited with `for_each_owner(...)`, shifted with
+`offset_source_slots(offset)`. `primary_owner` is always
 present; `secondary_owner` is present for joined-pair rows from
 `stream::cross::Bi::project(...)`. It is used to keep projected self-join
 orientation stable across sparse row-slot reuse and to dedupe callbacks when

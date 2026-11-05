@@ -88,22 +88,31 @@ fn emitted_past_bound(projection: &str, max_emits: usize) -> ! {
     );
 }
 
-#[doc(hidden)]
+/// One entity a projected row is derived from: which of the source's
+/// collections it lives in and its index there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RowOwner {
+    /// The source collection slot, `0..Source::source_count()`.
     pub source_slot: usize,
+    /// The entity's index in that collection.
     pub entity_index: usize,
 }
 
-#[doc(hidden)]
+/// The stable identity of one projected row: the entity or pair of entities
+/// it comes from and its position among their emissions. Ordering is by
+/// coordinate, which keeps projected self-joins independent of storage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RowCoordinate {
+    /// The owner the row's index-based filters see.
     pub primary_owner: RowOwner,
+    /// The second owner of a row emitted for a joined pair.
     pub secondary_owner: Option<RowOwner>,
+    /// The row's position among the rows emitted for its owners.
     pub emit_index: usize,
 }
 
 impl RowCoordinate {
+    /// A row emitted for one entity.
     #[inline]
     pub fn single(source_slot: usize, entity_index: usize, emit_index: usize) -> Self {
         Self {
@@ -116,6 +125,7 @@ impl RowCoordinate {
         }
     }
 
+    /// A row emitted for a joined pair of entities.
     #[inline]
     pub fn pair(
         left_slot: usize,
@@ -137,6 +147,7 @@ impl RowCoordinate {
         }
     }
 
+    /// Visits each distinct owner, primary first.
     #[inline]
     pub fn for_each_owner<V>(&self, mut visit: V)
     where
@@ -150,6 +161,8 @@ impl RowCoordinate {
         }
     }
 
+    /// Shifts every owner's source slot by `offset`, as a merge does for its
+    /// right input.
     #[inline]
     pub fn offset_source_slots(mut self, offset: usize) -> Self {
         self.primary_owner.source_slot += offset;
@@ -160,18 +173,32 @@ impl RowCoordinate {
     }
 }
 
-#[doc(hidden)]
+/// The producer behind a projected stream: one or more entity collections
+/// and the rows they project to.
+///
+/// A projected stream's operator tree retains rows by [`RowCoordinate`] and,
+/// on an entity notification, asks the source for that entity's rows again.
+/// Single-source projections, filters, merges and joined pairs implement it;
+/// the fluent `project`, `filter`, `merge` and `join` methods build them.
 pub trait Source<S, Out>: Send + Sync {
+    /// State the source keeps beside the retained rows, such as a join index.
     type State: Send + Sync;
 
+    /// The most rows the source emits for one owner (see
+    /// [`Projection::MAX_EMITS`]).
     const MAX_EMITS: usize;
 
+    /// Number of entity collections the source reads.
     fn source_count(&self) -> usize;
+    /// How changes reach collection `slot`.
     fn change_source(&self, slot: usize) -> ChangeSource;
+    /// Builds the source state for `solution`.
     fn build_state(&self, solution: &S) -> Self::State;
+    /// Visits every row of `solution` with its coordinate.
     fn collect_all<V>(&self, solution: &S, state: &Self::State, visit: V)
     where
         V: FnMut(RowCoordinate, Out);
+    /// Visits the rows owned by entity `entity_index` of collection `slot`.
     fn collect_entity<V>(
         &self,
         solution: &S,
@@ -181,6 +208,7 @@ pub trait Source<S, Out>: Send + Sync {
         visit: V,
     ) where
         V: FnMut(RowCoordinate, Out);
+    /// Adds entity `entity_index` of collection `slot` to the source state.
     fn insert_entity_state(
         &self,
         solution: &S,
@@ -188,6 +216,8 @@ pub trait Source<S, Out>: Send + Sync {
         slot: usize,
         entity_index: usize,
     );
+    /// Removes entity `entity_index` of collection `slot` from the source
+    /// state.
     fn retract_entity_state(
         &self,
         solution: &S,

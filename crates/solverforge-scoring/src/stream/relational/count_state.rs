@@ -11,6 +11,8 @@
 //! once at construction; the event path calls one enum method per key and
 //! nothing else branches.
 
+use std::any::Any;
+
 use super::{FastMap, RowHandle};
 
 /// One key's count plus the epoch of its last touch, stamped against the
@@ -291,26 +293,27 @@ impl DenseKeys {
 }
 
 /// View a generic key as its `usize` representation. Only called inside the
-/// `K == usize` arm of `KeyState::new`, where the conversion is the identity.
+/// `K == usize` arm of `KeyState::new`, where the downcast is the identity and
+/// monomorphizes to a plain read.
+///
+/// # Panics
+///
+/// When `K` is not `usize`.
 fn dense_raw<K: 'static>(key: &K) -> usize {
-    debug_assert_eq!(
-        std::any::TypeId::of::<K>(),
-        std::any::TypeId::of::<usize>(),
-        "dense counts are usize-keyed"
-    );
-    // SAFETY: K is usize in this arm; the reference reinterprets the same
-    // non-null, aligned, initialized 8 bytes.
-    unsafe { *(key as *const K as *const usize) }
+    *(key as &dyn Any)
+        .downcast_ref::<usize>()
+        .expect("dense counts are usize-keyed")
 }
 
 /// Inverse of `dense_raw`, same `K == usize` arm.
+///
+/// # Panics
+///
+/// When `K` is not `usize`.
 fn key_from_raw<K: 'static>(raw: usize) -> K {
-    debug_assert_eq!(
-        std::any::TypeId::of::<K>(),
-        std::any::TypeId::of::<usize>(),
-        "dense counts are usize-keyed"
-    );
-    // SAFETY: K is usize in this arm; usize is repr-transparent `K` here and
-    // the pointer is valid, aligned, initialized.
-    unsafe { std::ptr::read(&raw as *const usize as *const K) }
+    let mut slot = Some(raw);
+    (&mut slot as &mut dyn Any)
+        .downcast_mut::<Option<K>>()
+        .and_then(Option::take)
+        .expect("dense counts are usize-keyed")
 }

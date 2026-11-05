@@ -154,7 +154,6 @@ pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
 pub use projected_stream::{Projection, ProjectionSink};
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};
-#[doc(hidden)]
 pub use unassigned::UnassignedEntity;
 pub use uni_stream::{UniConstraintBuilder, UniConstraintStream};
 pub use weighting_support::{fixed_weight, hard_weight, ConstraintWeight, FixedWeight, HardWeight};

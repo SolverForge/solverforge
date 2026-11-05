@@ -518,6 +518,8 @@ trait stream::Projection: pub trait Projection<A>: Send + Sync { type Out: Send 
     stream::Projection: fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>,
 trait stream::ProjectionSink: pub trait ProjectionSink<Out> { // Required method fn emit(&mut self, output: Out); }
     stream::ProjectionSink: fn emit(&mut self, output: Out)
+trait stream::UnassignedEntity: pub trait UnassignedEntity<S>: Clone + Send + Sync + 'static { // Required method fn is_unassigned(solution: &S, entity: &Self) -> bool; }
+    stream::UnassignedEntity: fn is_unassigned(solution: &S, entity: &Self) -> bool
 trait stream::collection_extract::CollectionExtract: pub trait CollectionExtract<S>: Send + Sync { type Item; // Required methods fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]; fn change_source(&self) -> ChangeSource; // Provided method fn contains(&self, _s: &S, _item: &Self::Item) -> bool { ... } }
     stream::collection_extract::CollectionExtract: type Item
     stream::collection_extract::CollectionExtract: fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]

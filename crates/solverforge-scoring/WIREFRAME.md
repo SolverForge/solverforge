@@ -305,7 +305,7 @@ src/
 │   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
 │   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, source() constructor
-│   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
+│   ├── unassigned.rs                               — UnassignedEntity and the `.unassigned()` stream method
 │   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
 │   ├── join_target.rs                              — JoinTarget/ToViewPlan dispatch for self-join, keyed cross-join, comparison, overlap, composed, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
@@ -752,8 +752,10 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 - `new()`, `for_each()` → `UniConstraintStream`
 - Generated solution source methods pass `for_each()` hidden descriptor/static source metadata.
 
+**`UnassignedEntity<S>`** — `fn is_unassigned(solution: &S, entity: &Self) -> bool`; enables `UniConstraintStream::unassigned()`. `#[planning_entity]` implements it for an entity with exactly one `Option<_>` planning variable (unassigned while `None`); implement it by hand for any other notion of unassigned.
+
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `stream::projected::Stream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
+- Operations: `filter()`, `unassigned()` when the entity implements `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `stream::projected::Stream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
 - For the first unary keyed equality cross-join, the left unary filter is preserved through hidden source membership before key extraction and pair creation. Original source indexes and change metadata remain intact across incremental membership transitions. Post-join filters remain joined-row filters. This left-filter pushdown does not apply to comparison, overlap, composed-condition, predicate, or same-source self-join dispatch.

@@ -471,5 +471,6 @@ fn working_solution_generation_is_monotonic_across_commits_and_replacement() {
 }
 
 mod environment_mode;
+mod partition_bound;
 mod problem_change;
 mod weight_mode;

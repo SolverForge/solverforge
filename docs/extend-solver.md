@@ -220,7 +220,12 @@ type = "local_search"
 Each partition is solved by `child_phases`, compiled exactly like top-level
 `phases`; an empty list runs the default phases. `thread_count` sets how many
 partitions are solved at once and `log_progress` logs the phase's start and end.
-A partition runs under the solve's time and step count limits.
+A partition runs under the solve's time and step count limits. The phase's own
+`termination` bounds it too: its time limit, counted from the phase's start,
+holds for all partitions, and its step count limit for each partition's solve.
+Reaching one ends the phase like any phase end: the partitions are merged and the
+solve goes on. `best_score_limit` and the unimproved limits need the merged
+solution's score and are rejected on a partitioned phase.
 
 Partition children are internal compute scopes, not retained-job publication
 owners. They inherit cancellation, environment mode, remaining time limit,

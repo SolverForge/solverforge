@@ -97,6 +97,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             working_solution_generation: self.working_solution_generation,
             construction_frontier: self.construction_frontier,
             phase_budget: self.phase_budget,
+            partition_bound: self.partition_bound,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,

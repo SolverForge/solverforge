@@ -11,7 +11,8 @@ use solverforge_scoring::Director;
 
 use crate::manager::SolverTerminalReason;
 use crate::scope::ProgressCallback;
-use crate::scope::{PendingControl, SolverScope, SolverScopeChildConfig};
+use crate::scope::{PartitionBound, PendingControl, SolverScope, SolverScopeChildConfig};
+use solverforge_config::TerminationConfig;
 
 use super::config::PartitionedSearchConfig;
 use super::partitioner::SolutionPartitioner;
@@ -36,10 +37,16 @@ enum PartitionOutcome<S> {
 /// initializes it. A pause re-partitions from the parent's working solution
 /// once resumed; cancellation, termination and a queued problem change stop
 /// the pass without merging.
+///
+/// `termination` is the phase's own: its time limit, counted from the
+/// phase's start, bounds every partition, and its step count limit bounds
+/// each partition's solve. A partition that reaches one ends like a phase:
+/// its best solution is merged and the solve goes on.
 pub(crate) fn solve_partitioned<S, D, BestCb, PD, Part, MakeDirector, SolveChildren>(
     solver_scope: &mut SolverScope<'_, S, D, BestCb>,
     partitioner: &Part,
     config: &PartitionedSearchConfig,
+    termination: Option<&TerminationConfig>,
     mut make_director: MakeDirector,
     solve_children: &SolveChildren,
 ) where
@@ -51,8 +58,9 @@ pub(crate) fn solve_partitioned<S, D, BestCb, PD, Part, MakeDirector, SolveChild
     MakeDirector: FnMut(&D, S) -> PD,
     SolveChildren: Fn(&mut SolverScope<'_, S, PD>) + Sync,
 {
+    let bound = PartitionBound::new(solver_scope.partition_bound(), termination);
     'partitioning: loop {
-        if solver_scope.should_terminate() {
+        if solver_scope.should_terminate() || bound.as_ref().is_some_and(PartitionBound::reached) {
             return;
         }
 
@@ -77,9 +85,20 @@ pub(crate) fn solve_partitioned<S, D, BestCb, PD, Part, MakeDirector, SolveChild
             .into_iter()
             .map(|partition| make_director(solver_scope.score_director(), partition))
             .collect();
-        let children: Vec<(PD, u64)> = directors
+        let partition_bounds: Vec<PartitionBound<'_>> = bound
+            .iter()
+            .flat_map(|bound| directors.iter().map(|_| bound.for_partition()))
+            .collect();
+        let children: Vec<(PD, u64, Option<&PartitionBound<'_>>)> = directors
             .into_iter()
-            .map(|director| (director, solver_scope.rng().random()))
+            .enumerate()
+            .map(|(index, director)| {
+                (
+                    director,
+                    solver_scope.rng().random(),
+                    partition_bounds.get(index),
+                )
+            })
             .collect();
         let phase_budget = solver_scope.child_phase_budget();
         let child_config = solver_scope.child_config(Some(&phase_budget));
@@ -105,7 +124,13 @@ pub(crate) fn solve_partitioned<S, D, BestCb, PD, Part, MakeDirector, SolveChild
             }
         }
 
-        if solver_scope.should_terminate() {
+        // A phase end — the enclosing phase's termination or partition
+        // bound — still merges what the partitions solved; only a stop of
+        // the solve itself abandons them.
+        if solver_scope.should_terminate()
+            && (solver_scope.yielded_to_parent()
+                || solver_scope.terminal_reason() != SolverTerminalReason::Completed)
+        {
             return;
         }
 
@@ -127,7 +152,7 @@ pub(crate) fn solve_partitioned<S, D, BestCb, PD, Part, MakeDirector, SolveChild
 }
 
 fn solve_partitions<'t, S, PD, SolveChildren>(
-    children: Vec<(PD, u64)>,
+    children: Vec<(PD, u64, Option<&'t PartitionBound<'t>>)>,
     thread_count: usize,
     child_config: SolverScopeChildConfig<'t, S>,
     solve_children: &SolveChildren,
@@ -140,8 +165,9 @@ where
     if thread_count <= 1 || children.len() <= 1 {
         return children
             .into_iter()
-            .map(|(director, seed)| {
-                solve_partition(director, child_config.clone(), seed, solve_children)
+            .map(|(director, seed, bound)| {
+                let child_config = child_config.clone().with_partition_bound(bound);
+                solve_partition(director, child_config, seed, solve_children)
             })
             .collect();
     }
@@ -153,8 +179,9 @@ where
         .install(|| {
             children
                 .into_par_iter()
-                .map(|(director, seed)| {
-                    solve_partition(director, child_config.clone(), seed, solve_children)
+                .map(|(director, seed, bound)| {
+                    let child_config = child_config.clone().with_partition_bound(bound);
+                    solve_partition(director, child_config, seed, solve_children)
                 })
                 .collect()
         })
@@ -172,16 +199,19 @@ where
     SolveChildren: Fn(&mut SolverScope<'_, S, PD>) + Sync,
 {
     let mut solver_scope = child_config.build_scope(director, seed);
-    if solver_scope.should_terminate() {
-        return PartitionOutcome::Terminated;
+    // A partition starting after its phase's time limit is left as it is,
+    // like any unreached work at a phase end; a stop of the solve itself is
+    // classified below.
+    if !solver_scope.should_terminate() {
+        solver_scope.initialize_working_solution_as_best();
+        solve_children(&mut solver_scope);
     }
-    solver_scope.initialize_working_solution_as_best();
-
-    solve_children(&mut solver_scope);
 
     match solver_scope.pending_control() {
         PendingControl::PauseRequested => return PartitionOutcome::Pause,
         PendingControl::CancelRequested => return PartitionOutcome::Cancelled,
+        // Only the partition bound: the phase ended, the partition is done.
+        PendingControl::ConfigTerminationRequested if !solver_scope.solve_limit_reached() => {}
         PendingControl::ConfigTerminationRequested => return PartitionOutcome::Terminated,
         PendingControl::ProblemChangeRequested => return PartitionOutcome::ProblemChange,
         PendingControl::Continue => {}

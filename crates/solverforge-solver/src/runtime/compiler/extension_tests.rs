@@ -359,3 +359,38 @@ fn partition_child_phases_compile_with_their_path() {
         RuntimeCompileErrorKind::UnregisteredTypedCustomExtension { ref name } if name == "missing"
     ));
 }
+
+#[test]
+fn partitioned_termination_rejects_limits_on_the_merged_score() {
+    for (key, toml) in [
+        ("best_score_limit", "best_score_limit = \"0\""),
+        (
+            "unimproved_step_count_limit",
+            "unimproved_step_count_limit = 5",
+        ),
+        (
+            "unimproved_seconds_spent_limit",
+            "unimproved_seconds_spent_limit = 5",
+        ),
+    ] {
+        let config = SolverConfig::from_toml_str(&format!(
+            "[[phases]]\ntype = \"partitioned_search\"\npartitioner = \"by_task\"\n\
+             [phases.termination]\nstep_count_limit = 3\n{toml}\n"
+        ))
+        .expect("the test config parses");
+        let declaration = context(config.random_seed)
+            .defaults()
+            .partitioner("by_task", |_| MarkerPartitioner);
+        let (context, extensions) = declaration.into_runtime_parts();
+        let error = compile_runtime_graph(&config, RuntimeGraphInput::new(context, extensions))
+            .expect_err("a partition cannot check a merged-score limit");
+        assert_eq!(
+            error.path,
+            format!("phases[0].partitioned_search.termination.{key}")
+        );
+        assert!(matches!(
+            error.kind,
+            RuntimeCompileErrorKind::InvalidValue { .. }
+        ));
+    }
+}

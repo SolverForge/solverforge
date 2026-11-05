@@ -211,7 +211,10 @@ pub struct PartitionedSearchConfig {
     #[serde(default)]
     pub child_phases: Vec<PhaseConfig>,
 
-    /// Phase termination configuration.
+    /// The phase's termination: the time limit, counted from the phase's
+    /// start, bounds all partitions and the step count limit each
+    /// partition's solve. Limits on the merged solution's score are
+    /// rejected.
     pub termination: Option<TerminationConfig>,
 }
 

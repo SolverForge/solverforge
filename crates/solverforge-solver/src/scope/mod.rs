@@ -10,7 +10,9 @@ pub(crate) mod solver;
 pub(crate) mod step;
 
 pub(crate) use phase::PhaseScope;
-pub(crate) use solver::{PendingControl, SolverScopeChildConfig, WeightModeControl};
+pub(crate) use solver::{
+    PartitionBound, PendingControl, SolverScopeChildConfig, WeightModeControl,
+};
 pub(crate) use solver::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 pub(crate) use step::StepControlPolicy;
 pub(crate) use step::StepScope;

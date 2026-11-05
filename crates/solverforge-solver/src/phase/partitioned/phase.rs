@@ -128,6 +128,7 @@ where
             solver_scope,
             &self.partitioner,
             &self.config,
+            None,
             |_: &D, partition| (self.score_director_factory)(partition),
             &|child_scope: &mut SolverScope<'_, S, PD>| {
                 (self.phase_factory)().solve_all(child_scope);

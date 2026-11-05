@@ -33,6 +33,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     working_solution_generation: u64,
     construction_frontier: ConstructionFrontier,
     phase_budget: Option<&'t PhaseBudget>,
+    partition_bound: Option<&'t PartitionBound<'t>>,
     /// Stops the solve once the total step count reaches this many steps;
     /// `None` means no limit.
     pub inphase_step_count_limit: Option<u64>,
@@ -46,45 +47,6 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     phase_termination: Option<ScopedPhaseTermination<S>>,
     weight_mode: WeightModeControl,
     weight_mode_switch_pending: bool,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct SolverScopeChildConfig<'t, S: PlanningSolution> {
-    terminate: Option<&'t AtomicBool>,
-    runtime: Option<SolverRuntime<S>>,
-    environment_mode: EnvironmentMode,
-    time_deadline: Option<Instant>,
-    phase_budget: Option<&'t PhaseBudget>,
-    inphase_step_count_limit: Option<u64>,
-    inphase_move_count_limit: Option<u64>,
-    inphase_score_calc_count_limit: Option<u64>,
-    inphase_best_score_limit: Option<S::Score>,
-}
-
-impl<'t, S: PlanningSolution> SolverScopeChildConfig<'t, S> {
-    pub(crate) fn build_scope<PD>(&self, score_director: PD, seed: u64) -> SolverScope<'t, S, PD>
-    where
-        PD: Director<S>,
-    {
-        let terminate = self
-            .terminate
-            .or_else(|| self.runtime.map(|runtime| runtime.cancel_flag()));
-        let mut scope = SolverScope::new(score_director)
-            .with_terminate(terminate)
-            .with_runtime(self.runtime)
-            .without_publication()
-            .with_environment_mode(self.environment_mode)
-            .with_seed(seed);
-        scope.time_deadline = self.time_deadline;
-        scope.phase_budget = self.phase_budget;
-        if self.phase_budget.is_none() {
-            scope.inphase_step_count_limit = self.inphase_step_count_limit;
-            scope.inphase_move_count_limit = self.inphase_move_count_limit;
-            scope.inphase_score_calc_count_limit = self.inphase_score_calc_count_limit;
-        }
-        scope.inphase_best_score_limit = self.inphase_best_score_limit;
-        scope
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +88,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             working_solution_generation: 0,
             construction_frontier,
             phase_budget: None,
+            partition_bound: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -175,6 +138,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             working_solution_generation: 0,
             construction_frontier,
             phase_budget: None,
+            partition_bound: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -231,30 +195,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = StdRng::seed_from_u64(seed);
         self
-    }
-
-    pub(crate) fn child_phase_budget(&self) -> PhaseBudget {
-        PhaseBudget::from_scope(self)
-    }
-
-    pub(crate) fn child_config<'a>(
-        &'a self,
-        phase_budget: Option<&'a PhaseBudget>,
-    ) -> SolverScopeChildConfig<'a, S> {
-        let phase_budget = self
-            .phase_budget
-            .or_else(|| phase_budget.filter(|budget| budget.has_limits()));
-        SolverScopeChildConfig {
-            terminate: self.terminate,
-            runtime: self.runtime,
-            environment_mode: self.environment_mode,
-            time_deadline: self.child_time_deadline(),
-            phase_budget,
-            inphase_step_count_limit: self.inphase_step_count_limit,
-            inphase_move_count_limit: self.inphase_move_count_limit,
-            inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
-            inphase_best_score_limit: self.inphase_best_score_limit,
-        }
     }
 
     /// Runs one configured phase with a phase-relative termination overlay.
@@ -353,6 +293,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             working_solution_generation: self.working_solution_generation,
             construction_frontier: self.construction_frontier,
             phase_budget: self.phase_budget,
+            partition_bound: self.partition_bound,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,

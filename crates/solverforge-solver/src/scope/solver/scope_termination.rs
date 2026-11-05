@@ -30,7 +30,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         if self.phase_budget_reached() {
             return PendingControl::ConfigTerminationRequested;
         }
-        if self.phase_termination_reached() {
+        if self.phase_termination_reached() || self.partition_bound_reached() {
             return PendingControl::ConfigTerminationRequested;
         }
         if self.inphase_best_score_limit_reached() {
@@ -53,6 +53,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.time_deadline.is_some()
             || self.phase_budget.is_some()
             || self.phase_termination.is_some()
+            || self.partition_bound.is_some()
             || self.inphase_best_score_limit.is_some()
             || self.inphase_step_count_limit.is_some()
             || self.inphase_move_count_limit.is_some()
@@ -65,6 +66,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.time_limit_reached()
             || self.phase_budget_reached()
             || self.phase_termination_reached()
+            || self.partition_bound_reached()
             || self.inphase_best_score_limit_reached()
             || self.inphase_step_count_limit_reached()
             || self.inphase_move_count_limit_reached()
@@ -113,7 +115,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             self.mark_terminated_by_config();
             return true;
         }
-        if self.phase_termination_reached() {
+        if self.phase_termination_reached() || self.partition_bound_reached() {
             return true;
         }
         if self.inphase_best_score_limit_reached() {
@@ -151,7 +153,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             self.mark_terminated_by_config();
             return true;
         }
-        if self.phase_termination_reached() {
+        if self.phase_termination_reached() || self.partition_bound_reached() {
             return true;
         }
         if self.inphase_best_score_limit_reached() {
@@ -171,6 +173,19 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             return true;
         }
         false
+    }
+
+    /// Whether a limit of the solve itself is reached: the time limit, the
+    /// shared budget, or a best-score, step, move or score-calculation
+    /// limit. Phase ends — a phase termination or a partition bound — are
+    /// not limits of the solve.
+    pub(crate) fn solve_limit_reached(&self) -> bool {
+        self.time_limit_reached()
+            || self.phase_budget_reached()
+            || self.inphase_best_score_limit_reached()
+            || self.inphase_step_count_limit_reached()
+            || self.inphase_move_count_limit_reached()
+            || self.inphase_score_calc_count_limit_reached()
     }
 
     /// Records `Cancelled` as the terminal reason unless one is already set.

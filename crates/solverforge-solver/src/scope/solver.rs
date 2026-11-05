@@ -29,6 +29,7 @@ include!("solver/progress.rs");
 include!("solver/scope_core.rs");
 include!("solver/scope_frontier.rs");
 include!("solver/phase_budget.rs");
+include!("solver/scope_child.rs");
 include!("solver/scope_progress.rs");
 include!("solver/scope_termination.rs");
 include!("solver/scope_trace.rs");

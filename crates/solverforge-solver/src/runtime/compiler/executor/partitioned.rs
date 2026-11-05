@@ -5,7 +5,7 @@
 
 use std::fmt::Debug;
 
-use solverforge_config::SolverConfig;
+use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::Director;
@@ -57,6 +57,9 @@ pub(crate) type SourceExtension<S, V, DM, IDM, H> =
 pub(crate) struct PartitionedInstance<Partitioner> {
     partitioner: Partitioner,
     config: PartitionedSearchConfig,
+    /// The phase's termination: its time and step count limits bound all
+    /// partitions together.
+    termination: Option<TerminationConfig>,
     /// The configuration each partition is solved with.
     child_config: SolverConfig,
 }
@@ -70,6 +73,7 @@ impl<Partitioner> PartitionedInstance<Partitioner> {
         Self {
             partitioner,
             config: PartitionedSearchConfig::from_serialized(config),
+            termination: config.termination.clone(),
             child_config: partition_child_config(parent, config),
         }
     }
@@ -120,6 +124,7 @@ pub(super) fn solve_partitioned_instance<S, V, DM, IDM, E, D, ProgressCb>(
         solver_scope,
         &instance.partitioner,
         &instance.config,
+        instance.termination.as_ref(),
         |director: &D, partition| {
             director.fork_for_solution(partition).expect(
                 "partitioned search requires a director built with a constraint-set constructor",

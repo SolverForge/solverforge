@@ -696,7 +696,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `thread_count` | `MoveThreadCount` | `Auto` |
 | `log_progress` | `bool` | `false`; logs the phase's start and end |
 | `child_phases` | `Vec<PhaseConfig>` | `[]`; the phases each partition is solved with, compiled like `phases`; empty runs the default phases |
-| `termination` | `Option<TerminationConfig>` | `None` |
+| `termination` | `Option<TerminationConfig>` | `None`; the time limit, from the phase's start, bounds all partitions and the step count limit each partition's solve; reaching one ends the phase with the partitions merged. `best_score_limit` and the unimproved limits are rejected |
 
 ### `CustomPhaseConfig`
 

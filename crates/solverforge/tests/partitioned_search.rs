@@ -121,3 +121,70 @@ fn empty_child_phases_run_the_default_phases_in_each_partition() {
         .all(|task| task.resource_idx.is_some()));
     assert_eq!(solution.score.map(|score| score.hard()), Some(0));
 }
+
+const BOUNDED: &str = r#"
+[termination]
+seconds_spent_limit = 60
+
+[[phases]]
+type = "partitioned_search"
+partitioner = "by_task_id"
+thread_count = "none"
+
+[phases.termination]
+step_count_limit = 12
+
+[[phases.child_phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+
+[[phases.child_phases]]
+type = "local_search"
+
+[phases.child_phases.acceptor]
+type = "late_acceptance"
+late_acceptance_size = 4
+
+[phases.child_phases.move_selector]
+type = "change_move_selector"
+
+[[phases]]
+type = "custom"
+name = "record"
+"#;
+
+#[test]
+fn the_phase_termination_ends_the_partitions_and_keeps_their_work() {
+    let started = std::time::Instant::now();
+    let (job_id, mut receiver) = MANAGER.solve(Plan::new(BOUNDED)).expect("solve starts");
+    let (solution, reason) = loop {
+        match receiver
+            .blocking_recv()
+            .expect("event stream should reach a terminal event")
+        {
+            SolverEvent::Completed { metadata, solution } => {
+                break (solution, metadata.terminal_reason)
+            }
+            SolverEvent::Failed { error, .. } => panic!("solve failed: {error}"),
+            SolverEvent::Cancelled { .. } => panic!("solve was cancelled"),
+            _ => {}
+        }
+    };
+    MANAGER.delete(job_id).expect("the completed job deletes");
+
+    // The child local search has no limit of its own: only the phase's 12
+    // steps per partition end it, well before the solve's 60 s.
+    assert!(started.elapsed() < std::time::Duration::from_secs(30));
+    assert_eq!(reason, Some(solverforge::SolverTerminalReason::Completed));
+    assert!(solution
+        .tasks
+        .iter()
+        .all(|task| task.resource_idx.is_some()));
+
+    // The phase end merged the partitions and the solve went on to the next
+    // phase, which saw the whole, merged plan.
+    let records = take_records(BOUNDED);
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].task_ids, (0..8).collect::<Vec<_>>());
+    assert!(records[0].all_assigned);
+}

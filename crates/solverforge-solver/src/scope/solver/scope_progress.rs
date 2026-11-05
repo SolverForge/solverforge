@@ -187,6 +187,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         if let Some(phase_budget) = self.phase_budget {
             phase_budget.record_step();
         }
+        if let Some(bound) = self.partition_bound {
+            bound.record_step();
+        }
         self.total_step_count
     }
 

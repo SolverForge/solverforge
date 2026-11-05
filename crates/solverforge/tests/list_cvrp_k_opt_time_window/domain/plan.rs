@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use solverforge::cvrp::ProblemData;
 use solverforge::prelude::*;
+use solverforge::stream::ConstraintFactory;
 
 use super::Route;
 
@@ -40,23 +41,40 @@ impl solverforge::cvrp::VrpSolution for Plan {
     }
 }
 
-fn constraints() -> impl ConstraintSet<Plan, HardSoftScore> {}
+/// Directed distance between two nodes, the depot being node 0: 1 along
+/// `0 → 1 → 2 → 3 → 4 → 0` and for `3 → 2`, 50 for `1 → 3` and `2 → 4`, 100
+/// otherwise.
+fn distance(from: usize, to: usize) -> i64 {
+    match (from, to) {
+        _ if from == to => 0,
+        (0, 1) | (1, 2) | (2, 3) | (3, 4) | (4, 0) | (3, 2) => 1,
+        (1, 3) | (2, 4) => 50,
+        _ => 100,
+    }
+}
+
+/// Each route's travelled distance, depot to depot.
+fn route_distance(route: &Route) -> i64 {
+    let mut previous = 0;
+    let mut total = 0;
+    for &visit in route.visits.iter().chain(std::iter::once(&0)) {
+        total += distance(previous, visit);
+        previous = visit;
+    }
+    total
+}
+
+fn constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
+    (ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::routes())
+        .penalize(|route: &Route| HardSoftScore::of(0, route_distance(route)))
+        .named("route distance"),)
+}
 
 pub fn build_plan() -> Plan {
-    let mut distance_matrix = vec![vec![100_i64; 5]; 5];
-    for (idx, row) in distance_matrix.iter_mut().enumerate() {
-        row[idx] = 0;
-    }
-
-    distance_matrix[0][1] = 1;
-    distance_matrix[1][3] = 50;
-    distance_matrix[3][2] = 1;
-    distance_matrix[2][4] = 50;
-    distance_matrix[4][0] = 1;
-
-    distance_matrix[1][2] = 1;
-    distance_matrix[2][3] = 1;
-    distance_matrix[3][4] = 1;
+    let distance_matrix = (0..5)
+        .map(|from| (0..5).map(|to| distance(from, to)).collect())
+        .collect();
 
     let mut travel_times = vec![vec![0_i64; 5]; 5];
     travel_times[1][2] = 10;

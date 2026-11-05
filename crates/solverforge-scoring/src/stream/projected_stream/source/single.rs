@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::filter::UniFilter;
 
-use super::{Projection, RowCoordinate, Source, VisitSink};
+use super::{project_bounded, Projection, RowCoordinate, Source};
 
 pub struct SingleSource<S, A, E, F, P, Out> {
     extractor: E,
@@ -58,15 +58,9 @@ where
             if !self.filter.test(solution, entity) {
                 continue;
             }
-            let mut emit_index = 0;
-            let mut sink = VisitSink {
-                visit: |output| {
-                    let coordinate = RowCoordinate::single(0, idx, emit_index);
-                    emit_index += 1;
-                    visit(coordinate, output);
-                },
-            };
-            self.projection.project(entity, &mut sink);
+            project_bounded(&self.projection, entity, |emit_index, output| {
+                visit(RowCoordinate::single(0, idx, emit_index), output);
+            });
         }
     }
 
@@ -90,15 +84,9 @@ where
         if !self.filter.test(solution, entity) {
             return;
         }
-        let mut emit_index = 0;
-        let mut sink = VisitSink {
-            visit: |output| {
-                let coordinate = RowCoordinate::single(0, entity_index, emit_index);
-                emit_index += 1;
-                visit(coordinate, output);
-            },
-        };
-        self.projection.project(entity, &mut sink);
+        project_bounded(&self.projection, entity, |emit_index, output| {
+            visit(RowCoordinate::single(0, entity_index, emit_index), output);
+        });
     }
 
     fn insert_entity_state(

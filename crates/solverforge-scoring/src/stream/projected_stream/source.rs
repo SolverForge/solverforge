@@ -25,8 +25,9 @@ pub trait ProjectionSink<Out> {
 pub trait Projection<A>: Send + Sync {
     /// The emitted row type; it need not be `Clone`.
     type Out: Send + Sync + 'static;
-    /// Declared maximum number of rows one `project` call emits. Sources combine
-    /// it (a merge adds both bounds); nothing reads it at runtime.
+    /// Maximum number of rows one `project` call emits. Emitting more panics,
+    /// naming the projection and both counts. Sources combine it (a merge adds
+    /// both bounds).
     const MAX_EMITS: usize;
 
     /// Emits the rows for `input` into `sink`.
@@ -35,18 +36,55 @@ pub trait Projection<A>: Send + Sync {
         Sink: ProjectionSink<Self::Out>;
 }
 
-struct VisitSink<V> {
-    visit: V,
+/// Runs `projection` on `input`, passing each row with its emit index to
+/// `visit`.
+///
+/// # Panics
+///
+/// When the projection emits more than `P::MAX_EMITS` rows.
+fn project_bounded<A, P, V>(projection: &P, input: &A, visit: V)
+where
+    P: Projection<A>,
+    V: FnMut(usize, P::Out),
+{
+    let mut sink = BoundedSink {
+        visit,
+        emitted: 0,
+        max_emits: P::MAX_EMITS,
+        projection: std::any::type_name::<P>,
+    };
+    projection.project(input, &mut sink);
 }
 
-impl<Out, V> ProjectionSink<Out> for VisitSink<V>
+struct BoundedSink<V> {
+    visit: V,
+    emitted: usize,
+    max_emits: usize,
+    projection: fn() -> &'static str,
+}
+
+impl<Out, V> ProjectionSink<Out> for BoundedSink<V>
 where
-    V: FnMut(Out),
+    V: FnMut(usize, Out),
 {
     #[inline]
     fn emit(&mut self, output: Out) {
-        (self.visit)(output);
+        if self.emitted == self.max_emits {
+            emitted_past_bound((self.projection)(), self.max_emits);
+        }
+        let emit_index = self.emitted;
+        self.emitted += 1;
+        (self.visit)(emit_index, output);
     }
+}
+
+#[cold]
+#[inline(never)]
+fn emitted_past_bound(projection: &str, max_emits: usize) -> ! {
+    panic!(
+        "projection `{projection}` emitted {} rows for one input; its MAX_EMITS is {max_emits}",
+        max_emits + 1
+    );
 }
 
 #[doc(hidden)]

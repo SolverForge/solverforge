@@ -23,6 +23,7 @@ log_progress: true,
 
 pub(crate) mod child_phases;
 pub(crate) mod config;
+pub(crate) mod execution;
 pub(crate) mod partitioner;
 pub(crate) mod phase;
 

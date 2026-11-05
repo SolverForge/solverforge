@@ -303,6 +303,7 @@ src/
 │   │   ├── mod.rs                       — Partitioned module declarations and re-exports
 │   │   ├── child_phases.rs              — ChildPhases trait and tuple impls
 │   │   ├── config.rs                    — PartitionedSearchConfig
+│   │   ├── execution.rs                — One partition/solve/merge pass run by PartitionedSearchPhase
 │   │   ├── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
 │   │   ├── partitioner_tests.rs        — Tests
 │   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
@@ -711,7 +712,7 @@ working solution without cloning.
 
 ### Partitioned Search
 
-**`PartitionedSearchPhase<S, PD, Part, SDF, PF, CP>`** — Generic over partitioner, score director factory, phase factory, child phases. Child scopes inherit runtime control, environment mode, remaining time limit, in-phase limits, and deterministic child seeds, but retained-job publication stays on the parent scope. The runtime phase-relative termination overlay is not propagated into a child scope. Pause checkpoints are emitted only from the parent full-solution boundary; child pause/cancel/config termination outcomes prevent partition merge.
+**`PartitionedSearchPhase<S, PD, Part, SDF, PF, CP>`** — Generic over partitioner, score director factory, phase factory, child phases. The score director factory runs on the solving thread for each partition before the partitions are dispatched; each partition initializes its score on the thread that solves it. Child scopes inherit runtime control, environment mode, remaining time limit, in-phase limits, and deterministic child seeds, but retained-job publication stays on the parent scope. The runtime phase-relative termination overlay is not propagated into a child scope. Pause checkpoints are emitted only from the parent full-solution boundary; child pause/cancel/config termination outcomes prevent partition merge.
 
 **`FunctionalPartitioner<S, PF, MF>`** — Closure-based partitioner.
 

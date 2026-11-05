@@ -1,4 +1,5 @@
 use super::*;
+use crate::manager::SolverTerminalReason;
 
 #[test]
 fn sequential_partitioned_search_shares_step_limit_across_children() {

@@ -66,7 +66,12 @@ where
         }
         let handle = self.rows.insert(StoredRow { coordinate, value });
         self.by_coordinate.insert(coordinate, handle);
-        coordinate.for_each_owner(|owner| self.by_owner.entry(owner).or_default().push(handle));
+        coordinate.for_each_owner(|owner| {
+            self.by_owner
+                .entry(owner)
+                .or_insert_with(|| Vec::with_capacity(Src::MAX_EMITS))
+                .push(handle);
+        });
         Some(handle)
     }
 

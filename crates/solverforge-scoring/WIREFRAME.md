@@ -754,7 +754,7 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
 
-**`Projection<A>`** — Retained projection contract for single-source `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded scoring rows into the sink: emitting more than `MAX_EMITS` rows for one input panics, naming the projection and both counts; Vec-returning closures are not part of the API. `Out` does not need `Clone`.
+**`Projection<A>`** — Retained projection contract for single-source `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded scoring rows into the sink: emitting more than `MAX_EMITS` rows for one input panics, naming the projection and both counts, and retained state sizes each entity's row list by `MAX_EMITS`; Vec-returning closures are not part of the API. `Out` does not need `Clone`.
 
 The fluent projected stream keeps its concrete source type in the return type:
 `SingleSource` for one projection, `FilteredSource` after a projected filter,

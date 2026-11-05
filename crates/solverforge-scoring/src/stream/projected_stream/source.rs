@@ -26,8 +26,9 @@ pub trait Projection<A>: Send + Sync {
     /// The emitted row type; it need not be `Clone`.
     type Out: Send + Sync + 'static;
     /// Maximum number of rows one `project` call emits. Emitting more panics,
-    /// naming the projection and both counts. Sources combine it (a merge adds
-    /// both bounds).
+    /// naming the projection and both counts. Retained scoring state sizes
+    /// each entity's row list by it, and sources combine it (a merge adds both
+    /// bounds).
     const MAX_EMITS: usize;
 
     /// Emits the rows for `input` into `sink`.

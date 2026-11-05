@@ -15,6 +15,6 @@ pub use grouped_weights::{
     DirectComplementAdapter, DirectComplementWeight, GroupAdapter, GroupWeight, GroupedJoinAdapter,
     GroupedJoinWeight, OptionalComplementAdapter, OptionalComplementWeight,
 };
-pub use operator_scorer::{AdaptWeight, OperatorScorer, RowWeight, ScorerChain};
+pub use operator_scorer::{AdaptWeight, OperatorScorer, OperatorScorerSet, RowWeight, ScorerChain};
 pub use operator_terminal::OperatorTerminal;
 pub use shared_terminal::{SharedOperatorBuilder, SharedOperatorTerminal};

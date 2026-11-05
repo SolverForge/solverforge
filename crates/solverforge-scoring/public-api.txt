@@ -43,10 +43,12 @@ struct constraint::relational::GroupAdapter: pub struct GroupAdapter<K, R>(/* pr
     constraint::relational::GroupAdapter: pub fn new() -> Self
 struct constraint::relational::GroupedJoinAdapter: pub struct GroupedJoinAdapter<K, R, B>(/* private fields */);
     constraint::relational::GroupedJoinAdapter: pub fn new() -> Self
+struct constraint::relational::OperatorScorer: pub struct OperatorScorer<W, Sc> { /* private fields */ }
 struct constraint::relational::OperatorTerminal: pub struct OperatorTerminal<S, O, W, Sc> { /* private fields */ }
     constraint::relational::OperatorTerminal: pub fn new( constraint_ref: ConstraintRef, impact: ImpactType, operator: O, weight: W, hard: bool, ) -> Self
 struct constraint::relational::OptionalComplementAdapter: pub struct OptionalComplementAdapter<KB, K, R> { /* private fields */ }
     constraint::relational::OptionalComplementAdapter: pub fn new(key: KB) -> Self
+struct constraint::relational::ScorerChain: pub struct ScorerChain<T>(/* private fields */);
 struct constraint::relational::SharedOperatorBuilder: pub struct SharedOperatorBuilder<S, O, A, Scorers, W, Sc> { /* private fields */ }
     constraint::relational::SharedOperatorBuilder: pub fn first(operator: O, adapter: A, impact: ImpactType, weight: W) -> Self
     constraint::relational::SharedOperatorBuilder: pub fn with_explainer( self, explain: fn(&O, &S, RowHandle, &mut Vec<EntityRef>), ) -> Self
@@ -476,6 +478,22 @@ trait constraint::relational::AdaptWeight: pub trait AdaptWeight<S: 'static, O: 
     constraint::relational::AdaptWeight: type RowWeight: RowWeight<S, O, Sc>
     constraint::relational::AdaptWeight: fn adapt(&self, weight: W) -> Self::RowWeight
     constraint::relational::AdaptWeight: fn is_hard(&self, weight: &W) -> bool
+trait constraint::relational::OperatorScorerSet: pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync { Show 15 methods // Required methods fn evaluate(&self, operator: &O, solution: &S) -> Sc; fn initialize(&mut self, operator: &O, solution: &S) -> Sc; fn apply_changes( &mut self, operator: &O, solution: &S, removed: &[RowHandle], inserted: &[RowHandle], ) -> (Sc, bool); fn constraint_count(&self) -> usize; fn metadata(&self) -> Vec<ConstraintMetadata<'_>>; fn evaluate_each<'a>( &'a self, operator: &O, solution: &S, ) -> Vec<ConstraintResult<'a, Sc>>; fn evaluate_detailed<'a>( &'a self, operator: &O, solution: &S, ) -> Vec<ConstraintAnalysis<'a, Sc>>; fn reset(&mut self); fn weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>); fn evaluate_weighted( &self, operator: &O, solution: &S, multipliers: &[u32], ) -> Sc; fn initialize_weighted( &mut self, operator: &O, solution: &S, multipliers: &[u32], ) -> Sc; fn apply_changes_weighted( &mut self, operator: &O, solution: &S, removed: &[RowHandle], inserted: &[RowHandle], multipliers: &[u32], ) -> (Sc, bool); fn evaluate_each_weighted<'a>( &'a self, operator: &O, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintResult<'a, Sc>>; fn evaluate_detailed_weighted<'a>( &'a self, operator: &O, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintAnalysis<'a, Sc>>; // Provided method fn score_for(&self, _handle: RowHandle) -> Option<Sc> { ... } }
+    constraint::relational::OperatorScorerSet: fn evaluate(&self, operator: &O, solution: &S) -> Sc
+    constraint::relational::OperatorScorerSet: fn initialize(&mut self, operator: &O, solution: &S) -> Sc
+    constraint::relational::OperatorScorerSet: fn apply_changes( &mut self, operator: &O, solution: &S, removed: &[RowHandle], inserted: &[RowHandle], ) -> (Sc, bool)
+    constraint::relational::OperatorScorerSet: fn constraint_count(&self) -> usize
+    constraint::relational::OperatorScorerSet: fn metadata(&self) -> Vec<ConstraintMetadata<'_>>
+    constraint::relational::OperatorScorerSet: fn evaluate_each<'a>( &'a self, operator: &O, solution: &S, ) -> Vec<ConstraintResult<'a, Sc>>
+    constraint::relational::OperatorScorerSet: fn evaluate_detailed<'a>( &'a self, operator: &O, solution: &S, ) -> Vec<ConstraintAnalysis<'a, Sc>>
+    constraint::relational::OperatorScorerSet: fn reset(&mut self)
+    constraint::relational::OperatorScorerSet: fn weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>)
+    constraint::relational::OperatorScorerSet: fn evaluate_weighted( &self, operator: &O, solution: &S, multipliers: &[u32], ) -> Sc
+    constraint::relational::OperatorScorerSet: fn initialize_weighted( &mut self, operator: &O, solution: &S, multipliers: &[u32], ) -> Sc
+    constraint::relational::OperatorScorerSet: fn apply_changes_weighted( &mut self, operator: &O, solution: &S, removed: &[RowHandle], inserted: &[RowHandle], multipliers: &[u32], ) -> (Sc, bool)
+    constraint::relational::OperatorScorerSet: fn evaluate_each_weighted<'a>( &'a self, operator: &O, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintResult<'a, Sc>>
+    constraint::relational::OperatorScorerSet: fn evaluate_detailed_weighted<'a>( &'a self, operator: &O, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintAnalysis<'a, Sc>>
+    constraint::relational::OperatorScorerSet: fn score_for(&self, _handle: RowHandle) -> Option<Sc>
 trait constraint::relational::RowWeight: pub trait RowWeight<S: 'static, O: Operator<S>, Sc>: Send + Sync { // Required method fn score(&self, solution: &S, row: &O::View<'_>) -> Sc; }
     constraint::relational::RowWeight: fn score(&self, solution: &S, row: &O::View<'_>) -> Sc
 trait director::Director: pub trait Director<S: PlanningSolution>: Send { Show 19 methods // Required methods fn working_solution(&self) -> &S; fn working_solution_mut(&mut self) -> &mut S; fn calculate_score(&mut self) -> S::Score; fn solution_descriptor(&self) -> &SolutionDescriptor; fn clone_working_solution(&self) -> S; fn before_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, ); fn after_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, ); fn entity_count(&self, descriptor_index: usize) -> Option<usize>; fn total_entity_count(&self) -> Option<usize>; fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>; // Provided methods fn fresh_score(&self) -> Option<S::Score> { ... } fn set_score_assertion(&mut self, enabled: bool) { ... } fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool> { ... } fn is_incremental(&self) -> bool { ... } fn snapshot_score_state(&self) -> DirectorScoreState<S::Score> { ... } fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) { ... } fn reset(&mut self) { ... } fn fork_replica(&self) -> Option<Self> where Self: Sized { ... } fn fork_for_solution(&self, _solution: S) -> Option<Self> where Self: Sized { ... } }

@@ -14,7 +14,7 @@ help: the trait `SingleConstraint` is not implemented for `Count`
              IncrementalUniConstraint<S, A, E, F, W, Sc>
              ListPrecedenceMakespanConstraint<S>
              OperatorTerminal<S, O, W, Sc>
-             SharedOperatorTerminal<S, O, A, solverforge::constraint::relational::OperatorScorer<W, Sc>, Sc>
+             SharedOperatorTerminal<S, O, A, OperatorScorer<W, Sc>, Sc>
              Uni<S, Out, Src, F, W, Sc>
              solverforge::constraint::projected::Bi<S, Out, K, Src, F, KF, PF, W, Sc>
              solverforge::constraint::projected::DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>

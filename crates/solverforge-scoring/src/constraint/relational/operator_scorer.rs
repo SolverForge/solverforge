@@ -16,6 +16,10 @@ use crate::api::{
 use crate::stream::relational::operator::Operator;
 use crate::stream::relational::{HandleMap, RowHandle};
 
+mod set;
+
+pub use set::OperatorScorerSet;
+
 /// Unsigned score of one row of operator `O`; the terminal applies the
 /// impact.
 pub trait RowWeight<S: 'static, O: Operator<S>, Sc>: Send + Sync {
@@ -35,7 +39,9 @@ pub trait AdaptWeight<S: 'static, O: Operator<S>, W, Sc>: Send + Sync {
     fn is_hard(&self, weight: &W) -> bool;
 }
 
-#[doc(hidden)]
+/// Scores one named terminal over a shared operator: its constraint
+/// identity, impact, row weight and the unsigned score it retained for each
+/// row. Built by `SharedOperatorBuilder::first_named` and `named`.
 pub struct OperatorScorer<W, Sc> {
     pub(super) constraint_ref: ConstraintRef,
     impact: ImpactType,
@@ -69,58 +75,6 @@ impl<W, Sc: Score> OperatorScorer<W, Sc> {
             ImpactType::Reward => weight,
         }
     }
-}
-
-#[doc(hidden)]
-pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync {
-    fn evaluate(&self, operator: &O, solution: &S) -> Sc;
-    fn initialize(&mut self, operator: &O, solution: &S) -> Sc;
-    fn apply_changes(
-        &mut self,
-        operator: &O,
-        solution: &S,
-        removed: &[RowHandle],
-        inserted: &[RowHandle],
-    ) -> (Sc, bool);
-    fn constraint_count(&self) -> usize;
-    fn metadata(&self) -> Vec<ConstraintMetadata<'_>>;
-    fn evaluate_each<'a>(&'a self, operator: &O, solution: &S) -> Vec<ConstraintResult<'a, Sc>>;
-    fn evaluate_detailed<'a>(
-        &'a self,
-        operator: &O,
-        solution: &S,
-    ) -> Vec<ConstraintAnalysis<'a, Sc>>;
-    fn reset(&mut self);
-    fn score_for(&self, _handle: RowHandle) -> Option<Sc> {
-        None
-    }
-
-    /// Weighted counterparts: one multiplier per scorer, in chain order. Each
-    /// scorer scales its own contribution, so terminals sharing one operator
-    /// keep independent multipliers while the operator state stays shared.
-    fn weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>);
-    fn evaluate_weighted(&self, operator: &O, solution: &S, multipliers: &[u32]) -> Sc;
-    fn initialize_weighted(&mut self, operator: &O, solution: &S, multipliers: &[u32]) -> Sc;
-    fn apply_changes_weighted(
-        &mut self,
-        operator: &O,
-        solution: &S,
-        removed: &[RowHandle],
-        inserted: &[RowHandle],
-        multipliers: &[u32],
-    ) -> (Sc, bool);
-    fn evaluate_each_weighted<'a>(
-        &'a self,
-        operator: &O,
-        solution: &S,
-        multipliers: &[u32],
-    ) -> Vec<ConstraintResult<'a, Sc>>;
-    fn evaluate_detailed_weighted<'a>(
-        &'a self,
-        operator: &O,
-        solution: &S,
-        multipliers: &[u32],
-    ) -> Vec<ConstraintAnalysis<'a, Sc>>;
 }
 
 impl<S, O, Sc> OperatorScorerSet<S, O, Sc> for ()
@@ -355,7 +309,8 @@ where
     }
 }
 
-#[doc(hidden)]
+/// Two scorer sets over one operator, scored left then right: the chain a
+/// shared terminal grows by one [`OperatorScorer`] per named terminal.
 pub struct ScorerChain<T>(pub(super) T);
 
 impl<S, O, Left, Right, Sc> OperatorScorerSet<S, O, Sc> for ScorerChain<(Left, Right)>

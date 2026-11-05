@@ -1,5 +1,5 @@
 //! Local search settings that only show in a solve: the recreate heuristic of
-//! ruin-and-recreate moves, and that each random part of a search
+//! ruin-and-recreate moves, swap moves, and that each random part of a search
 //! (simulated annealing, random tie breaks, ruin choice) follows
 //! `random_seed`.
 
@@ -63,6 +63,32 @@ fn first_fit_recreate_puts_ruined_tasks_back_on_the_first_worker() {
     let solved = solve(Plan::new(&[1, 1], &[3, 2, 1]), &ruin_recreate("first_fit"));
     assert_eq!(solved.score, Some(SoftScore::of(-16)));
     assert_eq!(solved.workers_by_task(), [Some(0), Some(0)]);
+}
+
+#[test]
+fn swap_moves_exchange_two_tasks_workers() {
+    // Task 0 (weight 5) on worker 1 (cost 3) and task 1 (weight 1) on
+    // worker 0 (cost 1) cost 16; exchanging their workers costs 8. Only swap
+    // moves are configured, so only an exchange can improve.
+    let mut plan = Plan::new(&[5, 1], &[1, 3]);
+    plan.tasks[0].worker = Some(1);
+    plan.tasks[1].worker = Some(0);
+    let solved = solve(
+        plan,
+        r#"random_seed = 7
+
+[[phases]]
+type = "local_search"
+[phases.termination]
+step_count_limit = 10
+[phases.acceptor]
+type = "hill_climbing"
+[phases.move_selector]
+type = "swap_move_selector"
+"#,
+    );
+    assert_eq!(solved.workers_by_task(), [Some(0), Some(1)]);
+    assert_eq!(solved.score, Some(SoftScore::of(-8)));
 }
 
 /// First fit construction, then local search configured by `local_search`, on

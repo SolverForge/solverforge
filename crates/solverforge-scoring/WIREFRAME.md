@@ -451,7 +451,7 @@ Implementing it by hand is a supported extension point; the contract an implemen
 | `evaluate_all` | `fn evaluate_all(&self, solution: &S) -> Sc` | Sum all constraints |
 | `constraint_count` | `fn constraint_count(&self) -> usize` | Number of constraints |
 | `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Deduplicated borrowed ref/name/hardness metadata |
-| `constraint_metadata_entries` | `fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>>` | Hidden raw metadata entries in authored order |
+| `constraint_metadata_entries` | `fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>>` | Required: one entry per constraint in authored order, duplicates kept; tuples and chains concatenate their members' entries and `constraint_metadata` deduplicates them |
 | `evaluate_each` | `fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>>` | Per-constraint results |
 | `evaluate_detailed` | `fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>>` | With match details |
 | `initialize_all` | `fn initialize_all(&mut self, solution: &S) -> Sc` | Initialize all for incremental |

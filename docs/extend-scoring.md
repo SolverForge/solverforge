@@ -115,7 +115,9 @@ slot per named constraint through `constraint_weight_refs` and scale each
 one's contribution by its own slot; never apply one multiplier to a delta that
 sums several named constraints. A hand-written `ConstraintSet` must implement
 the weighted methods by splitting `multipliers` across its children in
-`constraint_weight_refs` order.
+`constraint_weight_refs` order, and `constraint_metadata_entries` by returning
+one entry per named constraint in authored order, duplicates kept;
+`constraint_metadata` deduplicates them.
 
 ## Evaluation ownership
 

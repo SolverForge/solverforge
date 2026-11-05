@@ -292,8 +292,15 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
         deduplicate_constraint_metadata(self.constraint_metadata_entries())
     }
 
-    /// Returns one metadata entry per constraint in authored order.
-    #[doc(hidden)]
+    /// Returns one metadata entry per constraint in authored order, keeping
+    /// duplicates.
+    ///
+    /// This is the method an implementation provides: tuples and chains build
+    /// their entries from their members' entries, and
+    /// [`constraint_metadata`](Self::constraint_metadata) deduplicates the
+    /// result. A set of one constraint returns its single entry; a set that
+    /// scores several named constraints returns one entry per name, in the
+    /// order its terminals were authored.
     fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>>;
 
     /// Evaluates each constraint individually and returns per-constraint results.

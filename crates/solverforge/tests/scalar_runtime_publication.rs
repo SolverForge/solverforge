@@ -43,9 +43,9 @@ fn scalar_only_solution_runs_construction_in_retained_runtime() {
                 completed_solution = Some(solution);
                 break;
             }
-            other => {
-                eprintln!("event={other:?}");
-            }
+            SolverEvent::Progress { .. } => {}
+            SolverEvent::Failed { error, .. } => panic!("the solve failed: {error}"),
+            other => panic!("unexpected event: {other:?}"),
         }
     }
 

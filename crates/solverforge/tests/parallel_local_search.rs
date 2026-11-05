@@ -41,13 +41,18 @@ fn solve(manager: &'static SolverManager<Plan>, move_threads: usize) -> Run {
         .expect("job should start");
     let mut completed = None;
     while let Some(event) = receiver.blocking_recv() {
-        if let SolverEvent::Completed { metadata, solution } = event {
-            assert_eq!(
-                metadata.terminal_reason,
-                Some(SolverTerminalReason::Completed)
-            );
-            completed = Some((solution, metadata.telemetry));
-            break;
+        match event {
+            SolverEvent::BestSolution { .. } | SolverEvent::Progress { .. } => {}
+            SolverEvent::Completed { metadata, solution } => {
+                assert_eq!(
+                    metadata.terminal_reason,
+                    Some(SolverTerminalReason::Completed)
+                );
+                completed = Some((solution, metadata.telemetry));
+                break;
+            }
+            SolverEvent::Failed { error, .. } => panic!("the solve failed: {error}"),
+            other => panic!("unexpected event: {other:?}"),
         }
     }
     let (plan, telemetry) = completed.expect("expected a completed solution");

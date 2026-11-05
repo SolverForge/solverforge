@@ -127,18 +127,26 @@ where
     /// The working-solution clone is the evaluator replica clone boundary: it
     /// happens when replicas are created, never per candidate or per step.
     pub(crate) fn fork_replica_impl(&self) -> Option<Self> {
+        let mut replica = self.fork_for_solution_impl(self.working_solution.clone())?;
+        replica.calculate_score_impl();
+        Some(replica)
+    }
+
+    /// Builds an independent director over `solution`: a constraint set built
+    /// for it, the same borrowed descriptor, weight mode, entity counter and
+    /// score assertion. Its incremental state is uninitialized; the first
+    /// score calculation initializes it, on whichever thread runs it.
+    pub(crate) fn fork_for_solution_impl(&self, solution: S) -> Option<Self> {
         let (descriptor, constraints) = self.solution_descriptor.replica()?;
-        let solution = self.working_solution.clone();
         let replica_constraints = constraints(&solution);
-        let mut replica = Self::with_descriptor_in_mode(
+        let mut director = Self::with_descriptor_in_mode(
             solution,
             replica_constraints,
             descriptor,
             self.entity_counter,
         );
-        replica.score_assertion = self.score_assertion;
-        replica.calculate_score_impl();
-        Some(replica)
+        director.score_assertion = self.score_assertion;
+        Some(director)
     }
 
     /* =========================================================================

@@ -114,4 +114,8 @@ where
     fn fork_replica(&self) -> Option<Self> {
         self.fork_replica_impl()
     }
+
+    fn fork_for_solution(&self, solution: S) -> Option<Self> {
+        self.fork_for_solution_impl(solution)
+    }
 }

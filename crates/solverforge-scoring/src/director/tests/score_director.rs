@@ -410,6 +410,53 @@ fn fork_replica_matches_score_and_stays_independent() {
 }
 
 #[test]
+fn fork_for_solution_scores_its_own_solution_independently() {
+    let solution = TestSolution {
+        values: vec![Some(1), None, None],
+        score: None,
+    };
+    let descriptor = test_descriptor();
+    let mut director = ScoreDirector::with_descriptor(
+        solution.clone(),
+        unassigned_constraints(&solution),
+        ReplicaDescriptor::new(&descriptor, unassigned_constraints),
+        |_, _| 0,
+    );
+    let main_score = director.calculate_score();
+
+    let partition = TestSolution {
+        values: vec![None, None, None, None, Some(2)],
+        score: None,
+    };
+    let mut fork = director
+        .fork_for_solution(partition)
+        .expect("director with a constraint constructor must fork");
+    assert!(!fork.is_initialized());
+    assert!(std::ptr::eq(
+        Director::solution_descriptor(&fork),
+        Director::solution_descriptor(&director)
+    ));
+    assert_eq!(fork.calculate_score(), SoftScore::of(-4));
+
+    fork.before_variable_changed(0, 0);
+    fork.working_solution_mut().values[0] = Some(5);
+    fork.after_variable_changed(0, 0);
+    assert_eq!(fork.get_score(), SoftScore::of(-3));
+    assert_eq!(director.get_score(), main_score);
+    assert_eq!(director.working_solution().values.len(), 3);
+}
+
+#[test]
+fn fork_for_solution_requires_a_replica_descriptor() {
+    let solution = TestSolution {
+        values: vec![Some(1)],
+        score: None,
+    };
+    let director = ScoreDirector::new(solution.clone(), (make_unassigned_constraint(),));
+    assert!(director.fork_for_solution(solution).is_none());
+}
+
+#[test]
 fn fork_of_uninitialized_director_initializes_the_replica() {
     let solution = TestSolution {
         values: vec![None, Some(3), None, None],

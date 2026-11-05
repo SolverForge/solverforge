@@ -115,4 +115,16 @@ pub trait Director<S: PlanningSolution>: Send {
     {
         None
     }
+
+    /// Builds an independent director of the same kind over `solution`, for
+    /// solving a sub-problem such as one partition of partitioned search. Its
+    /// incremental state is uninitialized until its first score calculation.
+    ///
+    /// Returns `None` when this director cannot construct one.
+    fn fork_for_solution(&self, _solution: S) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }

@@ -58,7 +58,7 @@ pub struct ConstructionHeuristicConfig {
     pub group_name: Option<String>,
 
     /// Optional cap for grouped scalar candidates generated per provider call.
-    /// A list heuristic rejects it.
+    /// Requires `group_name`; a list heuristic rejects it.
     pub group_candidate_limit: Option<usize>,
 
     /// Phase termination configuration.

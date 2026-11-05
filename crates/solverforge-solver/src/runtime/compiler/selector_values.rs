@@ -78,6 +78,13 @@ fn validate_construction(
     if is_list_construction(config.construction_heuristic_type) {
         reject_scalar_only_construction_keys(config, path)?;
     }
+    if config.group_candidate_limit.is_some() && config.group_name.is_none() {
+        return Err(invalid(
+            path,
+            "group_candidate_limit",
+            "caps grouped scalar candidates and needs `group_name`".to_string(),
+        ));
+    }
     positive_limit(path, "value_candidate_limit", config.value_candidate_limit)?;
     positive_limit(path, "group_candidate_limit", config.group_candidate_limit)
 }

@@ -203,8 +203,8 @@ fn construction_values_reject_their_invalid_value_with_the_key_path() {
             "value_candidate_limit",
         ),
         (
-            "group_candidate_limit = 0",
-            "group_candidate_limit = 1",
+            "group_name = \"g\"\ngroup_candidate_limit = 0",
+            "group_name = \"g\"\ngroup_candidate_limit = 1",
             "group_candidate_limit",
         ),
         ("k = 3", "k = 2", "k"),
@@ -308,4 +308,16 @@ fn list_construction_rejects_scalar_only_keys() {
             "the default obligation",
         );
     }
+}
+
+#[test]
+fn group_candidate_limit_needs_a_group_name() {
+    assert_invalid(
+        &construction("group_candidate_limit = 3"),
+        "phases[0].construction.group_candidate_limit",
+    );
+    assert_valid(
+        &construction("group_name = \"g\"\ngroup_candidate_limit = 3"),
+        "with group_name",
+    );
 }

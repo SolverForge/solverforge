@@ -220,6 +220,21 @@ fn construction_values_reject_their_invalid_value_with_the_key_path() {
 }
 
 #[test]
+fn list_k_opt_construction_accepts_k_from_two_to_five() {
+    let list_k_opt = |k: usize| {
+        construction(&format!(
+            "construction_heuristic_type = \"list_k_opt\"\nk = {k}"
+        ))
+    };
+    for k in 2..=5 {
+        assert_valid(&list_k_opt(k), &format!("k = {k}"));
+    }
+    for k in [0, 1, 6] {
+        assert_invalid(&list_k_opt(k), "phases[0].construction.k");
+    }
+}
+
+#[test]
 fn partitioned_child_phase_values_are_validated() {
     let config = parse(
         "[[phases]]\ntype = \"partitioned_search\"\npartitioner = \"p\"\n\n\

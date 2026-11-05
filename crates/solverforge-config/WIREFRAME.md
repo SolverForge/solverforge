@@ -138,7 +138,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
 | `construction_obligation` | `ConstructionObligation` | `PreserveUnassigned` |
 | `target` | `VariableTargetConfig` | empty target |
-| `k` | `usize` | `2` (for `ListKOpt`); valid: exactly `2` (the list k-opt construction kernel implements 2-opt only) |
+| `k` | `usize` | `2`; valid: `2..=5` for `ListKOpt`, which polishes each route with k-opt; other heuristics do not use it and reject any value but `2` |
 | `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `group_name` | `Option<String>` | `None` |
 | `group_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |

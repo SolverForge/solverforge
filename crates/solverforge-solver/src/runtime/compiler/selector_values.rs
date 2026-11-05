@@ -6,8 +6,8 @@
 //! rejected with its key path before any phase runs.
 
 use solverforge_config::{
-    ConstructionHeuristicConfig, KOptMoveSelectorConfig, ListPermuteMoveConfig, MoveSelectorConfig,
-    PhaseConfig, SolverConfig,
+    ConstructionHeuristicConfig, ConstructionHeuristicType, KOptMoveSelectorConfig,
+    ListPermuteMoveConfig, MoveSelectorConfig, PhaseConfig, SolverConfig,
 };
 
 use crate::heuristic::r#move::MAX_LIST_PERMUTE_WINDOW_SIZE;
@@ -17,8 +17,8 @@ use super::types::{RuntimeCompileError, RuntimeCompileErrorKind};
 /// Largest k the k-opt reconnection kernel enumerates.
 const MAX_K_OPT_K: usize = 5;
 
-/// The only k the list k-opt construction kernel implements.
-const LIST_K_OPT_CONSTRUCTION_K: usize = 2;
+/// The `k` of a construction phase whose heuristic does not use it.
+const DEFAULT_CONSTRUCTION_K: usize = 2;
 
 /// Rejects every out-of-domain numeric move-selector or construction value in
 /// `config`, including nested selectors and partitioned child phases.
@@ -56,12 +56,20 @@ fn validate_construction(
     config: &ConstructionHeuristicConfig,
     path: &str,
 ) -> Result<(), RuntimeCompileError> {
-    if config.k != LIST_K_OPT_CONSTRUCTION_K {
+    if config.construction_heuristic_type == ConstructionHeuristicType::ListKOpt {
+        if !(2..=MAX_K_OPT_K).contains(&config.k) {
+            return Err(invalid(
+                path,
+                "k",
+                format!("must be between 2 and {MAX_K_OPT_K}, got {}", config.k),
+            ));
+        }
+    } else if config.k != DEFAULT_CONSTRUCTION_K {
         return Err(invalid(
             path,
             "k",
             format!(
-                "must be {LIST_K_OPT_CONSTRUCTION_K}: list k-opt construction implements only 2-opt, got {}",
+                "applies only to `list_k_opt` construction; leave it at {DEFAULT_CONSTRUCTION_K}, got {}",
                 config.k
             ),
         ));

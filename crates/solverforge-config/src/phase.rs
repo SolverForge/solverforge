@@ -44,7 +44,8 @@ pub struct ConstructionHeuristicConfig {
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 
-    /// k for ListKOpt (default 2).
+    /// Cuts per k-opt move of `list_k_opt` construction, from 2 to 5 (default
+    /// 2). Other heuristics do not use it, and setting it for them is an error.
     #[serde(default = "default_k")]
     pub k: usize,
 

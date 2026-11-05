@@ -101,6 +101,7 @@ Each module groups re-exports from one layer crate, so every type a facade signa
 - `hard_weight`
 - `FixedWeight`
 - `HardWeight`
+- `ConstraintWeight` (trait: the weight bound of `penalize`/`reward`)
 - `ConstraintSet` (trait)
 - `ConstraintMetadata<'a>` (borrowed constraint identity view), `ConstraintResult`
 - `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`

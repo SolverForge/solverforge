@@ -377,7 +377,7 @@ pub use api::analysis::{
 // Fluent Stream API
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
-    FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
+    ConstraintWeight, FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
     Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
 };
 
@@ -737,6 +737,8 @@ Construct with `new(entities)` or `with_description(entities, description)`.
 **`DetailedConstraintMatch<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, score: Sc, justification: ConstraintJustification }`
 
 **`ConstraintAnalysis<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, weight_multiplier: u32, score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>, is_hard: bool }`; `new(constraint_ref, weight_multiplier, score, matches, is_hard)`
+
+**`ConstraintWeight<Args, Sc>`** — The weight bound of every `penalize`/`reward`: `score(&self, args) -> Sc` scores one match from its borrowed row tuple (`(&A,)` through `(&A, &B, &C, &D, &E)`, or key and result for grouped streams), and `is_hard(&self) -> bool` decides the constraint's hardness. Implemented for the built-in score types (fixed per match, hard when the first level is non-zero), `FixedWeight`, closures over the matched rows (soft), and `HardWeight` (hard); implement it for a custom weight type.
 
 **`FixedWeight<Sc>` / `fixed_weight(score)`** — Public zero-erasure wrapper for custom fixed score weights. Use `penalize(fixed_weight(custom_score))` or `reward(fixed_weight(custom_score))` when `Sc` is user-defined.
 

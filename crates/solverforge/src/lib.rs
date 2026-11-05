@@ -200,10 +200,10 @@ Constraint API
 */
 
 pub use solverforge_scoring::{
-    fixed_weight, hard_weight, ConstraintMetadata, ConstraintResult, ConstraintSet, FixedWeight,
-    HardWeight, IncrementalConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint,
-    Projection, ProjectionSink, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation,
-    SingleConstraint,
+    fixed_weight, hard_weight, ConstraintMetadata, ConstraintResult, ConstraintSet,
+    ConstraintWeight, FixedWeight, HardWeight, IncrementalConstraint, IncrementalUniConstraint,
+    ListPrecedenceMakespanConstraint, Projection, ProjectionSink, SharedNodeDiagnostics,
+    SharedNodeId, SharedNodeOperation, SingleConstraint,
 };
 
 /* ============================================================================

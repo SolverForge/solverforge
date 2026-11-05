@@ -506,6 +506,9 @@ trait director::score_director::WeightMode: pub trait WeightMode: Mode + Send + 
 trait director::shadow_aware::SolvableSolution: pub trait SolvableSolution: PlanningSolution { // Required methods fn descriptor() -> SolutionDescriptor; fn entity_count(solution: &Self, descriptor_index: usize) -> usize; }
     director::shadow_aware::SolvableSolution: fn descriptor() -> SolutionDescriptor
     director::shadow_aware::SolvableSolution: fn entity_count(solution: &Self, descriptor_index: usize) -> usize
+trait stream::ConstraintWeight: pub trait ConstraintWeight<Args, Sc: Score>: Send + Sync { // Required methods fn score(&self, args: Args) -> Sc; fn is_hard(&self) -> bool; }
+    stream::ConstraintWeight: fn score(&self, args: Args) -> Sc
+    stream::ConstraintWeight: fn is_hard(&self) -> bool
 trait stream::ExistenceTarget: pub trait ExistenceTarget<S, A, EA, FA, Sc: Score> where EA: CollectionExtract<S, Item = A>, FA: UniFilter<S, A>,{ type Output; // Required method fn apply( self, mode: ExistenceMode, extractor_a: EA, filter_a: FA, ) -> Self::Output; }
     stream::ExistenceTarget: type Output
     stream::ExistenceTarget: fn apply( self, mode: ExistenceMode, extractor_a: EA, filter_a: FA, ) -> Self::Output

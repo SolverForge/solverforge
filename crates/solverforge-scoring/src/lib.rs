@@ -70,6 +70,6 @@ Fluent Constraint Stream API
 
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
-    FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight, Projection,
-    ProjectionSink, UniConstraintBuilder, UniConstraintStream,
+    ConstraintWeight, FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
+    Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
 };

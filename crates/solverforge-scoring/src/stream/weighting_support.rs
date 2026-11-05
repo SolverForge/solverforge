@@ -31,10 +31,72 @@ pub const fn hard_weight<W>(weight: W) -> HardWeight<W> {
     HardWeight { weight }
 }
 
-#[doc(hidden)]
+/// The weight a `penalize` or `reward` call scores each match with.
+///
+/// `Args` is the tuple of borrowed rows one match carries, `(&A,)` for a uni
+/// stream up to `(&A, &B, &C, &D, &E)` for a penta stream; grouped streams
+/// pass the key and the collector result. Implemented for:
+///
+/// - every built-in score type (`SoftScore`, `HardSoftScore`,
+///   `HardMediumSoftScore`, `HardSoftDecimalScore`, `BendableScore`), scoring
+///   each match with that fixed value;
+/// - [`FixedWeight`], wrapping any other fixed score;
+/// - closures `Fn(&A, ...) -> Sc` over the matched rows;
+/// - [`HardWeight`], wrapping another weight and marking it hard.
+///
+/// Implement it for a custom weight type to compute a match's score from
+/// state of your own.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_core::score::SoftScore;
+/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+/// use solverforge_scoring::stream::{
+///     source, ChangeSource, ConstraintFactory, ConstraintWeight,
+/// };
+///
+/// /// Scores each late minute past a deadline.
+/// struct MinutesLate {
+///     deadline: i64,
+/// }
+///
+/// impl<'a> ConstraintWeight<(&'a i64,), SoftScore> for MinutesLate {
+///     fn score(&self, (end,): (&'a i64,)) -> SoftScore {
+///         SoftScore::of((*end - self.deadline).max(0))
+///     }
+///
+///     fn is_hard(&self) -> bool {
+///         false
+///     }
+/// }
+///
+/// #[derive(Clone)]
+/// struct Plan {
+///     ends: Vec<i64>,
+/// }
+///
+/// fn ends(plan: &Plan) -> &[i64] {
+///     plan.ends.as_slice()
+/// }
+///
+/// let constraint = ConstraintFactory::<Plan, SoftScore>::new()
+///     .for_each(source(ends as fn(&Plan) -> &[i64], ChangeSource::Descriptor(0)))
+///     .penalize(MinutesLate { deadline: 10 })
+///     .named("late");
+///
+/// let plan = Plan { ends: vec![8, 13, 15] };
+/// assert_eq!(constraint.evaluate(&plan), SoftScore::of(-8));
+/// assert!(!constraint.is_hard());
+/// ```
 pub trait ConstraintWeight<Args, Sc: Score>: Send + Sync {
+    /// The score one match with rows `args` contributes, before the
+    /// constraint's penalty or reward sign is applied.
     fn score(&self, args: Args) -> Sc;
 
+    /// Whether the constraint this weight scores is hard. Built-in fixed
+    /// scores are hard when their first (hard) level is non-zero; closures
+    /// are soft unless wrapped in [`HardWeight`].
     fn is_hard(&self) -> bool;
 }
 

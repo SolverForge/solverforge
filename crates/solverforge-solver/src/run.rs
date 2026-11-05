@@ -309,6 +309,9 @@ where
         + std::fmt::Debug,
     BuildRunner: FnOnce(&SolverConfig, &SolutionDescriptor) -> RuntimeBuildResult<Runner>,
 {
+    // Every configured run entry point arrives here, so a retained job's
+    // override applies to generated, weighted and bridge solves alike.
+    let config = runtime.apply_config_override(config);
     log_scale(&solution);
     let main_constraints = constraints(&solution);
     if let Err(error) = validate_constraint_weights(&solution, &main_constraints) {

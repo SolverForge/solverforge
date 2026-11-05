@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Condvar, Mutex};
 
+use solverforge_config::SolverConfigOverride;
 use solverforge_core::domain::PlanningSolution;
 use tokio::sync::mpsc;
 
@@ -61,6 +62,8 @@ pub(super) struct JobRecord<S: PlanningSolution> {
     pub(super) failure_message: Option<String>,
     pub(super) problem_changes: ProblemChangeQueue<S>,
     pub(super) snapshot_analysis: SnapshotAnalysisBinding<S>,
+    /// The override the job's solve applies to its configuration.
+    pub(super) config_override: Option<SolverConfigOverride>,
 }
 
 impl<S: PlanningSolution> JobRecord<S> {
@@ -78,6 +81,7 @@ impl<S: PlanningSolution> JobRecord<S> {
             failure_message: None,
             problem_changes: ProblemChangeQueue::new(),
             snapshot_analysis: SnapshotAnalysisBinding::Analyzable,
+            config_override: None,
         }
     }
 
@@ -94,6 +98,7 @@ impl<S: PlanningSolution> JobRecord<S> {
         self.failure_message = None;
         self.problem_changes.reset();
         self.snapshot_analysis = SnapshotAnalysisBinding::Analyzable;
+        self.config_override = None;
     }
 
     pub(super) fn push_snapshot(&mut self, mut snapshot: SolverSnapshot<S>) -> u64 {

@@ -1,0 +1,18 @@
+random_seed = 7
+
+[termination]
+step_count_limit = 1000
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+
+[[phases]]
+type = "local_search"
+
+[phases.acceptor]
+type = "late_acceptance"
+late_acceptance_size = 10
+
+[phases.move_selector]
+type = "change_move_selector"

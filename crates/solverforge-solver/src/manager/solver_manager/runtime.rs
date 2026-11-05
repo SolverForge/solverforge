@@ -2,6 +2,7 @@ use std::any::Any;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
 
 use super::slot::{
@@ -93,6 +94,21 @@ enum CompletionDisposition {
 impl<S: PlanningSolution> SolverRuntime<S> {
     pub(super) fn new(job_id: usize, slot: &'static JobSlot<S>) -> Self {
         Self { job_id, slot }
+    }
+
+    /// `config` with the job's [`SolverManager::solve_with_override`]
+    /// override applied; unchanged for jobs submitted without one and for
+    /// detached solves.
+    ///
+    /// [`SolverManager::solve_with_override`]: super::SolverManager::solve_with_override
+    pub(crate) fn apply_config_override(&self, config: SolverConfig) -> SolverConfig {
+        let overrides = self
+            .slot
+            .with_publication(|_, record| record.config_override.clone());
+        match overrides {
+            Some(overrides) => config.with_override(&overrides),
+            None => config,
+        }
     }
 
     /// Creates a runtime handle for synchronous solves that are not retained by

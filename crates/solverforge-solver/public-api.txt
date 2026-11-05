@@ -358,6 +358,7 @@ struct SolverEventReceiver: pub struct SolverEventReceiver<S: PlanningSolution> 
 struct SolverManager: pub struct SolverManager<S: Solvable> { /* private fields */ }
     SolverManager: pub const fn new() -> Self
     SolverManager: pub fn solve( &'static self, solution: S, ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError>
+    SolverManager: pub fn solve_with_override( &'static self, solution: S, overrides: SolverConfigOverride, ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError>
     SolverManager: pub fn solve_with_qualified_candidate_trace_provenance( &'static self, solution: S, provenance: QualifiedCandidateTraceRunProvenance, ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError>
     SolverManager: pub fn get_status( &self, job_id: usize, ) -> Result<SolverStatus<S::Score>, SolverManagerError>
     SolverManager: pub fn get_telemetry_detail( &self, job_id: usize, ) -> Result<SolverTelemetryDetail<S::Score>, SolverManagerError>

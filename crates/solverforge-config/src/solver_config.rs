@@ -277,7 +277,8 @@ pub enum MoveThreadCount {
 }
 
 /// Runtime configuration overrides, applied with
-/// [`SolverConfig::with_override`].
+/// [`SolverConfig::with_override`] or to a retained job through
+/// `SolverManager::solve_with_override`.
 #[derive(Debug, Clone, Default)]
 pub struct SolverConfigOverride {
     /// When set, replaces the solver-level `termination`. Phase-level

@@ -766,7 +766,12 @@ snapshot, or partial paused snapshot.
 Static lifetime retained-job manager: `solve()` returns
 `(job_id, SolverEventReceiver<S>)`;
 `solve_with_qualified_candidate_trace_provenance()` uses the same lifecycle
-while installing an externally validated trace attestation. Other methods are
+while installing an externally validated trace attestation, and
+`solve_with_override(solution, SolverConfigOverride)` while the job's solve
+applies the override to its configuration (`SolverConfig::with_override`). The
+override is stored in the job record and applied by
+`SolverRuntime::apply_config_override` at the run entry point every
+configured solve reaches (generated, weighted and bridge solves). Other methods are
 `get_status()`, `get_telemetry_detail()`, `pause()`, `resume()`, `cancel()`,
 `delete()`, `get_snapshot()`, `analyze_snapshot()`, `add_problem_change()`, and
 `active_job_count()`. `analyze_snapshot()` uses the analysis the job's solve

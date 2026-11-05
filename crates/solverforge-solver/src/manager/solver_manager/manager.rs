@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::Ordering;
 
+use solverforge_config::SolverConfigOverride;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use tokio::sync::mpsc;
@@ -86,7 +87,21 @@ where
         &'static self,
         solution: S,
     ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
-        self.submit(solution, None)
+        self.submit(solution, None, None)
+    }
+
+    /// Starts a retained solve job whose configuration has `overrides`
+    /// applied (see [`SolverConfig::with_override`]), and returns its id with
+    /// the job's event stream. Every configured solve applies the job's
+    /// override before it builds its phases and termination.
+    ///
+    /// [`SolverConfig::with_override`]: solverforge_config::SolverConfig::with_override
+    pub fn solve_with_override(
+        &'static self,
+        solution: S,
+        overrides: SolverConfigOverride,
+    ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
+        self.submit(solution, None, Some(overrides))
     }
 
     /// Submits a retained solve with externally validated candidate-trace provenance.
@@ -99,13 +114,14 @@ where
         solution: S,
         provenance: QualifiedCandidateTraceRunProvenance,
     ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
-        self.submit(solution, Some(provenance))
+        self.submit(solution, Some(provenance), None)
     }
 
     fn submit(
         &'static self,
         solution: S,
         qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+        config_override: Option<SolverConfigOverride>,
     ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
@@ -118,6 +134,7 @@ where
         };
 
         let slot = &self.slots[slot_idx];
+        slot.with_publication(|_, record| record.config_override = config_override);
         let runtime = SolverRuntime::new(slot_idx, slot);
 
         rayon::spawn(move || {

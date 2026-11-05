@@ -903,6 +903,6 @@ Decorator notes:
 - **All serde `rename_all = "snake_case"`** for consistent TOML key naming.
 - **Strict parsing.** Every deserialized struct, plus `AcceptorConfig` and `ForagerConfig`, carries `#[serde(deny_unknown_fields)]`: a misspelled or obsolete key fails `from_toml_*` with `ConfigError::Toml` naming the key instead of silently falling back to a default. `VariableTargetConfig` is the one exception because it is only ever `#[serde(flatten)]`ed into a strict parent, which rejects the leftover keys.
 - **Internally-tagged enums** (`#[serde(tag = "type")]`) for `PhaseConfig`, `AcceptorConfig`, `MoveSelectorConfig` — the `type` field selects the variant.
-- **`SolverConfigOverride` is not serde.** It exists for runtime termination overrides only: `SolverConfig::with_override`.
+- **`SolverConfigOverride` is not serde.** It exists for runtime termination overrides only: `SolverConfig::with_override`, and per retained job `SolverManager::solve_with_override`.
 - **No traits defined.** This crate defines no traits — it is a config schema consumed by other crates.
 - **Builder pattern** via `with_*` methods returning `Self` on `SolverConfig`.

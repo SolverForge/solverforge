@@ -2,14 +2,12 @@ use std::sync::Arc;
 
 use solverforge::cvrp::ProblemData;
 use solverforge::prelude::*;
+use solverforge::SolverConfig;
 use solverforge::stream::ConstraintFactory;
 
 use super::Route;
 
-#[planning_solution(
-    constraints = "constraints",
-    solver_toml = "../../fixtures/list_cvrp_k_opt_time_window_solver.toml"
-)]
+#[planning_solution(constraints = "constraints", config = "solver_config")]
 pub struct Plan {
     #[planning_list_element_collection(owner = "routes")]
     pub customer_values: Vec<usize>,
@@ -21,6 +19,17 @@ pub struct Plan {
     pub score: Option<HardSoftScore>,
 
     pub shared: Arc<ProblemData>,
+
+    /// The solver TOML a retained solve of this plan runs with.
+    pub solver_toml: &'static str,
+}
+
+/// The k-opt construction fixture: list k-opt only, no local search.
+pub const K_OPT_SOLVER_TOML: &str =
+    include_str!("../../fixtures/list_cvrp_k_opt_time_window_solver.toml");
+
+fn solver_config(solution: &Plan, _base: SolverConfig) -> SolverConfig {
+    SolverConfig::from_toml_str(solution.solver_toml).expect("the fixture config parses")
 }
 
 impl solverforge::cvrp::VrpSolution for Plan {
@@ -99,5 +108,6 @@ pub fn build_plan() -> Plan {
         }],
         score: None,
         shared,
+        solver_toml: K_OPT_SOLVER_TOML,
     }
 }

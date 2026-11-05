@@ -14,14 +14,16 @@ lower every compiled node exactly once. */
 fn compiled_cvrp_union_selector_lowers_every_node_once() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
-    let (job_id, mut receiver) = MANAGER.solve(build_plan()).expect("solve should start");
+    let mut plan = build_plan();
+    plan.solver_toml = include_str!("fixtures/list_cvrp_union_lowering_solver.toml");
+    let (job_id, mut receiver) = MANAGER.solve(plan).expect("solve should start");
 
-    let completed = loop {
+    let (metadata, completed) = loop {
         match receiver
             .blocking_recv()
             .expect("event stream should reach a terminal event")
         {
-            SolverEvent::Completed { solution, .. } => break solution,
+            SolverEvent::Completed { metadata, solution } => break (metadata, solution),
             SolverEvent::Failed { error, .. } => panic!("solve unexpectedly failed: {error}"),
             SolverEvent::Cancelled { metadata } => {
                 panic!(
@@ -47,4 +49,8 @@ fn compiled_cvrp_union_selector_lowers_every_node_once() {
         .map(|route| route.visits.len())
         .sum();
     assert!(assigned > 0, "construction should assign customers");
+    assert!(
+        metadata.telemetry.moves_evaluated > 0,
+        "local search should evaluate moves from the union"
+    );
 }

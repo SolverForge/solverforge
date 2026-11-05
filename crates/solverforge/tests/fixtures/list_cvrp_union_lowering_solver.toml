@@ -2,7 +2,7 @@ environment_mode = "reproducible"
 random_seed = 42
 
 [termination]
-seconds_spent_limit = 5
+step_count_limit = 50
 
 [[phases]]
 type = "construction_heuristic"

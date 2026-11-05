@@ -113,6 +113,25 @@ jobs:
       - name: Check dependencies
         run: cargo machete && cargo deny check advisories
 
+  miri:
+    if: ${{ github.server_url == 'https://github.com' }}
+    name: Miri
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # The existence tests drive the dense, usize-keyed count state. A pinned
+      # nightly keeps a new nightly from failing CI on its own; bump it on
+      # purpose.
+      - name: Install Miri
+        run: rustup toolchain install nightly-2026-01-20 --profile minimal --component miri --no-self-update
+
+      - name: Run the existence tests under Miri
+        run: |
+          cargo +nightly-2026-01-20 miri setup
+          cargo +nightly-2026-01-20 miri test -p solverforge-scoring --lib -- constraint::tests::exists
+
   package:
     if: ${{ github.server_url == 'https://github.com' }}
     name: Package

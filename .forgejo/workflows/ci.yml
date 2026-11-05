@@ -23,7 +23,7 @@ jobs:
       - name: Install Rust toolchain
         run: |
           channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
-          rustup toolchain install "$channel" --profile minimal
+          rustup toolchain install "$channel" --profile minimal --no-self-update
           rustup show active-toolchain
 
       # Runner environment overrides workflow-level CARGO_TARGET_DIR. Set it on
@@ -49,7 +49,7 @@ jobs:
       - name: Check with the declared minimum Rust version
         run: |
           msrv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
-          rustup toolchain install "$msrv" --profile minimal
+          rustup toolchain install "$msrv" --profile minimal --no-self-update
           CARGO_TARGET_DIR="$PWD/target/msrv" cargo +"$msrv" check --workspace --all-targets --all-features --locked
 
       - name: Build API docs with warnings denied

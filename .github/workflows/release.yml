@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install Rust
-        run: rustup toolchain install
+        run: rustup toolchain install --no-self-update
 
       - name: Check the tag against the workspace version
         id: version
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install Rust
-        run: rustup toolchain install
+        run: rustup toolchain install --no-self-update
 
       # Re-running a partially published release uploads only what is missing.
       # cargo publishes the set in dependency order and waits for each crate to

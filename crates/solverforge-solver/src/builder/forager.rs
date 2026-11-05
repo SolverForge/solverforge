@@ -113,6 +113,9 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 /// Builds a forager from a configuration that passed [`CompiledForager::compile`].
 pub(super) fn build_validated_forager<S: PlanningSolution>(
     config: &ForagerConfig,

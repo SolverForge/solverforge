@@ -137,6 +137,9 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn build_acceptor_and_forager<S>(
     components: DefaultLocalSearchComponents,
     configured_acceptor: Option<&CompiledAcceptor<S>>,

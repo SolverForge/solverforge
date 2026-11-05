@@ -272,3 +272,40 @@ fn runtime_graph_compilation_rejects_selector_values_before_any_phase() {
         "{error}"
     );
 }
+
+const LIST_HEURISTICS: [&str; 5] = [
+    "list_round_robin",
+    "list_cheapest_insertion",
+    "list_regret_insertion",
+    "list_clarke_wright",
+    "list_k_opt",
+];
+
+#[test]
+fn list_construction_rejects_scalar_only_keys() {
+    for heuristic in LIST_HEURISTICS {
+        let list = |field: &str| {
+            construction(&format!(
+                "construction_heuristic_type = \"{heuristic}\"\n{field}"
+            ))
+        };
+        assert_valid(&list(""), heuristic);
+        for (field, value) in [
+            ("value_candidate_limit", "3"),
+            ("group_candidate_limit", "3"),
+            (
+                "construction_obligation",
+                "\"assign_when_candidate_exists\"",
+            ),
+        ] {
+            assert_invalid(
+                &list(&format!("{field} = {value}")),
+                &format!("phases[0].construction.{field}"),
+            );
+        }
+        assert_valid(
+            &list("construction_obligation = \"preserve_unassigned\""),
+            "the default obligation",
+        );
+    }
+}

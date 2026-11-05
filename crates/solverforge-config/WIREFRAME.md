@@ -136,12 +136,12 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type | Default |
 |-------|------|---------|
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
-| `construction_obligation` | `ConstructionObligation` | `PreserveUnassigned` |
+| `construction_obligation` | `ConstructionObligation` | `PreserveUnassigned`; scalar heuristics only, list heuristics reject any other value |
 | `target` | `VariableTargetConfig` | empty target |
 | `k` | `usize` | `2`; valid: `2..=5` for `ListKOpt`, which polishes each route with k-opt; other heuristics do not use it and reject any value but `2` |
-| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
+| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set; scalar heuristics only, list heuristics reject it |
 | `group_name` | `Option<String>` | `None` |
-| `group_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
+| `group_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set; list heuristics reject it |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 `target` is flattened in serde, so configuration files still use top-level

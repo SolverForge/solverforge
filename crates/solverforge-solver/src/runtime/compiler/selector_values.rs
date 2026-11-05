@@ -6,12 +6,13 @@
 //! rejected with its key path before any phase runs.
 
 use solverforge_config::{
-    ConstructionHeuristicConfig, ConstructionHeuristicType, KOptMoveSelectorConfig,
-    ListPermuteMoveConfig, MoveSelectorConfig, PhaseConfig, SolverConfig,
+    ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
+    KOptMoveSelectorConfig, ListPermuteMoveConfig, MoveSelectorConfig, PhaseConfig, SolverConfig,
 };
 
 use crate::heuristic::r#move::MAX_LIST_PERMUTE_WINDOW_SIZE;
 
+use super::construction::is_list_construction;
 use super::types::{RuntimeCompileError, RuntimeCompileErrorKind};
 
 /// Largest k the k-opt reconnection kernel enumerates.
@@ -74,8 +75,36 @@ fn validate_construction(
             ),
         ));
     }
+    if is_list_construction(config.construction_heuristic_type) {
+        reject_scalar_only_construction_keys(config, path)?;
+    }
     positive_limit(path, "value_candidate_limit", config.value_candidate_limit)?;
     positive_limit(path, "group_candidate_limit", config.group_candidate_limit)
+}
+
+/// List heuristics place list elements; the keys that shape scalar candidate
+/// generation have nothing to apply to there.
+fn reject_scalar_only_construction_keys(
+    config: &ConstructionHeuristicConfig,
+    path: &str,
+) -> Result<(), RuntimeCompileError> {
+    let scalar_only = |field: &str| {
+        invalid(
+            path,
+            field,
+            "applies only to scalar construction heuristics, not to list construction".to_string(),
+        )
+    };
+    if config.value_candidate_limit.is_some() {
+        return Err(scalar_only("value_candidate_limit"));
+    }
+    if config.group_candidate_limit.is_some() {
+        return Err(scalar_only("group_candidate_limit"));
+    }
+    if config.construction_obligation != ConstructionObligation::default() {
+        return Err(scalar_only("construction_obligation"));
+    }
+    Ok(())
 }
 
 fn validate_selector(config: &MoveSelectorConfig, path: &str) -> Result<(), RuntimeCompileError> {

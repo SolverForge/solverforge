@@ -36,7 +36,8 @@ pub struct ConstructionHeuristicConfig {
     pub construction_heuristic_type: ConstructionHeuristicType,
 
     /// Whether nullable scalar variables may keep their current unassigned value during
-    /// construction, or must receive a candidate when one exists.
+    /// construction, or must receive a candidate when one exists. Scalar
+    /// heuristics only; a list heuristic rejects any value but the default.
     #[serde(default)]
     pub construction_obligation: ConstructionObligation,
 
@@ -49,13 +50,15 @@ pub struct ConstructionHeuristicConfig {
     #[serde(default = "default_k")]
     pub k: usize,
 
-    /// Optional cap for scalar value candidates generated per entity.
+    /// Optional cap for scalar value candidates generated per entity. Scalar
+    /// heuristics only; a list heuristic rejects it.
     pub value_candidate_limit: Option<usize>,
 
     /// Optional named scalar group for atomic grouped scalar construction.
     pub group_name: Option<String>,
 
     /// Optional cap for grouped scalar candidates generated per provider call.
+    /// A list heuristic rejects it.
     pub group_candidate_limit: Option<usize>,
 
     /// Phase termination configuration.

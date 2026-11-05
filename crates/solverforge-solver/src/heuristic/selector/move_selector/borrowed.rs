@@ -434,43 +434,32 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
 /// ownership. Recursive composition therefore uses this private companion
 /// contract and lends the live solution and its resource only to the child
 /// selected by the canonical union scheduler.
-#[doc(hidden)]
+///
+/// The trait is not re-exported, so code outside the crate cannot name or
+/// implement it; it is reachable only as the bound of the local-search
+/// cursor source behind `local_search`.
 pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
+    /// Discovers the next candidate, lending `resources` to the child that
+    /// produces it; `None` once the stream is exhausted.
     fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
         director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId>;
 
+    /// Borrows the live candidate `id`.
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
 
+    /// Takes ownership of candidate `id`.
     fn take_candidate(&mut self, id: CandidateId) -> M;
 
-    fn next_owned_candidate_inspected_with_resources<T, F, D: Director<S>>(
-        &mut self,
-        director: &mut D,
-        resources: &mut Resources,
-        mut inspect: F,
-    ) -> Option<(M, T)>
-    where
-        F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
-    {
-        loop {
-            let id = self.next_candidate_with_resources(director, resources)?;
-            let candidate = self
-                .candidate(id)
-                .expect("newly generated resource cursor candidate must remain live");
-            if let Some(metadata) = inspect(candidate) {
-                return Some((self.take_candidate(id), metadata));
-            }
-            assert!(self.release_candidate(id));
-        }
-    }
-
+    /// Applies candidate `id` to `score_director` by ownership.
     fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D);
 
+    /// Drops candidate `id`; `false` when it was not live.
     fn release_candidate(&mut self, id: CandidateId) -> bool;
 
+    /// Index of the child selector that produced `id`.
     fn selector_index(&self, id: CandidateId) -> Option<usize>;
 }
 

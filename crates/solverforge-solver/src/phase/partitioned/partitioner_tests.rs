@@ -40,19 +40,32 @@ fn test_thread_count_display() {
 #[test]
 fn test_thread_count_resolve_specific() {
     assert_eq!(
-        ThreadCount::Specific(std::num::NonZeroUsize::new(4).unwrap()).resolve(10),
+        ThreadCount::Specific(std::num::NonZeroUsize::new(4).unwrap()).resolve(10, None),
         4
     );
     assert_eq!(
-        ThreadCount::Specific(std::num::NonZeroUsize::new(10).unwrap()).resolve(4),
+        ThreadCount::Specific(std::num::NonZeroUsize::new(10).unwrap()).resolve(4, None),
         4
     );
 }
 
 #[test]
 fn test_thread_count_resolve_auto() {
-    let count = ThreadCount::Auto.resolve(100);
+    let count = ThreadCount::Auto.resolve(100, None);
     assert!(count > 0);
+}
+
+#[test]
+fn a_recommended_partition_count_bounds_only_auto() {
+    let two = std::num::NonZeroUsize::new(2);
+    let cores = std::thread::available_parallelism().map_or(1, |cores| cores.get());
+    assert_eq!(ThreadCount::Auto.resolve(100, two), cores.min(2));
+    assert_eq!(ThreadCount::Auto.resolve(1, two), 1);
+    assert_eq!(
+        ThreadCount::Specific(std::num::NonZeroUsize::new(4).unwrap()).resolve(10, two),
+        4
+    );
+    assert_eq!(ThreadCount::Unlimited.resolve(10, two), cores);
 }
 
 #[test]
@@ -103,7 +116,7 @@ fn test_partitioner_debug() {
         |_: &TestSolution| Vec::new(),
         |original: &TestSolution, _| original.clone(),
     )
-    .with_recommended_count(4);
+    .with_recommended_count(std::num::NonZeroUsize::new(4).unwrap());
 
     let debug = format!("{:?}", partitioner);
     assert!(debug.contains("FunctionalPartitioner"));

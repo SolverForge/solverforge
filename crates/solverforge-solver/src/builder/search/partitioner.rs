@@ -92,7 +92,7 @@ where
         }
     }
 
-    fn recommended_partition_count(&self) -> Option<usize> {
+    fn recommended_partition_count(&self) -> Option<std::num::NonZeroUsize> {
         match self {
             Self::Previous(partitioner) => partitioner.recommended_partition_count(),
             Self::Current(partitioner) => partitioner.recommended_partition_count(),

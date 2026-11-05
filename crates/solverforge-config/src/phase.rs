@@ -198,7 +198,8 @@ pub struct PartitionedSearchConfig {
     pub partitioner: Option<String>,
 
     /// Threads solving the partitions: `auto` runs one per partition up to the
-    /// available CPU cores, `none` runs one, and `{ count = n }` at most `n`.
+    /// available CPU cores and the partitioner's recommended partition count,
+    /// `none` runs one, and `{ count = n }` at most `n`.
     #[serde(default)]
     pub thread_count: MoveThreadCount,
 

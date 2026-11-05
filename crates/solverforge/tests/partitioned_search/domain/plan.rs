@@ -73,6 +73,7 @@ where
     ctx.defaults()
         .phase("record", |_| RecordPhase)
         .partitioner("by_task_id", |_| ByTaskId)
+        .partitioner("by_task_id_two_at_once", |_| TwoAtOnce)
 }
 
 /// Splits the tasks by id modulo [`PARTITIONS`]; every partition keeps all
@@ -102,6 +103,24 @@ impl SolutionPartitioner<Plan> for ByTaskId {
             merged.tasks[id] = task;
         }
         merged
+    }
+}
+
+/// [`ByTaskId`], recommending two partitions at once.
+#[derive(Debug)]
+struct TwoAtOnce;
+
+impl SolutionPartitioner<Plan> for TwoAtOnce {
+    fn partition(&self, solution: &Plan) -> Vec<Plan> {
+        ByTaskId.partition(solution)
+    }
+
+    fn merge(&self, original: &Plan, partitions: Vec<Plan>) -> Plan {
+        ByTaskId.merge(original, partitions)
+    }
+
+    fn recommended_partition_count(&self) -> Option<std::num::NonZeroUsize> {
+        std::num::NonZeroUsize::new(2)
     }
 }
 

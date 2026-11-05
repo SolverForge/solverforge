@@ -54,11 +54,10 @@ pub trait SolutionPartitioner<S: PlanningSolution>: Send + Sync + Debug {
     /// The merged complete solution.
     fn merge(&self, original: &S, partitions: Vec<S>) -> S;
 
-    /// Returns the recommended number of partitions.
-    ///
-    /// This can be used by the partitioned search phase to determine
-    /// how many threads to use. Returns `None` if no recommendation.
-    fn recommended_partition_count(&self) -> Option<usize> {
+    /// The number of partitions worth solving at once, if this partitioner
+    /// knows it. With [`ThreadCount::Auto`], partitioned search runs at most
+    /// this many threads; an explicit thread count is unaffected.
+    fn recommended_partition_count(&self) -> Option<NonZeroUsize> {
         None
     }
 }
@@ -75,7 +74,7 @@ where
 {
     partition_fn: PF,
     merge_fn: MF,
-    recommended_count: Option<usize>,
+    recommended_count: Option<NonZeroUsize>,
     _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
@@ -95,8 +94,9 @@ where
         }
     }
 
-    /// Sets the recommended partition count.
-    pub fn with_recommended_count(mut self, count: usize) -> Self {
+    /// Sets the recommended partition count (see
+    /// [`SolutionPartitioner::recommended_partition_count`]).
+    pub fn with_recommended_count(mut self, count: NonZeroUsize) -> Self {
         self.recommended_count = Some(count);
         self
     }
@@ -129,7 +129,7 @@ where
         (self.merge_fn)(original, partitions)
     }
 
-    fn recommended_partition_count(&self) -> Option<usize> {
+    fn recommended_partition_count(&self) -> Option<NonZeroUsize> {
         self.recommended_count
     }
 }
@@ -137,7 +137,8 @@ where
 /// Thread count configuration for partitioned search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThreadCount {
-    /// One thread per partition, at most one per available CPU core.
+    /// One thread per partition, at most one per available CPU core and at
+    /// most the partitioner's recommended partition count.
     #[default]
     Auto,
     /// One thread per available CPU core.
@@ -147,22 +148,17 @@ pub enum ThreadCount {
 }
 
 impl ThreadCount {
-    /// Resolves the thread count to an actual number.
-    ///
-    /// # Arguments
-    ///
-    /// * `partition_count` - Number of partitions to process
-    ///
-    /// # Returns
-    ///
-    /// The number of threads to use.
-    pub fn resolve(&self, partition_count: usize) -> usize {
+    /// The number of threads that solve `partition_count` partitions, given
+    /// the partitioner's `recommended` partition count, which only bounds
+    /// [`ThreadCount::Auto`].
+    pub fn resolve(&self, partition_count: usize, recommended: Option<NonZeroUsize>) -> usize {
         match self {
             ThreadCount::Auto => {
                 let cpus = std::thread::available_parallelism()
                     .map(|p| p.get())
                     .unwrap_or(1);
-                std::cmp::min(cpus, partition_count)
+                let recommended = recommended.map_or(usize::MAX, NonZeroUsize::get);
+                cpus.min(partition_count).min(recommended)
             }
             ThreadCount::Unlimited => std::thread::available_parallelism()
                 .map(|p| p.get())

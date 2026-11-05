@@ -774,7 +774,7 @@ sizes partitioned search separately.
 
 Every policy reaches the sequential trajectory; `auto` changes speed only.
 `PartitionedSearchConfig::thread_count`: `auto` runs one thread per partition
-up to the available CPU cores, `none` one thread, `{ count = n }` at most `n`.
+up to the available CPU cores and the partitioner's recommended partition count, `none` one thread, `{ count = n }` at most `n`.
 
 ### `PhaseConfig`
 

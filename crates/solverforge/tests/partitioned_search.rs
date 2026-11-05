@@ -188,3 +188,35 @@ fn the_phase_termination_ends_the_partitions_and_keeps_their_work() {
     assert_eq!(records[0].task_ids, (0..8).collect::<Vec<_>>());
     assert!(records[0].all_assigned);
 }
+
+const RECOMMENDED: &str = r#"
+[[phases]]
+type = "partitioned_search"
+partitioner = "by_task_id_two_at_once"
+
+[[phases.child_phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+
+[[phases.child_phases]]
+type = "custom"
+name = "record"
+"#;
+
+#[test]
+fn auto_threads_follow_the_recommended_partition_count() {
+    let solution = solve(Plan::new(RECOMMENDED));
+    assert!(solution
+        .tasks
+        .iter()
+        .all(|task| task.resource_idx.is_some()));
+
+    let records = take_records(RECOMMENDED);
+    assert_eq!(records.len(), 4);
+    let cores = std::thread::available_parallelism().map_or(1, |cores| cores.get());
+    let expected = cores.min(2);
+    if expected > 1 {
+        assert!(records.iter().all(|record| record.pool_threads == expected));
+    }
+    assert!(distinct_threads(&records) <= expected);
+}

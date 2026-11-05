@@ -26,7 +26,8 @@ impl Default for PartitionedSearchConfig {
 
 impl PartitionedSearchConfig {
     /// Converts the TOML configuration: thread count `auto` is one thread per
-    /// partition up to the available CPU cores, `none` is one thread, and an
+    /// partition up to the available CPU cores and the partitioner's
+    /// recommended partition count, `none` is one thread, and an
     /// explicit count is at most that many threads.
     pub fn from_serialized(config: &solverforge_config::PartitionedSearchConfig) -> Self {
         Self {

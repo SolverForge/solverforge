@@ -75,7 +75,7 @@ struct ExhaustiveSearchPhase: pub struct ExhaustiveSearchPhase<Dec> { /* private
     ExhaustiveSearchPhase: pub fn phase_type_name(&self) -> &'static str
 struct FunctionalPartitioner: pub struct FunctionalPartitioner<S, PF, MF> where S: PlanningSolution, PF: Fn(&S) -> Vec<S> + Send + Sync, MF: Fn(&S, Vec<S>) -> S + Send + Sync,{ /* private fields */ }
     FunctionalPartitioner: pub fn new(partition_fn: PF, merge_fn: MF) -> Self
-    FunctionalPartitioner: pub fn with_recommended_count(self, count: usize) -> Self
+    FunctionalPartitioner: pub fn with_recommended_count(self, count: NonZeroUsize) -> Self
 struct ListVariableMetadata: pub struct ListVariableMetadata<S, DM, IDM> { pub cross_distance_meter: DM, pub intra_distance_meter: IDM, pub route_get_fn: Option<fn(&S, usize) -> Vec<usize>>, pub route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>, pub route_depot_fn: Option<fn(&S, usize) -> usize>, pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, pub savings_depot_fn: Option<fn(&S, usize) -> usize>, pub savings_metric_class_fn: Option<fn(&S, usize) -> usize>, pub savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, pub element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>, /* private fields */ }
     ListVariableMetadata: pub fn new( cross_distance_meter: DM, intra_distance_meter: IDM, route_get_fn: Option<fn(&S, usize) -> Vec<usize>>, route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>, route_depot_fn: Option<fn(&S, usize) -> usize>, route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, savings_depot_fn: Option<fn(&S, usize) -> usize>, savings_metric_class_fn: Option<fn(&S, usize) -> usize>, savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, ) -> Self
     ListVariableMetadata: pub fn with_element_owner_fn( self, element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>, ) -> Self
@@ -563,7 +563,7 @@ enum SolverManagerError: pub enum SolverManagerError { NoFreeJobSlots, JobNotFou
 enum SolverProgressKind: pub enum SolverProgressKind { Progress, BestSolution, }
 enum SolverTerminalReason: pub enum SolverTerminalReason { Completed, TerminatedByConfig, Cancelled, Failed, }
 enum ThreadCount: pub enum ThreadCount { Auto, Unlimited, Specific(NonZeroUsize), }
-    ThreadCount: pub fn resolve(&self, partition_count: usize) -> usize
+    ThreadCount: pub fn resolve( &self, partition_count: usize, recommended: Option<NonZeroUsize>, ) -> usize
 enum ValueSource: pub enum ValueSource<S> { Empty, CountableRange { from: usize, to: usize, }, SolutionCount { count_fn: fn(&S, usize) -> usize, provider_index: usize, }, EntitySlice { values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize], }, }
 enum VariableSlot: pub enum VariableSlot<S, V, DM, IDM> { Scalar(ScalarVariableSlot<S>), List(ListVariableSlot<S, V, DM, IDM>), DynamicScalar(DynamicScalarVariableSlot<S>), DynamicList(DynamicListVariableSlot<S>), }
 trait Acceptor: pub trait Acceptor<S: PlanningSolution>: Send + Debug { // Required method fn is_accepted( &mut self, last_step_score: &S::Score, move_score: &S::Score, move_signature: Option<&MoveTabuSignature>, ) -> bool; // Provided methods fn requires_move_signatures(&self) -> bool { ... } fn phase_started(&mut self, _initial_score: &S::Score) { ... } fn phase_ended(&mut self) { ... } fn step_started(&mut self) { ... } fn step_ended( &mut self, _step_score: &S::Score, _accepted_move_signature: Option<MoveTabuSignature>, ) { ... } }
@@ -656,10 +656,10 @@ trait ScoreBounder: pub trait ScoreBounder<S: PlanningSolution, D: Director<S>>:
     ScoreBounder: fn calculate_pessimistic_bound(&self, score_director: &D) -> Option<S::Score>
 trait Search: pub trait Search<S, V = usize, DM = DefaultCrossEntityDistanceMeter, IDM = DefaultCrossEntityDistanceMeter> where S: PlanningSolution + 'static, S::Score: Score + ParseableScore, V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static, DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static, IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,{ type Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>; }
     Search: type Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>
-trait SolutionPartitioner: pub trait SolutionPartitioner<S: PlanningSolution>: Send + Sync + Debug { // Required methods fn partition(&self, solution: &S) -> Vec<S>; fn merge(&self, original: &S, partitions: Vec<S>) -> S; // Provided method fn recommended_partition_count(&self) -> Option<usize> { ... } }
+trait SolutionPartitioner: pub trait SolutionPartitioner<S: PlanningSolution>: Send + Sync + Debug { // Required methods fn partition(&self, solution: &S) -> Vec<S>; fn merge(&self, original: &S, partitions: Vec<S>) -> S; // Provided method fn recommended_partition_count(&self) -> Option<NonZeroUsize> { ... } }
     SolutionPartitioner: fn partition(&self, solution: &S) -> Vec<S>
     SolutionPartitioner: fn merge(&self, original: &S, partitions: Vec<S>) -> S
-    SolutionPartitioner: fn recommended_partition_count(&self) -> Option<usize>
+    SolutionPartitioner: fn recommended_partition_count(&self) -> Option<NonZeroUsize>
 trait Solvable: pub trait Solvable: PlanningSolution + Send + 'static { // Required method fn solve( self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>, ) -> RuntimeBuildResult<()>; }
     Solvable: fn solve( self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>, ) -> RuntimeBuildResult<()>
 fn analyze: pub fn analyze<S>(solution: &S) -> ScoreAnalysis<S::Score> where S: Analyzable, S::Score: Score,

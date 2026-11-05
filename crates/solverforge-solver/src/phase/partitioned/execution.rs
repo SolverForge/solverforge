@@ -71,7 +71,9 @@ pub(crate) fn solve_partitioned<S, D, BestCb, PD, Part, MakeDirector, SolveChild
             return;
         }
 
-        let thread_count = config.thread_count.resolve(partition_count);
+        let thread_count = config
+            .thread_count
+            .resolve(partition_count, partitioner.recommended_partition_count());
         if config.log_progress {
             tracing::info!(
                 event = "phase_start",

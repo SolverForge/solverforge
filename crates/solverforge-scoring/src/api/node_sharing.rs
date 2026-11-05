@@ -40,8 +40,10 @@ pub struct SharedNodeDiagnostics {
     /// Number of entity notifications that changed at least one of the node's
     /// rows.
     pub update_count: usize,
-    /// Count of row-changing notifications. `SharedOperatorTerminal` increments
-    /// it together with `update_count`, so the two are currently equal.
+    /// Number of group keys whose collector result a notification changed,
+    /// summed over notifications. One notification can change several keys,
+    /// or none while still changing rows (a complemented or joined node's
+    /// non-grouped side).
     pub changed_key_count: usize,
 }
 

@@ -186,3 +186,38 @@ fn duplicate_complement_keys_emit_one_row_per_target() {
     assert_eq!(running, c.evaluate(&s));
     assert_eq!(c.match_count(&s), 3);
 }
+
+#[test]
+fn only_grouped_side_notifications_change_group_keys() {
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .group_by(|s: &Shift| s.employee_id.unwrap_or(NO_KEY), count())
+        .complement(
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            |e: &Employee| e.id,
+            |_e| 0usize,
+        )
+        .penalize(|_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Shift count");
+    let mut s = schedule();
+    constraint.initialize(&s);
+
+    // A new employee adds a default row but changes no group.
+    s.employees.push(Employee { id: 2 });
+    constraint.on_insert(&s, 2, 1);
+    assert_eq!(constraint.update_count(), 1);
+    assert_eq!(constraint.changed_key_count(), 0);
+
+    // Moving a shift changes employee 0's group, then creates employee 1's.
+    constraint.on_retract(&s, 0, 0);
+    s.shifts[0].employee_id = Some(1);
+    constraint.on_insert(&s, 0, 0);
+    assert_eq!(constraint.update_count(), 3);
+    assert_eq!(constraint.changed_key_count(), 2);
+}

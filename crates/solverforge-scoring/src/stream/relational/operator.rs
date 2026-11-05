@@ -117,3 +117,12 @@ pub trait Operator<S: 'static>: 'static {
         inserted: &mut Vec<RowHandle>,
     );
 }
+
+/// An operator whose rows come from a group-by, so a notification changes a
+/// countable set of group keys. Grouped nodes report their own groups;
+/// complemented and joined grouped nodes report their group input's.
+pub trait GroupedOperator<S: 'static>: Operator<S> {
+    /// Number of group keys whose collector result the last `insert` or
+    /// `retract` changed, including groups it created or emptied.
+    fn changed_group_count(&self) -> usize;
+}

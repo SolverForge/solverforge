@@ -388,3 +388,33 @@ fn projected_merged_descriptor_sources_keep_same_entity_index_slots_distinct() {
     assert_eq!(total, SoftScore::of(-5));
     assert_eq!(total, constraint.evaluate(&plan));
 }
+
+#[test]
+fn one_notification_can_change_several_group_keys() {
+    // Each work item contributes to its bucket and the next one.
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkTwoEntries)
+        .group_by(
+            |entry: &Entry| entry.bucket,
+            sum(|entry: &Entry| entry.delta),
+        )
+        .penalize(|_bucket: &usize, demand: &i64| SoftScore::of(*demand))
+        .named("demand");
+    let plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 3,
+            enabled: true,
+        }],
+        capacity: Vec::new(),
+    };
+    constraint.initialize(&plan);
+
+    constraint.on_retract(&plan, 0, 0);
+    assert_eq!(constraint.update_count(), 1);
+    assert_eq!(constraint.changed_key_count(), 2);
+}

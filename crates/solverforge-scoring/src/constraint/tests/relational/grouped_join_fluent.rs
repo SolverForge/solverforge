@@ -129,3 +129,38 @@ fn source_filter_stays_binding_after_grouping() {
     assert_eq!(c.evaluate(&s), SoftScore::of(6));
     assert_eq!(c.match_count(&s), 1);
 }
+
+#[test]
+fn only_grouped_side_notifications_change_group_keys() {
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .group_by(|s: &Shift| s.employee_id, count())
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            |e: &Employee| e.id,
+        ))
+        .reward(|_emp_id: &u32, count: &usize, employee: &Employee| {
+            SoftScore::of(*count as i64 * employee.budget)
+        })
+        .named("budget weighted coverage");
+    let mut s = schedule();
+    constraint.initialize(&s);
+
+    // A budget change rescores employee 1's joined row; no group changes.
+    constraint.on_retract(&s, 1, 1);
+    s.employees[1].budget = 7;
+    constraint.on_insert(&s, 1, 1);
+    assert_eq!(constraint.update_count(), 2);
+    assert_eq!(constraint.changed_key_count(), 0);
+
+    // Removing a shift changes employee 0's group.
+    constraint.on_retract(&s, 0, 0);
+    assert_eq!(constraint.update_count(), 3);
+    assert_eq!(constraint.changed_key_count(), 1);
+}

@@ -57,6 +57,10 @@ migration of the fluent stream families:
   accumulator-owned result, including non-Clone `CollectedVec<T>` payloads.
   Either join input can be a grouped producer. Contributor changes replace
   aggregate rows on both callbacks and coalesce within one root notification.
+- `GroupedOperator<S>: Operator<S>` reports `changed_group_count()`, the number
+  of group keys the last `insert` or `retract` changed. `GroupNode` reports its
+  own groups; `ComplementNode` and `JoinNode` with a grouped results or left
+  input report that input's count. Shared terminals require it.
 - `ExistenceNode<S, L, R, K, LK, RK>::new(left, right, left_key, right_keys,
   exists)` answers a pure-key semi/anti join from per-key occurrence counts
   (dense arrays for `usize` planning ids via `KeyState` in
@@ -712,6 +716,8 @@ compiler node.
 
 **`SharedNodeDiagnostics`** — Public fields `{ id, fingerprint, operation,
 terminal_consumers, update_count, changed_key_count }`; construct with `new(...)`.
+`update_count` counts notifications that changed at least one row;
+`changed_key_count` sums the group keys each notification changed.
 
 ### Analysis Types
 

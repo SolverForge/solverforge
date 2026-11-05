@@ -1,4 +1,4 @@
-use super::{ComplementView, Operator, Pair, PairDelta, ProjectView};
+use super::{ComplementView, GroupedOperator, Operator, Pair, PairDelta, ProjectView};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::hash::FastMap;
 use crate::stream::relational::keyed_plan::{KeyOf, RightKeyOf};
@@ -435,5 +435,22 @@ where
         removed.clear();
         inserted.clear();
         self.update(solution, descriptor, index, false, removed, inserted)
+    }
+}
+
+impl<
+        S: 'static,
+        L: Operator<S>,
+        R: GroupedOperator<S>,
+        P: IndexedPlan + KeyOf + RightKeyOf<Key = <P as KeyOf>::Key> + 'static,
+        F: 'static,
+        T: 'static,
+    > GroupedOperator<S> for ComplementNode<S, L, R, P, F, T>
+where
+    for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
+    F: for<'a> Fn(&S, &L::View<'a>) -> T,
+{
+    fn changed_group_count(&self) -> usize {
+        self.results.changed_group_count()
     }
 }

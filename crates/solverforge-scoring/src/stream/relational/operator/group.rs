@@ -1,4 +1,4 @@
-use super::{group_view::Contributors, GroupView, Operator};
+use super::{group_view::Contributors, GroupView, GroupedOperator, Operator};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, RowHandle};
 use solverforge_core::fast_hash::FastHasher;
@@ -39,6 +39,8 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     rows: DenseRowStore<RowHandle>,
     output_of: HandleMap<RowHandle>,
     changed: Vec<RowHandle>,
+    /// Groups the last `insert` or `retract` changed.
+    changed_group_count: usize,
     /// Child notification scratch, reused across events.
     child_removed: Vec<RowHandle>,
     child_inserted: Vec<RowHandle>,
@@ -59,6 +61,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             rows: DenseRowStore::new(),
             output_of: HandleMap::new(),
             changed: Vec::new(),
+            changed_group_count: 0,
             child_removed: Vec::new(),
             child_inserted: Vec::new(),
             marker: PhantomData,
@@ -163,6 +166,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 inserted.push(output);
             }
         }
+        self.changed_group_count = changed.len();
         changed.clear();
         self.changed = changed;
     }
@@ -234,6 +238,7 @@ where
         self.rows.clear();
         self.output_of.clear();
         self.changed.clear();
+        self.changed_group_count = 0;
         self.child_removed.clear();
         self.child_inserted.clear();
     }
@@ -324,5 +329,19 @@ where
         self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
         self.child_removed = in_removed;
         self.child_inserted = in_inserted;
+    }
+}
+
+impl<S: 'static, O, F, C, K, A, V: 'static, R: 'static> GroupedOperator<S>
+    for GroupNode<O, F, C, K, A, V, R>
+where
+    O: Operator<S>,
+    F: for<'a> Fn(&O::View<'a>) -> K + 'static,
+    for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A> + 'static,
+    K: Eq + Hash + 'static,
+    A: Accumulator<V, R> + 'static,
+{
+    fn changed_group_count(&self) -> usize {
+        self.changed_group_count
     }
 }

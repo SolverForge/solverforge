@@ -1,5 +1,5 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use super::{links::remove_link, Operator, Pair, PairDelta};
+use super::{links::remove_link, GroupedOperator, Operator, Pair, PairDelta};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::hash::FastMap;
 use std::marker::PhantomData;
@@ -395,5 +395,15 @@ where
         self.child_l_inserted = li;
         self.child_r_removed = rm;
         self.child_r_inserted = ri;
+    }
+}
+
+impl<S: 'static, L: GroupedOperator<S>, R: Operator<S>, P: IndexedPlan + 'static> GroupedOperator<S>
+    for JoinNode<S, L, R, P>
+where
+    for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
+{
+    fn changed_group_count(&self) -> usize {
+        self.left.changed_group_count()
     }
 }

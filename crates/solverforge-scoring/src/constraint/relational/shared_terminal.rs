@@ -14,7 +14,7 @@ use crate::api::{
         SingleConstraint,
     },
 };
-use crate::stream::relational::operator::Operator;
+use crate::stream::relational::operator::GroupedOperator;
 use crate::stream::relational::RowHandle;
 
 /// Scoring terminal that owns one operator tree and scores it for several named
@@ -95,7 +95,7 @@ impl<S, O, A, W, Sc> SharedOperatorBuilder<S, O, A, (), W, Sc> {
 impl<S, O, A, W, Sc> SharedOperatorBuilder<S, O, A, (), W, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
+    O: GroupedOperator<S> + Send + Sync,
     A: AdaptWeight<S, O, W, Sc>,
     Sc: Score,
 {
@@ -130,7 +130,7 @@ where
 impl<S, O, A, Scorers, Sc> SharedOperatorTerminal<S, O, A, Scorers, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
+    O: GroupedOperator<S> + Send + Sync,
     Sc: Score,
 {
     /// Starts another penalizing terminal over the same operator.
@@ -194,8 +194,8 @@ where
     pub fn update_count(&self) -> usize {
         self.update_count
     }
-    /// Count of row-changing notifications; currently incremented together with
-    /// [`update_count`](Self::update_count).
+    /// Number of group keys whose collector result a notification changed,
+    /// summed over notifications.
     pub fn changed_key_count(&self) -> usize {
         self.changed_key_count
     }
@@ -255,15 +255,15 @@ where
         }
         if !self.removed.is_empty() || !self.inserted.is_empty() {
             self.update_count += 1;
-            self.changed_key_count += 1;
         }
+        self.changed_key_count += self.operator.changed_group_count();
     }
 }
 
 impl<S, O, A, Scorers, W, Sc> SharedOperatorBuilder<S, O, A, Scorers, W, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
+    O: GroupedOperator<S> + Send + Sync,
     A: AdaptWeight<S, O, W, Sc>,
     Scorers: OperatorScorerSet<S, O, Sc>,
     Sc: Score,
@@ -301,7 +301,7 @@ impl<S, O, A, Left, Right, Sc> ConstraintSet<S, Sc>
     for SharedOperatorTerminal<S, O, A, ScorerChain<(Left, Right)>, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
+    O: GroupedOperator<S> + Send + Sync,
     A: Send + Sync,
     Left: OperatorScorerSet<S, O, Sc>,
     Right: OperatorScorerSet<S, O, Sc>,
@@ -433,7 +433,7 @@ impl<S, O, A, W, Sc> IncrementalConstraint<S, Sc>
     for SharedOperatorTerminal<S, O, A, OperatorScorer<W, Sc>, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
+    O: GroupedOperator<S> + Send + Sync,
     A: Send + Sync,
     W: RowWeight<S, O, Sc>,
     Sc: Score,

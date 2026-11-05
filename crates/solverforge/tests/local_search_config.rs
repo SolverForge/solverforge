@@ -1,5 +1,7 @@
 //! Local search settings that only show in a solve: the recreate heuristic of
-//! ruin-and-recreate moves.
+//! ruin-and-recreate moves, and that each random part of a search
+//! (simulated annealing, random tie breaks, ruin choice) follows
+//! `random_seed`.
 
 use solverforge::prelude::*;
 use solverforge::SolverConfig;
@@ -61,4 +63,96 @@ fn first_fit_recreate_puts_ruined_tasks_back_on_the_first_worker() {
     let solved = solve(Plan::new(&[1, 1], &[3, 2, 1]), &ruin_recreate("first_fit"));
     assert_eq!(solved.score, Some(SoftScore::of(-16)));
     assert_eq!(solved.workers_by_task(), [Some(0), Some(0)]);
+}
+
+/// First fit construction, then local search configured by `local_search`, on
+/// twelve tasks weighing 0 to 8 and four workers costing 1 to 4: many local
+/// optima and equally scored moves, so a random part decides where a bounded
+/// search ends.
+fn stochastic(seed: u64, local_search: &str) -> Vec<Option<usize>> {
+    let toml = format!(
+        r#"random_seed = {seed}
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+
+[[phases]]
+type = "local_search"
+{local_search}
+"#
+    );
+    let weights: Vec<i64> = (0..12).map(|id| (id * 5 + 2) % 9).collect();
+    solve(Plan::new(&weights, &[1, 2, 3, 4]), &toml).workers_by_task()
+}
+
+/// Repeated solves with one seed agree, and some other seed disagrees, so
+/// the agreement is not a search that ignores its seed.
+fn assert_seeded(local_search: &str) {
+    let first = stochastic(7, local_search);
+    for _ in 0..3 {
+        assert_eq!(stochastic(7, local_search), first);
+    }
+    assert!(
+        (1..10).any(|seed| stochastic(seed, local_search) != first),
+        "every seed gave the same assignment"
+    );
+}
+
+#[test]
+fn simulated_annealing_follows_the_random_seed() {
+    // Moves in original order and the first accepted one taken: only
+    // annealing draws random numbers.
+    assert_seeded(
+        r#"score_tie_break = "first"
+[phases.termination]
+step_count_limit = 200
+[phases.acceptor]
+type = "simulated_annealing"
+level_temperatures = [20.0]
+decay_rate = 0.999
+[phases.forager]
+type = "first_accepted"
+[phases.move_selector]
+type = "change_move_selector"
+selection_order = "original""#,
+    );
+}
+
+#[test]
+fn random_tie_breaks_follow_the_random_seed() {
+    // Hill climbing over moves in original order: only tie breaks among
+    // equally scored moves are random.
+    assert_seeded(
+        r#"score_tie_break = "random"
+[phases.termination]
+step_count_limit = 200
+[phases.acceptor]
+type = "hill_climbing"
+[phases.forager]
+type = "best_score"
+[phases.move_selector]
+type = "change_move_selector"
+selection_order = "original""#,
+    );
+}
+
+#[test]
+fn ruin_choice_follows_the_random_seed() {
+    // Hill climbing taking the first accepted move: only which tasks a
+    // ruin-and-recreate move unassigns is random.
+    assert_seeded(
+        r#"score_tie_break = "first"
+[phases.termination]
+step_count_limit = 200
+[phases.acceptor]
+type = "hill_climbing"
+[phases.forager]
+type = "first_accepted"
+[phases.move_selector]
+type = "ruin_recreate_move_selector"
+min_ruin_count = 1
+max_ruin_count = 3
+recreate_heuristic_type = "cheapest_insertion""#,
+    );
 }

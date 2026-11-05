@@ -103,7 +103,10 @@ migration of the fluent stream families:
 - `constraint::relational::OperatorTerminal<S, O, W, Sc>::new(constraint_ref,
   impact, operator, weight, hard)` scores a generic operator; its weight takes
   `(&S, &O::View<'a>)`. It implements incremental scoring, reset, full counts,
-  and cold explanations. `ExplainRow` is a hidden analysis bridge.
+  and cold explanations. `ExplainRow::explain(&self, entities)` appends the
+  entities a row view was built from; terminals call it only on the cold
+  explanation path, and a custom operator implements it for its `View` to make
+  its matches explainable.
 - `stream::joiner::plan::{CompileCondition, IndexedPlan, ExecutablePlan}`
   separates condition compilation, owned index state, and borrowed-row execution.
   Candidate probes return `Cow<'i, [RowHandle]>`: equality borrows an exact

@@ -40,6 +40,6 @@ pub(super) fn panic_execution_error(error: RuntimeInstantiationError) -> ! {
     })
 }
 
-pub(super) fn panic_runtime_execution_error(error: RuntimeBuildError) -> ! {
+pub(crate) fn panic_runtime_execution_error(error: RuntimeBuildError) -> ! {
     std::panic::panic_any(RuntimeExecutionFailure { error })
 }

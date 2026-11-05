@@ -13,6 +13,7 @@ pub(crate) mod executor;
 mod graph;
 mod input;
 mod local_search;
+mod partitioned;
 mod providers;
 mod score_limits;
 mod selector_tree;
@@ -47,7 +48,8 @@ pub(crate) use graph::{
     CompiledRuntimeExtension, CompiledRuntimePhase, ListLeafKind, ProviderBindingPlan,
     ProviderBindingPolicy, ProviderMoveKind, ProviderSchedule,
 };
-pub(crate) use input::RuntimeGraphInput;
+pub(crate) use input::{RuntimeGraphInput, RuntimeSource};
+pub(crate) use partitioned::partition_child_config;
 
 #[cfg(test)]
 pub(crate) use default_local_search::{

@@ -14,11 +14,13 @@ use crate::RuntimeBuildResult;
 use super::RuntimeModel;
 
 pub(crate) mod custom;
+pub(crate) mod partitioner;
 
 pub(crate) use custom::{
-    CustomPhaseNode, CustomSearchPhase, NoTypedExtensions, PartitionedPhaseNode,
-    RuntimeExtensionPolicy, RuntimeExtensionRegistry,
+    CustomPhaseNode, CustomSearchPhase, NoTypedExtensions, RuntimeExtensionPolicy,
+    RuntimeExtensionRegistry,
 };
+pub(crate) use partitioner::PartitionerNode;
 
 /// A model bound to its solution descriptor plus the solve's random seed:
 /// the input custom phases and the configured runtime build from.
@@ -148,7 +150,7 @@ where
         P: CustomSearchPhase<S> + 'static,
     {
         assert!(
-            !self.extensions.contains_custom(name) && !self.extensions.contains_partitioned(name),
+            !self.extensions.contains_custom(name),
             "custom phase `{name}` was registered more than once",
         );
         SearchBuilder {
@@ -157,25 +159,27 @@ where
         }
     }
 
-    pub fn partitioned_phase<P, F>(
+    /// Registers the partitioner a `partitioned_search` phase selects with
+    /// `partitioner = "name"`. The framework runs the phase: it splits the
+    /// working solution with the partitioner, solves each partition with the
+    /// phase's `child_phases` on `thread_count` threads, and merges the
+    /// solved partitions back.
+    pub fn partitioner<P, F>(
         self,
         name: &'static str,
         builder: F,
-    ) -> SearchBuilder<S, V, DM, IDM, PartitionedPhaseNode<Extensions, F, P>>
+    ) -> SearchBuilder<S, V, DM, IDM, PartitionerNode<Extensions, F, P>>
     where
-        F: Fn(&SearchContext<S, V, DM, IDM>, &solverforge_config::PartitionedSearchConfig) -> P
-            + Send
-            + Sync
-            + 'static,
-        P: CustomSearchPhase<S> + 'static,
+        F: Fn(&SearchContext<S, V, DM, IDM>) -> P + Send + Sync + 'static,
+        P: crate::phase::partitioned::SolutionPartitioner<S> + 'static,
     {
         assert!(
-            !self.extensions.contains_custom(name) && !self.extensions.contains_partitioned(name),
-            "partitioned_search partitioner `{name}` was registered more than once",
+            !self.extensions.contains_partitioner(name),
+            "partitioner `{name}` was registered more than once",
         );
         SearchBuilder {
             context: self.context,
-            extensions: PartitionedPhaseNode::new(self.extensions, name, builder),
+            extensions: PartitionerNode::new(self.extensions, name, builder),
         }
     }
 }

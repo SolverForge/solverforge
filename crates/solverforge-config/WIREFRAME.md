@@ -692,10 +692,10 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `partitioner` | `Option<String>` | `None` |
+| `partitioner` | `Option<String>` | `None`; required: the name registered with `SearchBuilder::partitioner` |
 | `thread_count` | `MoveThreadCount` | `Auto` |
-| `log_progress` | `bool` | `false` |
-| `child_phases` | `Vec<PhaseConfig>` | `[]` |
+| `log_progress` | `bool` | `false`; logs the phase's start and end |
+| `child_phases` | `Vec<PhaseConfig>` | `[]`; the phases each partition is solved with, compiled like `phases`; empty runs the default phases |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 ### `CustomPhaseConfig`

@@ -20,7 +20,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::Director;
 
-use crate::builder::search::custom::{NoRuntimeExtensionPhase, NoTypedExtensions};
+use crate::builder::search::custom::NoTypedExtensions;
 use crate::builder::SearchContext;
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::MoveCandidateRef;
@@ -28,6 +28,7 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::Phase;
 use crate::run::compile_runtime_runner;
 use crate::runtime::compiler::executor::CompiledRuntimePhaseRunner;
+use crate::runtime::compiler::RuntimeGraphInput;
 use crate::runtime_build_error::RuntimeBuildResult;
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::stats::CandidateTracePhasePlan;
@@ -57,7 +58,13 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
 {
-    runner: CompiledRuntimePhaseRunner<S, V, DM, IDM, NoRuntimeExtensionPhase>,
+    runner: CompiledRuntimePhaseRunner<
+        S,
+        V,
+        DM,
+        IDM,
+        RuntimeGraphInput<S, V, DM, IDM, NoTypedExtensions>,
+    >,
 }
 
 impl<S, V, DM, IDM> CompiledRuntimeRunner<S, V, DM, IDM>

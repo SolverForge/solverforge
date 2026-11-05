@@ -18,6 +18,7 @@ use super::super::local_search::{ProviderExecutionResources, RuntimeNeighborhood
 use super::super::{PreparedConstruction, PreparedRuntimePhase};
 use super::local_search::RuntimeLocalSearch;
 use super::{CompiledRuntimePhaseRunner, RunnerPhase};
+use crate::runtime::compiler::RuntimeSource;
 
 /// The frozen input of one descriptor-placement scalar construction phase.
 pub(crate) struct ScalarConstructionHandoff<S> {
@@ -26,13 +27,14 @@ pub(crate) struct ScalarConstructionHandoff<S> {
     pub(crate) slot_order: Vec<ScalarOrMixedSlotOrder>,
 }
 
-impl<S, V, DM, IDM, Extension> CompiledRuntimePhaseRunner<S, V, DM, IDM, Extension>
+impl<S, V, DM, IDM, H> CompiledRuntimePhaseRunner<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
+    H: RuntimeSource<S, V, DM, IDM>,
 {
     /// Moves out the first phase's lowered acceptor/forager neighborhood and
     /// the solve's provider resources, or `None` when the first phase is not

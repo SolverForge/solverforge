@@ -195,13 +195,37 @@ fn search_builder_transfers_only_declaration_parts() {
     let search = search_context()
         .defaults()
         .phase("weekend_repair", |_| MarkerPhase("weekend_repair"))
-        .partitioned_phase("by_task", |_context, _config| MarkerPhase("by_task"));
+        .partitioner("by_task", |_context| MarkerPartitioner);
 
     let (context, extensions) = search.into_runtime_parts();
 
     assert_eq!(context.seed(), Some(7));
     assert!(extensions.contains_custom("weekend_repair"));
-    assert!(extensions.contains_partitioned("by_task"));
+    assert!(extensions.contains_partitioner("by_task"));
+    assert!(!extensions.contains_custom("by_task"));
+    assert!(!extensions.contains_partitioner("weekend_repair"));
+}
+
+#[derive(Debug)]
+struct MarkerPartitioner;
+
+impl<S: PlanningSolution> crate::phase::partitioned::SolutionPartitioner<S> for MarkerPartitioner {
+    fn partition(&self, solution: &S) -> Vec<S> {
+        vec![solution.clone()]
+    }
+
+    fn merge(&self, original: &S, _partitions: Vec<S>) -> S {
+        original.clone()
+    }
+}
+
+#[test]
+#[should_panic(expected = "partitioner `by_task` was registered more than once")]
+fn search_rejects_duplicate_partitioner_names() {
+    let _ = search_context()
+        .defaults()
+        .partitioner("by_task", |_| MarkerPartitioner)
+        .partitioner("by_task", |_| MarkerPartitioner);
 }
 
 #[test]

@@ -11,6 +11,7 @@ use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::RuntimeExtensionRegistry;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::runtime::compiler::RuntimeSource;
 
 use super::super::graph::{
     CompiledConstruction, CompiledRuntimeExtension, CompiledRuntimeGraph, CompiledRuntimePhase,
@@ -21,6 +22,8 @@ use crate::builder::context::ListConstructionKernelError;
 
 mod types;
 
+use super::partitioned::{PartitionedInstance, RuntimeExtensionInstance, SourceExtension};
+
 use types::{prepare_construction, PreparedLocalSearchMarker};
 pub(crate) use types::{
     PreparedConstruction, PreparedDefaultRuntime, PreparedListSlot, PreparedListSourceCatalog,
@@ -29,40 +32,40 @@ pub(crate) use types::{
 
 /// One immutable graph plus the concrete extension registry that will be
 /// instantiated once for each solve. It owns no solution or phase instance.
-pub(crate) struct CompiledRuntimeExecutor<S, V, DM, IDM, E>
+pub(crate) struct CompiledRuntimeExecutor<S, V, DM, IDM, H>
 where
     S: PlanningSolution,
 {
-    graph: CompiledRuntimeGraph<S, V, DM, IDM, E>,
+    graph: CompiledRuntimeGraph<S, V, DM, IDM, H>,
 }
 
-impl<S, V, DM, IDM, E> CompiledRuntimeExecutor<S, V, DM, IDM, E>
+impl<S, V, DM, IDM, H> CompiledRuntimeExecutor<S, V, DM, IDM, H>
 where
     S: PlanningSolution,
 {
-    pub(crate) fn new(graph: CompiledRuntimeGraph<S, V, DM, IDM, E>) -> Self {
+    pub(crate) fn new(graph: CompiledRuntimeGraph<S, V, DM, IDM, H>) -> Self {
         Self { graph }
     }
 
-    pub(crate) fn graph(&self) -> &CompiledRuntimeGraph<S, V, DM, IDM, E> {
+    pub(crate) fn graph(&self) -> &CompiledRuntimeGraph<S, V, DM, IDM, H> {
         &self.graph
     }
 
     /// Consumes the executor and yields its immutable graph by ownership.
     /// The graph is built once per solve; consuming it lets the runner lower
     /// declarations without cloning slot vectors or provider plans.
-    pub(crate) fn into_graph(self) -> CompiledRuntimeGraph<S, V, DM, IDM, E> {
+    pub(crate) fn into_graph(self) -> CompiledRuntimeGraph<S, V, DM, IDM, H> {
         self.graph
     }
 }
 
-impl<S, V, DM, IDM, E> CompiledRuntimeExecutor<S, V, DM, IDM, E>
+impl<S, V, DM, IDM, H> CompiledRuntimeExecutor<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-    E: RuntimeExtensionRegistry<S, V, DM, IDM>,
+    H: RuntimeSource<S, V, DM, IDM>,
 {
     /// Registers one solve's structural source catalog and eagerly
     /// instantiates explicit extensions.
@@ -73,7 +76,10 @@ where
     /// skipped, or not-reached stage in terminal trace provenance.
     pub(crate) fn instantiate(
         &self,
-    ) -> Result<PreparedRuntimeExecution<S, V, DM, IDM, E::Phase>, RuntimeInstantiationError> {
+    ) -> Result<
+        PreparedRuntimeExecution<S, V, DM, IDM, SourceExtension<S, V, DM, IDM, H>>,
+        RuntimeInstantiationError,
+    > {
         let mut sources = PreparedListSourceRegistry::default();
         // Registration is structural only. It deliberately does not enumerate
         // a declared stream, inspect current assignments, or invoke a host
@@ -103,7 +109,10 @@ where
         phase_index: usize,
         phase: &CompiledRuntimePhase<S, V, DM, IDM>,
         sources: &PreparedListSourceRegistry<S, V, DM, IDM>,
-    ) -> Result<PreparedRuntimePhase<S, V, DM, IDM, E::Phase>, RuntimeInstantiationError> {
+    ) -> Result<
+        PreparedRuntimePhase<S, V, DM, IDM, SourceExtension<S, V, DM, IDM, H>>,
+        RuntimeInstantiationError,
+    > {
         match phase {
             CompiledRuntimePhase::Construction(construction) => {
                 Ok(PreparedRuntimePhase::Construction(
@@ -208,12 +217,13 @@ where
         &self,
         phase_index: usize,
         extension: &CompiledRuntimeExtension,
-    ) -> Result<E::Phase, RuntimeInstantiationError> {
+    ) -> Result<SourceExtension<S, V, DM, IDM, H>, RuntimeInstantiationError> {
         match extension {
             CompiledRuntimeExtension::Custom { name } => self
                 .graph
                 .extensions()
                 .instantiate_custom(name, self.graph.context())
+                .map(RuntimeExtensionInstance::Custom)
                 .ok_or_else(|| RuntimeInstantiationError {
                     phase_index,
                     kind: RuntimeInstantiationErrorKind::MissingInstantiatedCustomExtension {
@@ -223,7 +233,14 @@ where
             CompiledRuntimeExtension::Partitioned { name, config } => self
                 .graph
                 .extensions()
-                .instantiate_partitioned(name, config, self.graph.context())
+                .instantiate_partitioner(name, self.graph.context())
+                .map(|partitioner| {
+                    RuntimeExtensionInstance::Partitioned(PartitionedInstance::new(
+                        partitioner,
+                        config,
+                        self.graph.config(),
+                    ))
+                })
                 .ok_or_else(|| RuntimeInstantiationError {
                     phase_index,
                     kind: RuntimeInstantiationErrorKind::MissingInstantiatedPartitioner {

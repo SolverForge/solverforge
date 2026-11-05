@@ -6,7 +6,7 @@
 
 use solverforge_core::domain::PlanningSolution;
 
-use crate::builder::SearchContext;
+use crate::builder::{RuntimeExtensionRegistry, SearchContext};
 
 /// One typed or dynamic runtime declaration ready for immutable compilation.
 ///
@@ -32,7 +32,48 @@ where
         }
     }
 
-    pub(crate) fn into_parts(self) -> (SearchContext<S, V, DM, IDM>, E) {
-        (self.context, self.extensions)
+    pub(crate) fn context(&self) -> &SearchContext<S, V, DM, IDM> {
+        &self.context
+    }
+
+    pub(crate) fn extensions(&self) -> &E {
+        &self.extensions
+    }
+}
+
+/// How a compiled graph and its runner hold their declaration: the top-level
+/// solve owns its [`RuntimeGraphInput`]; a partition's child runner borrows
+/// its parent's. Both resolve to the same input type, so a partition nested
+/// in a partition compiles to the same runner type as its parent's child.
+pub(crate) trait RuntimeSource<S, V, DM, IDM>
+where
+    S: PlanningSolution,
+{
+    type Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>;
+
+    fn input(&self) -> &RuntimeGraphInput<S, V, DM, IDM, Self::Extensions>;
+}
+
+impl<S, V, DM, IDM, E> RuntimeSource<S, V, DM, IDM> for RuntimeGraphInput<S, V, DM, IDM, E>
+where
+    S: PlanningSolution,
+    E: RuntimeExtensionRegistry<S, V, DM, IDM>,
+{
+    type Extensions = E;
+
+    fn input(&self) -> &RuntimeGraphInput<S, V, DM, IDM, E> {
+        self
+    }
+}
+
+impl<S, V, DM, IDM, E> RuntimeSource<S, V, DM, IDM> for &RuntimeGraphInput<S, V, DM, IDM, E>
+where
+    S: PlanningSolution,
+    E: RuntimeExtensionRegistry<S, V, DM, IDM>,
+{
+    type Extensions = E;
+
+    fn input(&self) -> &RuntimeGraphInput<S, V, DM, IDM, E> {
+        self
     }
 }

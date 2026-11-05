@@ -191,6 +191,37 @@ partition boundaries, when merge cost dominates child solving, or when child
 solutions need global coordination to stay feasible. Typed search registration
 must name the partitioner explicitly; unregistered config fails at build time.
 
+The search function registers only the partitioner; SolverForge runs the phase:
+
+```rust,ignore
+fn search<DM, IDM>(ctx: SearchContext<Plan, usize, DM, IDM>) -> impl Search<Plan, usize, DM, IDM>
+where
+    DM: CrossEntityDistanceMeter<Plan> + Clone + Debug + Send + 'static,
+    IDM: CrossEntityDistanceMeter<Plan> + Clone + Debug + Send + 'static,
+{
+    ctx.defaults().partitioner("by_region", |_| ByRegion)
+}
+```
+
+```toml
+[[phases]]
+type = "partitioned_search"
+partitioner = "by_region"
+thread_count = { count = 4 }
+
+[[phases.child_phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+
+[[phases.child_phases]]
+type = "local_search"
+```
+
+Each partition is solved by `child_phases`, compiled exactly like top-level
+`phases`; an empty list runs the default phases. `thread_count` sets how many
+partitions are solved at once and `log_progress` logs the phase's start and end.
+A partition runs under the solve's time and step count limits.
+
 Partition children are internal compute scopes, not retained-job publication
 owners. They inherit cancellation, environment mode, remaining time limit,
 in-phase limits, and deterministic seeds, but pause checkpoints are emitted only

@@ -8,8 +8,9 @@ use super::construction::compile_construction;
 use super::default_local_search::DefaultLocalSearchPlan;
 use super::defaults::compile_default_runtime_bindings;
 use super::graph::{CompiledRuntimeExtension, CompiledRuntimeGraph, CompiledRuntimePhase};
-use super::input::RuntimeGraphInput;
+use super::input::{RuntimeGraphInput, RuntimeSource};
 use super::local_search::compile_local_search;
+use super::partitioned::partition_child_config;
 use super::score_limits::validate_best_score_limits;
 use super::selector_values::validate_selector_values;
 use super::types::{RuntimeCompileError, RuntimeCompileErrorKind, RuntimeExtensionKind};
@@ -18,21 +19,22 @@ use super::types::{RuntimeCompileError, RuntimeCompileErrorKind, RuntimeExtensio
 ///
 /// This is intentionally side-effect free: no solution import, host callback,
 /// selector cursor, score calculation, random draw, or trace work occurs here.
-pub(crate) fn compile_runtime_graph<S, V, DM, IDM, E>(
+pub(crate) fn compile_runtime_graph<S, V, DM, IDM, H>(
     config: &SolverConfig,
-    input: RuntimeGraphInput<S, V, DM, IDM, E>,
-) -> Result<CompiledRuntimeGraph<S, V, DM, IDM, E>, RuntimeCompileError>
+    source: H,
+) -> Result<CompiledRuntimeGraph<S, V, DM, IDM, H>, RuntimeCompileError>
 where
     S: PlanningSolution + 'static,
     S::Score: ParseableScore,
     V: Clone,
     DM: Clone,
     IDM: Clone,
-    E: RuntimeExtensionRegistry<S, V, DM, IDM>,
+    H: RuntimeSource<S, V, DM, IDM>,
 {
     validate_best_score_limits::<S::Score>(config)?;
     validate_selector_values(config)?;
-    let (context, extensions) = input.into_parts();
+    let context = source.input().context();
+    let extensions = source.input().extensions();
     if context.seed() != config.resolved_random_seed() {
         return Err(RuntimeCompileError {
             path: "runtime_extension_context.random_seed".to_string(),
@@ -74,20 +76,53 @@ where
                     &format!("phases[{index}]"),
                     context.descriptor(),
                     context.model(),
-                    &extensions,
+                    extensions,
                     default_bindings.local_search_plan.as_ref(),
                 )
             })
             .collect::<Result<Vec<_>, _>>()?
     };
+    validate_partition_children(config, source.input())?;
 
     Ok(CompiledRuntimeGraph {
-        context,
-        extensions,
+        source,
         config: config.clone(),
+        _model: std::marker::PhantomData,
         default_bindings,
         phases,
     })
+}
+
+/// Compiles each partitioned phase's child configuration exactly as a
+/// partition's solve will, so a child phase that cannot compile fails here,
+/// with its path under the partitioned phase, instead of inside a partition.
+fn validate_partition_children<S, V, DM, IDM, E>(
+    config: &SolverConfig,
+    input: &RuntimeGraphInput<S, V, DM, IDM, E>,
+) -> Result<(), RuntimeCompileError>
+where
+    S: PlanningSolution + 'static,
+    S::Score: ParseableScore,
+    V: Clone,
+    DM: Clone,
+    IDM: Clone,
+    E: RuntimeExtensionRegistry<S, V, DM, IDM>,
+{
+    for (index, phase) in config.phases.iter().enumerate() {
+        let PhaseConfig::PartitionedSearch(partitioned) = phase else {
+            continue;
+        };
+        compile_runtime_graph(&partition_child_config(config, partitioned), input).map_err(
+            |error| RuntimeCompileError {
+                path: match error.path.strip_prefix("phases") {
+                    Some(rest) => format!("phases[{index}].partitioned_search.child_phases{rest}"),
+                    None => format!("phases[{index}].partitioned_search.{}", error.path),
+                },
+                kind: error.kind,
+            },
+        )?;
+    }
+    Ok(())
 }
 
 pub(super) fn compile_phase<S, V, DM, IDM, E>(
@@ -190,7 +225,7 @@ where
             },
         ));
     }
-    if !extensions.contains_partitioned(name) {
+    if !extensions.contains_partitioner(name) {
         return Err(extension_error(
             path,
             RuntimeCompileErrorKind::UnregisteredTypedPartitioner {

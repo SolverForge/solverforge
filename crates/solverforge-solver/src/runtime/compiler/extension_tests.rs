@@ -41,6 +41,19 @@ impl PlanningSolution for Plan {
 #[derive(Debug)]
 struct MarkerExtension;
 
+#[derive(Debug)]
+struct MarkerPartitioner;
+
+impl crate::phase::partitioned::SolutionPartitioner<Plan> for MarkerPartitioner {
+    fn partition(&self, solution: &Plan) -> Vec<Plan> {
+        vec![solution.clone()]
+    }
+
+    fn merge(&self, original: &Plan, _partitions: Vec<Plan>) -> Plan {
+        original.clone()
+    }
+}
+
 impl CustomSearchPhase<Plan> for MarkerExtension {
     fn solve<D, ProgressCb>(&mut self, _solver_scope: &mut SolverScope<'_, Plan, D, ProgressCb>)
     where
@@ -93,7 +106,7 @@ fn partitioned(name: Option<&str>) -> PhaseConfig {
         partitioner: name.map(str::to_string),
         thread_count: MoveThreadCount::Count(std::num::NonZeroUsize::new(3).unwrap()),
         log_progress: true,
-        child_phases: vec![custom("child_extension")],
+        child_phases: vec![custom("repair")],
         termination: None,
     })
 }
@@ -113,9 +126,9 @@ fn typed_extensions_lower_names_without_invoking_builders_and_freeze_config() {
             EXTENSION_BUILD_CALLS.fetch_add(1, Ordering::SeqCst);
             MarkerExtension
         })
-        .partitioned_phase("by_task", |_context, _config| {
+        .partitioner("by_task", |_context| {
             EXTENSION_BUILD_CALLS.fetch_add(1, Ordering::SeqCst);
-            MarkerExtension
+            MarkerPartitioner
         });
     let (context, extensions) = declaration.into_runtime_parts();
     let input = RuntimeGraphInput::new(context, extensions);
@@ -321,4 +334,28 @@ fn typed_extension_registry_rejects_duplicate_names_before_compilation() {
         .defaults()
         .phase("repair", |_| MarkerExtension)
         .phase("repair", |_| MarkerExtension);
+}
+
+#[test]
+fn partition_child_phases_compile_with_their_path() {
+    let config = SolverConfig {
+        phases: vec![PhaseConfig::PartitionedSearch(PartitionedSearchConfig {
+            partitioner: Some("by_task".to_string()),
+            child_phases: vec![custom("repair"), custom("missing")],
+            ..PartitionedSearchConfig::default()
+        })],
+        ..SolverConfig::default()
+    };
+    let declaration = context(config.random_seed)
+        .defaults()
+        .phase("repair", |_| MarkerExtension)
+        .partitioner("by_task", |_| MarkerPartitioner);
+    let (context, extensions) = declaration.into_runtime_parts();
+    let error = compile_runtime_graph(&config, RuntimeGraphInput::new(context, extensions))
+        .expect_err("an unregistered child phase is a compile error");
+    assert_eq!(error.path, "phases[0].partitioned_search.child_phases[1]");
+    assert!(matches!(
+        error.kind,
+        RuntimeCompileErrorKind::UnregisteredTypedCustomExtension { ref name } if name == "missing"
+    ));
 }

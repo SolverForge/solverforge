@@ -31,5 +31,7 @@ solverforge-cvrp = { version = "=0.24.0", path = "../solverforge-cvrp" }
 solverforge-console = { version = "=0.24.0", path = "../solverforge-console", optional = true }
 
 [dev-dependencies]
+rayon.workspace = true
 serde.workspace = true
 toml.workspace = true
+tracing.workspace = true

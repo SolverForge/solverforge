@@ -11,6 +11,7 @@ use crate::descriptor::ResolvedVariableBinding;
 use crate::phase::construction::{ScalarConstructionSchedule, ScalarOrMixedSlotOrder};
 
 use super::defaults::DefaultRuntimeBindings;
+use super::input::RuntimeSource;
 use super::types::{CompiledListSlot, CompiledScalarSlot};
 
 mod provider;
@@ -387,16 +388,17 @@ pub(crate) enum CompiledRuntimeExtension {
 /// Immutable per-config graph.  It deliberately contains no current solution,
 /// callback view, thread-local state, or fresh selector cursor.  Those are
 /// created only by `instantiate()` at the future atomic cutover.
-pub(crate) struct CompiledRuntimeGraph<S, V, DM, IDM, E>
+pub(crate) struct CompiledRuntimeGraph<S, V, DM, IDM, H>
 where
     S: solverforge_core::domain::PlanningSolution,
 {
-    /// One descriptor-resolved context is owned by the graph together with
-    /// its concrete extension registry. The executor must use this exact pair
-    /// rather than rebuilding model metadata or registry state per phase.
-    pub(super) context: SearchContext<S, V, DM, IDM>,
-    pub(super) extensions: E,
+    /// One descriptor-resolved context together with its concrete extension
+    /// registry, owned by a top-level solve's graph and borrowed by a
+    /// partition's. The executor must use this exact pair rather than
+    /// rebuilding model metadata or registry state per phase.
+    pub(super) source: H,
     pub(super) config: SolverConfig,
+    pub(super) _model: std::marker::PhantomData<fn() -> (S, V, DM, IDM)>,
     /// Frozen declaration-order bindings for omitted runtime phases. Per-solve
     /// default expansion reads solution state through these slots but never
     /// reconstructs a model/schema or delegates construction to a wrapper.
@@ -404,7 +406,7 @@ where
     pub(super) phases: Vec<CompiledRuntimePhase<S, V, DM, IDM>>,
 }
 
-impl<S, V, DM, IDM, E> std::fmt::Debug for CompiledRuntimeGraph<S, V, DM, IDM, E>
+impl<S, V, DM, IDM, H> std::fmt::Debug for CompiledRuntimeGraph<S, V, DM, IDM, H>
 where
     S: solverforge_core::domain::PlanningSolution,
 {
@@ -415,24 +417,30 @@ where
     }
 }
 
-impl<S, V, DM, IDM, E> CompiledRuntimeGraph<S, V, DM, IDM, E>
+impl<S, V, DM, IDM, H> CompiledRuntimeGraph<S, V, DM, IDM, H>
+where
+    S: solverforge_core::domain::PlanningSolution,
+    H: RuntimeSource<S, V, DM, IDM>,
+{
+    pub(crate) fn context(&self) -> &SearchContext<S, V, DM, IDM> {
+        self.source.input().context()
+    }
+
+    pub(crate) fn extensions(&self) -> &H::Extensions {
+        self.source.input().extensions()
+    }
+}
+
+impl<S, V, DM, IDM, H> CompiledRuntimeGraph<S, V, DM, IDM, H>
 where
     S: solverforge_core::domain::PlanningSolution,
 {
-    pub(crate) fn context(&self) -> &SearchContext<S, V, DM, IDM> {
-        &self.context
-    }
-
     pub(crate) fn config(&self) -> &SolverConfig {
         &self.config
     }
 
     pub(crate) fn phases(&self) -> &[CompiledRuntimePhase<S, V, DM, IDM>] {
         &self.phases
-    }
-
-    pub(crate) fn extensions(&self) -> &E {
-        &self.extensions
     }
 
     pub(crate) fn default_bindings(&self) -> &DefaultRuntimeBindings<S, V, DM, IDM> {

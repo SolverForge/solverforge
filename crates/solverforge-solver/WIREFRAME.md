@@ -32,8 +32,11 @@ src/
 ├── runtime.rs                           — List-variable metadata plus the sole immutable compiled runtime-graph entrypoint
 ├── runtime/compiler/                    — Immutable runtime-graph compiler, prepared runner, default policy, and executor kernels; every reached source-backed construction boundary validates stable element keys against the frozen declared stream before deciding whether work remains
 ├── runtime/compiler/executor/completion.rs — Structural mandatory-work gate and deferred best-solution publication
+├── runtime/compiler/executor/partitioned.rs — The configured `partitioned_search` phase: registered partitioner, one child runner per partition
+├── runtime/compiler/partitioned.rs      — The solver configuration a partition is solved with
 ├── runtime/compiler/executor/runner/bench.rs — Moves a prepared runner's first lowered local search or scalar construction out for the `__bench` handles
 ├── runtime/compiler/executor/runner/failure.rs — Cold propagation of configured-runtime execution failures to the public run boundary
+├── runtime/compiler/executor/runner/phase_plan.rs — A runner phase's index and its candidate-trace plan with the reached outcome
 ├── runtime/compiler/executor/runner/problem_change.rs — Problem-change pass loop and per-pass runner state reset
 ├── runtime/provider_cursor.rs           — One lazy compound-provider cursor; static Rust providers retain typed candidates/function pointers, while host callbacks alone use raw named edits and object-safe dispatch
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model/solution validation, and shadow updates
@@ -72,7 +75,7 @@ src/
 │   ├── context/scalar/*.rs              — Scalar value-source, variable, and group binding definitions
 │   ├── context/scalar/group/*.rs        — Assignment and member binding chunks
 │   ├── search.rs                        — Typed custom-search surface: SearchContext, Search, CustomSearchPhase, local_search(), and typed custom phase registration
-│   ├── search/*.rs                      — Recursive typed custom-extension registry
+│   ├── search/*.rs                      — Recursive typed extension registry: custom phases (`custom.rs`) and partitioners (`partitioner.rs`)
 │   ├── selector.rs                      — Internal grouped-scalar leaf and indexed compiled-selector composition root
 │   ├── selector/grouped_scalar.rs       — GroupedScalarSelector used as one compiled runtime leaf
 │   ├── selector/types/composite.rs      — Indexed Limited/union/cartesian declaration arena with stable node IDs
@@ -303,7 +306,7 @@ src/
 │   │   ├── mod.rs                       — Partitioned module declarations and re-exports
 │   │   ├── child_phases.rs              — ChildPhases trait and tuple impls
 │   │   ├── config.rs                    — PartitionedSearchConfig
-│   │   ├── execution.rs                — One partition/solve/merge pass run by PartitionedSearchPhase
+│   │   ├── execution.rs                — One partition/solve/merge pass shared by PartitionedSearchPhase and the configured runtime
 │   │   ├── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
 │   │   ├── partitioner_tests.rs        — Tests
 │   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
@@ -717,6 +720,8 @@ working solution without cloning.
 **`FunctionalPartitioner<S, PF, MF>`** — Closure-based partitioner.
 
 **`ThreadCount`** — `Auto` (one thread per partition, at most one per available core), `Unlimited` (one per available core), `Specific(NonZeroUsize)` (at most that many, at most one per partition). `PartitionedSearchPhase` solves child partitions sequentially when the resolved count is `1`, otherwise it installs a dedicated Rayon pool whose worker count matches the resolved value.
+
+**Configured `partitioned_search`** — The framework runs it; a search declaration only registers the partitioner, with `SearchBuilder::partitioner(name, |context| partitioner)`, in a namespace separate from custom phase names. `partitioner = "name"` selects it. Each partition gets a director from `Director::fork_for_solution` over the partition and a `CompiledRuntimePhaseRunner` compiled from `partition_child_config`: the parent configuration with `child_phases` as its phases (empty means the default phases) and, as termination, only the parent's time and step count limits, the bounds that reach a partition. The graph compiler compiles that child configuration once up front, so a child phase error fails the solve with a `phases[i].partitioned_search.child_phases[j]` path. `thread_count` and `log_progress` apply as for `PartitionedSearchPhase` (`log_progress` logs `phase_start` with `partition_count` and `thread_count`, and `phase_end`). A child runner borrows its parent's `RuntimeGraphInput`, so nested partitioned phases compile to the same runner type. The `RuntimeExtensionRegistry` is `Send + Sync` for that reason: partition runners compile on the threads that solve them.
 
 ## Scope Hierarchy
 

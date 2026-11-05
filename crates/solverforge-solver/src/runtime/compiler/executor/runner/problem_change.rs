@@ -12,18 +12,21 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::scope::{ProgressCallback, SolverScope};
 
 use super::super::completion::publish_if_mandatory_complete;
+use super::super::partitioned::RuntimeExtensionInstance;
 use super::super::PreparedRuntimePhase;
 use super::failure::panic_runtime_execution_error;
 use super::{CompiledRuntimePhaseRunner, RunnerPhase, RunnerPhaseOutcome};
+use crate::runtime::compiler::{RuntimeGraphInput, RuntimeSource};
 
-impl<S, V, DM, IDM, Extension> CompiledRuntimePhaseRunner<S, V, DM, IDM, Extension>
+impl<S, V, DM, IDM, H> CompiledRuntimePhaseRunner<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score + Copy + Ord + ParseableScore,
     V: Clone + PartialEq + Into<usize> + Send + Sync + Debug + 'static,
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
-    Extension: CustomSearchPhase<S>,
+    H: RuntimeSource<S, V, DM, IDM>,
+    RuntimeGraphInput<S, V, DM, IDM, H::Extensions>: Sync,
 {
     /// Runs the phase sequence, then applies any queued problem changes and
     /// runs the whole sequence again on the changed solution. The queue is
@@ -77,8 +80,10 @@ where
         self.mandatory_completion_published = false;
         self.execution.reset_list_source_bindings();
         for (prepared, phase) in self.prepared_phases.iter_mut().zip(&mut self.phases) {
-            if let PreparedRuntimePhase::Extension(extension) = prepared {
-                extension.on_problem_change();
+            if let PreparedRuntimePhase::Extension(RuntimeExtensionInstance::Custom(phase)) =
+                prepared
+            {
+                phase.on_problem_change();
             }
             phase.reset_for_problem_change();
         }

@@ -244,7 +244,9 @@ pub(crate) fn compile_runtime_runner<S, V, DM, IDM, Registry>(
     config: &SolverConfig,
     context: SearchContext<S, V, DM, IDM>,
     extensions: Registry,
-) -> RuntimeBuildResult<CompiledRuntimePhaseRunner<S, V, DM, IDM, Registry::Phase>>
+) -> RuntimeBuildResult<
+    CompiledRuntimePhaseRunner<S, V, DM, IDM, RuntimeGraphInput<S, V, DM, IDM, Registry>>,
+>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score + Copy + Ord + ParseableScore,

@@ -9,6 +9,7 @@ mod execution_record;
 pub(crate) mod list_construction;
 mod list_leaf;
 pub(crate) mod local_search;
+mod partitioned;
 mod prepared;
 mod runner;
 mod trace;

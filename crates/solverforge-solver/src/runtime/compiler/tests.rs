@@ -215,7 +215,13 @@ fn compile(
     shape: PrecedenceShape,
     selector: MoveSelectorConfig,
 ) -> Result<
-    super::CompiledRuntimeGraph<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    super::CompiledRuntimeGraph<
+        Plan,
+        usize,
+        Meter,
+        Meter,
+        RuntimeGraphInput<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    >,
     super::RuntimeCompileError,
 > {
     let config = SolverConfig {
@@ -237,7 +243,13 @@ fn compile_construction(
     model: RuntimeModel<Plan, usize, Meter, Meter>,
     construction_heuristic_type: ConstructionHeuristicType,
 ) -> Result<
-    super::CompiledRuntimeGraph<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    super::CompiledRuntimeGraph<
+        Plan,
+        usize,
+        Meter,
+        Meter,
+        RuntimeGraphInput<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    >,
     super::RuntimeCompileError,
 > {
     let config = SolverConfig {
@@ -405,7 +417,13 @@ fn compile_policy(
     acceptor: Option<AcceptorConfig>,
     forager: Option<ForagerConfig>,
 ) -> Result<
-    super::CompiledRuntimeGraph<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    super::CompiledRuntimeGraph<
+        Plan,
+        usize,
+        Meter,
+        Meter,
+        RuntimeGraphInput<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    >,
     super::RuntimeCompileError,
 > {
     let local_search = LocalSearchConfig {

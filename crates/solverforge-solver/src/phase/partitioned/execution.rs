@@ -1,6 +1,7 @@
 //! One partitioned-search pass: split the working solution, solve each
-//! partition in its own child scope, merge. Run by
-//! [`super::PartitionedSearchPhase`].
+//! partition in its own child scope, merge. Shared by
+//! [`super::PartitionedSearchPhase`] and the configured runtime's
+//! `partitioned_search` phase.
 
 use rand::RngExt;
 use rayon::prelude::*;

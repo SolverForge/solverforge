@@ -8,6 +8,7 @@ mod bench;
 mod failure;
 mod local_search;
 mod lowering;
+mod phase_plan;
 mod problem_change;
 
 use std::fmt::{self, Debug};
@@ -16,9 +17,10 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::Director;
 
-use crate::builder::{CustomSearchPhase, RuntimeExtensionRegistry};
+use crate::builder::CustomSearchPhase;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::Phase;
+use crate::runtime::compiler::{RuntimeGraphInput, RuntimeSource};
 use crate::runtime::finalize_noop_construction;
 use crate::runtime_build_error::RuntimeBuildResult;
 use crate::scope::{ProgressCallback, SolverScope};
@@ -26,13 +28,14 @@ use crate::stats::CandidateTracePhasePlan;
 
 use super::completion::{publish_if_mandatory_complete, require_mandatory_completion};
 use super::local_search::ProviderExecutionResources;
-use super::trace::{default_construction_plan, phase_with_outcome};
+use super::partitioned::{solve_partitioned_instance, RuntimeExtensionInstance, SourceExtension};
 use super::{
     CompiledRuntimeExecutor, ConstructionExecution, DefaultRuntimeConstructionExecution,
     PreparedRuntimeExecution, PreparedRuntimePhase,
 };
 use crate::runtime::compiler::DefaultRuntimeBindings;
-use failure::{map_preparation_error, panic_execution_error, panic_runtime_execution_error};
+pub(crate) use failure::panic_runtime_execution_error;
+use failure::{map_preparation_error, panic_execution_error};
 use local_search::RuntimeLocalSearch;
 use lowering::lower_runner_phase;
 
@@ -42,16 +45,20 @@ pub(crate) use failure::take_runtime_execution_failure;
 /// One retained per-solve executor. A public configured entrypoint creates it
 /// after graph compilation/preparation and hands it to the ordinary solver as
 /// a single `Phase`; pause and resume happen inside that same object.
-pub(crate) struct CompiledRuntimePhaseRunner<S, V, DM, IDM, Extension>
+pub(crate) struct CompiledRuntimePhaseRunner<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
+    H: RuntimeSource<S, V, DM, IDM>,
 {
-    execution: PreparedRuntimeExecution<S, V, DM, IDM, Extension>,
-    prepared_phases: Vec<PreparedRuntimePhase<S, V, DM, IDM, Extension>>,
+    /// The declaration the graph was compiled from: a partitioned phase
+    /// compiles each partition's runner from it.
+    source: H,
+    execution: PreparedRuntimeExecution<S, V, DM, IDM, SourceExtension<S, V, DM, IDM, H>>,
+    prepared_phases: Vec<PreparedRuntimePhase<S, V, DM, IDM, SourceExtension<S, V, DM, IDM, H>>>,
     phases: Vec<RunnerPhase<S, V, DM, IDM>>,
     provider_resources: ProviderExecutionResources<S>,
     mandatory_bindings: DefaultRuntimeBindings<S, V, DM, IDM>,
@@ -122,24 +129,22 @@ where
     },
 }
 
-impl<S, V, DM, IDM, Extension> CompiledRuntimePhaseRunner<S, V, DM, IDM, Extension>
+impl<S, V, DM, IDM, H> CompiledRuntimePhaseRunner<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score + Copy + Ord + ParseableScore,
     V: Clone + PartialEq + Into<usize> + Send + Sync + Debug + 'static,
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
-    Extension: CustomSearchPhase<S>,
+    H: RuntimeSource<S, V, DM, IDM>,
+    RuntimeGraphInput<S, V, DM, IDM, H::Extensions>: Sync,
 {
     /// Instantiates extensions in frozen configuration order, lowers every
     /// frozen local-search node once, and creates the one solve-owned provider
     /// resource set. It does not bind a list source or invoke a provider.
-    pub(crate) fn try_new<Registry>(
-        executor: CompiledRuntimeExecutor<S, V, DM, IDM, Registry>,
-    ) -> RuntimeBuildResult<Self>
-    where
-        Registry: RuntimeExtensionRegistry<S, V, DM, IDM, Phase = Extension>,
-    {
+    pub(crate) fn try_new(
+        executor: CompiledRuntimeExecutor<S, V, DM, IDM, H>,
+    ) -> RuntimeBuildResult<Self> {
         let solver_config = executor.graph().config().clone();
         let mut mandatory_bindings = executor.graph().default_bindings().clone();
         let provider_resources = ProviderExecutionResources::new(
@@ -173,6 +178,7 @@ where
             })
             .collect::<RuntimeBuildResult<Vec<_>>>()?;
         Ok(Self {
+            source: graph.source,
             execution,
             prepared_phases,
             phases,
@@ -199,6 +205,7 @@ where
     {
         let phase_index = self.phases[index].phase_index();
         let (
+            source,
             execution,
             prepared_phases,
             phases,
@@ -206,6 +213,7 @@ where
             mandatory_bindings,
             mandatory_completion_published,
         ) = (
+            &self.source,
             &mut self.execution,
             &mut self.prepared_phases,
             &mut self.phases,
@@ -266,7 +274,12 @@ where
                 PreparedRuntimePhase::Extension(extension),
                 RunnerPhase::Extension { outcome, .. },
             ) => {
-                extension.solve(solver_scope);
+                match extension {
+                    RuntimeExtensionInstance::Custom(phase) => phase.solve(solver_scope),
+                    RuntimeExtensionInstance::Partitioned(instance) => {
+                        solve_partitioned_instance(instance, source.input(), solver_scope);
+                    }
+                }
                 *outcome = RunnerPhaseOutcome::Executed;
                 publish_if_mandatory_complete(
                     execution,
@@ -343,77 +356,14 @@ where
     }
 }
 
-impl<S, V, DM, IDM> RunnerPhase<S, V, DM, IDM>
+impl<S, V, DM, IDM, H> Debug for CompiledRuntimePhaseRunner<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
-{
-    fn phase_index(&self) -> usize {
-        match self {
-            Self::Construction { phase_index, .. }
-            | Self::LocalSearch { phase_index, .. }
-            | Self::Extension { phase_index, .. }
-            | Self::DefaultRuntime { phase_index, .. } => *phase_index,
-        }
-    }
-
-    fn candidate_trace_plan(&self) -> CandidateTracePhasePlan {
-        match self {
-            Self::Construction {
-                phase_index,
-                declaration,
-                outcome,
-            }
-            | Self::LocalSearch {
-                phase_index,
-                declaration,
-                outcome,
-                ..
-            }
-            | Self::Extension {
-                phase_index,
-                declaration,
-                outcome,
-            } => phase_with_outcome(*phase_index, outcome.trace_label(), declaration.clone()),
-            Self::DefaultRuntime {
-                phase_index,
-                local_search_declaration,
-                construction_execution,
-                outcome,
-                ..
-            } => {
-                let mut children = construction_execution
-                    .as_ref()
-                    .map(default_construction_plan)
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                if let Some(local_search) = local_search_declaration {
-                    children.push(local_search.clone());
-                }
-                CandidateTracePhasePlan::known(
-                    "solverforge.runtime.default_runtime",
-                    [
-                        ("outcome", outcome.trace_label().to_string()),
-                        ("phase_index", phase_index.to_string()),
-                    ],
-                    children,
-                )
-            }
-        }
-    }
-}
-
-impl<S, V, DM, IDM, Extension> Debug for CompiledRuntimePhaseRunner<S, V, DM, IDM, Extension>
-where
-    S: PlanningSolution + Clone + Send + Sync + 'static,
-    S::Score: Score,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
-    IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
-    Extension: Debug,
+    H: RuntimeSource<S, V, DM, IDM>,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -423,15 +373,16 @@ where
     }
 }
 
-impl<S, V, DM, IDM, Extension, D, ProgressCb> Phase<S, D, ProgressCb>
-    for CompiledRuntimePhaseRunner<S, V, DM, IDM, Extension>
+impl<S, V, DM, IDM, H, D, ProgressCb> Phase<S, D, ProgressCb>
+    for CompiledRuntimePhaseRunner<S, V, DM, IDM, H>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score + Copy + Ord + ParseableScore,
     V: Clone + PartialEq + Into<usize> + Send + Sync + Debug + 'static,
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
-    Extension: CustomSearchPhase<S>,
+    H: RuntimeSource<S, V, DM, IDM> + Send,
+    RuntimeGraphInput<S, V, DM, IDM, H::Extensions>: Sync,
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
@@ -460,10 +411,12 @@ where
         self.terminal_notified = true;
         solver_scope.close_problem_changes();
         for (prepared, runner_phase) in self.prepared_phases.iter_mut().zip(&mut self.phases) {
-            if let (PreparedRuntimePhase::Extension(extension), RunnerPhase::Extension { .. }) =
-                (prepared, runner_phase)
+            if let (
+                PreparedRuntimePhase::Extension(RuntimeExtensionInstance::Custom(phase)),
+                RunnerPhase::Extension { .. },
+            ) = (prepared, runner_phase)
             {
-                extension.on_solver_terminal(solver_scope);
+                phase.on_solver_terminal(solver_scope);
             }
         }
         solver_scope.finalize_candidate_trace_resolved_phase_plan(self.final_phase_plan());

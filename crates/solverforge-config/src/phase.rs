@@ -193,7 +193,8 @@ pub struct LocalSearchConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PartitionedSearchConfig {
-    /// Compile-time registered partitioner name.
+    /// Name of the partitioner the search declaration registered with
+    /// `SearchBuilder::partitioner`.
     pub partitioner: Option<String>,
 
     /// Threads solving the partitions: `auto` runs one per partition up to the
@@ -205,7 +206,8 @@ pub struct PartitionedSearchConfig {
     #[serde(default)]
     pub log_progress: bool,
 
-    /// Optional child phase list to run inside each partition.
+    /// The phases each partition is solved with, compiled like the solver's
+    /// `phases`; empty runs the default phases.
     #[serde(default)]
     pub child_phases: Vec<PhaseConfig>,
 

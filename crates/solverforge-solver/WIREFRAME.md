@@ -346,6 +346,9 @@ src/
 │   │   ├── list_clarke_wright/tests/metric_class.rs — Shared metric-class and owner-feasibility tests
 │   │   ├── list_clarke_wright/tests/owner_binding.rs — Owner-specific hook binding tests
 │   │   ├── list_k_opt.rs               — ListKOptPhase
+│   │   ├── list_k_opt/kernel.rs        — Route-local polishing loop and exact 2-opt
+│   │   ├── list_k_opt/general.rs       — Route-local k-opt for k from 3 to 5
+│   │   ├── list_k_opt/facade.rs        — Function-pointer test adapter
 │   ├── mod_tests_integration.rs        — Integration test module declarations
 │   ├── mod_tests_integration/common.rs — Shared no-op phase fixture
 │   ├── mod_tests_integration/gates.rs  — Shared retained-job gates and blockers

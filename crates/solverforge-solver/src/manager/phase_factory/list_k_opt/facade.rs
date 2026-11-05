@@ -9,16 +9,18 @@ use std::marker::PhantomData;
 
 /// Per-route k-opt polishing phase for list variable problems.
 ///
-/// Runs 2-opt local search on each entity's route to local optimum after
+/// Runs k-opt local search on each entity's route to local optimum after
 /// construction. All domain knowledge is supplied via function pointers.
 ///
-/// # Algorithm (k=2, 2-opt)
+/// # Algorithm
 ///
 /// For each entity:
 /// 1. Read the current route as a sequence of element indices.
-/// 2. Try every segment reversal `[i..=j]`.
-/// 3. Accept if distance improves AND `feasible_fn` passes (if provided).
-/// 4. Repeat until no improving reversal exists.
+/// 2. k = 2: try every segment reversal `[i..=j]`. k from 3 to 5: try every
+///    reconnection pattern of every set of k cuts.
+/// 3. Accept the first move that improves distance AND passes `feasible_fn`
+///    (if provided).
+/// 4. Repeat until no improving move exists.
 pub(crate) struct ListKOptPhase<S, E>
 where
     S: PlanningSolution,
@@ -54,7 +56,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `k` — k value; only k=2 (2-opt) is implemented; k>2 logs a warning and is a no-op
+    /// * `k` — cuts per move, from 2 to 5
     /// * `entity_count` — number of entities (routes) in the solution
     /// * `get_route` — returns the route for entity at given index as element indices
     /// * `set_route` — replaces the route for entity at given index

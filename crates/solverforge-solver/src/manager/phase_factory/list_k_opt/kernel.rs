@@ -1,4 +1,5 @@
-//! Canonical route-local 2-opt execution.
+//! Canonical route-local k-opt execution: exact 2-opt here, k from 3 to 5
+//! in [`super::general`].
 //!
 //! The public function-pointer facade and compiled `RuntimeListSlot` both
 //! implement [`ListKOptAccess`].  This module owns the only candidate order,
@@ -33,10 +34,9 @@ pub(crate) trait ListKOptAccess<S> {
 
 /// Runs the one canonical list K-opt kernel.
 ///
-/// The public phase keeps its historic `k` contract: only `k = 2` is
-/// implemented, and every other value is a scored no-op.  The caller supplies
-/// a fully resolved access object; source binding is deliberately absent
-/// because K-opt never consumes an assignment source stream.
+/// `k` is 2 to 5; callers validate it. The caller supplies a fully resolved
+/// access object; source binding is deliberately absent because K-opt never
+/// consumes an assignment source stream.
 pub(crate) fn run_list_k_opt<S, A, D, BestCb>(
     access: &A,
     k: usize,
@@ -64,15 +64,10 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
-    if k != 2 {
-        tracing::warn!(
-            k,
-            "ListKOptPhase: only k=2 is implemented; skipping k-opt polishing"
-        );
-        phase_scope.calculate_score();
-        phase_scope.update_best_solution();
-        return;
-    }
+    assert!(
+        (2..=5).contains(&k),
+        "list k-opt supports k from 2 to 5, got {k}"
+    );
 
     let n_entities = {
         let solution = phase_scope.score_director().working_solution();
@@ -114,93 +109,107 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
         let mut interrupted = false;
         let mut pending_move_telemetry = PendingConstructionMoveTelemetry::default();
 
-        // 2-opt: try all (i, j) segment reversals.
-        loop {
-            let mut improved = false;
-            for i in 0..n - 1 {
-                let a = if i == 0 { depot } else { route[i - 1] };
-                let b = route[i];
-                for j in i + 1..n {
-                    if control_policy.should_terminate_construction(phase_scope.solver_scope_mut())
-                    {
-                        interrupted = true;
+        if k > 2 {
+            (changed, interrupted) = super::general::polish_route(
+                access,
+                k,
+                control_policy,
+                phase_scope,
+                entity_idx,
+                depot,
+                &mut route,
+                &mut pending_move_telemetry,
+            );
+        } else {
+            // 2-opt: try all (i, j) segment reversals.
+            loop {
+                let mut improved = false;
+                for i in 0..n - 1 {
+                    let a = if i == 0 { depot } else { route[i - 1] };
+                    let b = route[i];
+                    for j in i + 1..n {
+                        if control_policy
+                            .should_terminate_construction(phase_scope.solver_scope_mut())
+                        {
+                            interrupted = true;
+                            break;
+                        }
+                        let c = route[j];
+                        let e = if j + 1 < n { route[j + 1] } else { depot };
+                        let trace_token = phase_scope.record_candidate_operation(
+                            CandidateTraceSource::ListKOptReconnection,
+                            None,
+                            j,
+                            Some(CandidateTraceConstructionTarget {
+                                descriptor_index,
+                                entity_index: entity_idx,
+                            }),
+                            descriptor_index,
+                            "list_k_opt_reconnection",
+                            [
+                                entity_idx as u64,
+                                i as u64,
+                                j as u64,
+                                a as u64,
+                                b as u64,
+                                c as u64,
+                                e as u64,
+                            ],
+                        );
+                        // Accept if reversing [i..=j] reduces distance.
+                        let solution = phase_scope.score_director().working_solution();
+                        let proposed_distance = sum_two(
+                            access.route_distance(solution, entity_idx, a, c),
+                            access.route_distance(solution, entity_idx, b, e),
+                        );
+                        let current_distance = sum_two(
+                            access.route_distance(solution, entity_idx, a, b),
+                            access.route_distance(solution, entity_idx, c, e),
+                        );
+                        if let Some(token) = trace_token {
+                            phase_scope.record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::Evaluated,
+                            );
+                        }
+                        record_construction_candidate(
+                            phase_scope,
+                            std::time::Duration::ZERO,
+                            std::time::Duration::ZERO,
+                        );
+                        if proposed_distance < current_distance {
+                            route[i..=j].reverse();
+                            if !access.route_feasible(
+                                phase_scope.score_director().working_solution(),
+                                entity_idx,
+                                &route,
+                            ) {
+                                route[i..=j].reverse();
+                                if let Some(token) = trace_token {
+                                    phase_scope.record_candidate_trace_disposition(
+                                        token,
+                                        CandidateTraceDisposition::ForagerIgnored,
+                                    );
+                                }
+                                continue;
+                            }
+                            pending_move_telemetry.record_accepted(phase_scope, trace_token);
+                            improved = true;
+                            changed = true;
+                        } else if let Some(token) = trace_token {
+                            phase_scope.record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::ForagerIgnored,
+                            );
+                        }
+                    }
+                    if interrupted {
                         break;
                     }
-                    let c = route[j];
-                    let e = if j + 1 < n { route[j + 1] } else { depot };
-                    let trace_token = phase_scope.record_candidate_operation(
-                        CandidateTraceSource::ListKOptReconnection,
-                        None,
-                        j,
-                        Some(CandidateTraceConstructionTarget {
-                            descriptor_index,
-                            entity_index: entity_idx,
-                        }),
-                        descriptor_index,
-                        "list_k_opt_reconnection",
-                        [
-                            entity_idx as u64,
-                            i as u64,
-                            j as u64,
-                            a as u64,
-                            b as u64,
-                            c as u64,
-                            e as u64,
-                        ],
-                    );
-                    // Accept if reversing [i..=j] reduces distance.
-                    let solution = phase_scope.score_director().working_solution();
-                    let proposed_distance = sum_two(
-                        access.route_distance(solution, entity_idx, a, c),
-                        access.route_distance(solution, entity_idx, b, e),
-                    );
-                    let current_distance = sum_two(
-                        access.route_distance(solution, entity_idx, a, b),
-                        access.route_distance(solution, entity_idx, c, e),
-                    );
-                    if let Some(token) = trace_token {
-                        phase_scope.record_candidate_trace_disposition(
-                            token,
-                            CandidateTraceDisposition::Evaluated,
-                        );
-                    }
-                    record_construction_candidate(
-                        phase_scope,
-                        std::time::Duration::ZERO,
-                        std::time::Duration::ZERO,
-                    );
-                    if proposed_distance < current_distance {
-                        route[i..=j].reverse();
-                        if !access.route_feasible(
-                            phase_scope.score_director().working_solution(),
-                            entity_idx,
-                            &route,
-                        ) {
-                            route[i..=j].reverse();
-                            if let Some(token) = trace_token {
-                                phase_scope.record_candidate_trace_disposition(
-                                    token,
-                                    CandidateTraceDisposition::ForagerIgnored,
-                                );
-                            }
-                            continue;
-                        }
-                        pending_move_telemetry.record_accepted(phase_scope, trace_token);
-                        improved = true;
-                        changed = true;
-                    } else if let Some(token) = trace_token {
-                        phase_scope.record_candidate_trace_disposition(
-                            token,
-                            CandidateTraceDisposition::ForagerIgnored,
-                        );
-                    }
                 }
-                if interrupted {
+                if interrupted || !improved {
                     break;
                 }
-            }
-            if interrupted || !improved {
-                break;
             }
         }
 

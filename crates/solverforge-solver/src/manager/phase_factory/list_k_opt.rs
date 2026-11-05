@@ -1,6 +1,6 @@
 //! Per-route k-opt polishing phase for list-variable problems.
 //!
-//! Applies 2-opt local search to each entity's route independently,
+//! Applies k-opt local search (k from 2 to 5) to each entity's route independently,
 //! improving solution quality after construction without modifying the
 //! overall assignment structure.
 
@@ -12,6 +12,7 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 #[cfg(test)]
 mod facade;
+mod general;
 mod kernel;
 
 #[cfg(test)]
@@ -311,5 +312,41 @@ mod tests {
             solver_scope.terminal_reason(),
             crate::manager::SolverTerminalReason::TerminatedByConfig
         );
+    }
+
+    fn original_or_sorted(_: &Plan, _: usize, route: &[usize]) -> bool {
+        route == [1, 4, 5, 2, 3, 6] || route == [1, 2, 3, 4, 5, 6]
+    }
+
+    fn polish(k: usize) -> Vec<usize> {
+        let plan = Plan {
+            routes: vec![Route {
+                visits: vec![1, 4, 5, 2, 3, 6],
+            }],
+            score: None,
+        };
+        let mut solver_scope = SolverScope::new(director(plan));
+        let mut phase = ListKOptPhase::<Plan, usize>::new(
+            k,
+            entity_count,
+            get_route,
+            set_route,
+            depot,
+            line_distance,
+            Some(original_or_sorted),
+            0,
+        );
+        phase.solve(&mut solver_scope);
+        solver_scope.working_solution().routes[0].visits.clone()
+    }
+
+    #[test]
+    fn higher_k_moves_a_segment_that_no_reversal_reaches() {
+        // Sorting needs the segment [4, 5] moved behind [2, 3] unreversed:
+        // one 3-opt reconnection, and no single 2-opt reversal.
+        assert_eq!(polish(2), [1, 4, 5, 2, 3, 6]);
+        for k in 3..=5 {
+            assert_eq!(polish(k), [1, 2, 3, 4, 5, 6], "k = {k}");
+        }
     }
 }

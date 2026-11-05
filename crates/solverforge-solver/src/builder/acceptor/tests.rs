@@ -341,3 +341,94 @@ fn simulated_annealing_rejects_calibration_beside_level_temperatures() {
     let error = build_acceptor::<TestSolution>(&config).expect_err("exclusive keys");
     assert_eq!(error.field(), "calibration");
 }
+
+/// Whether `acceptor` takes a move from `last_step` to `candidate`.
+fn accepts<S: PlanningSolution>(
+    acceptor: &mut AnyAcceptor<S>,
+    last_step: S::Score,
+    candidate: S::Score,
+) -> bool
+where
+    S::Score: Score,
+{
+    Acceptor::<S>::is_accepted(acceptor, &last_step, &candidate, None)
+}
+
+#[test]
+fn step_counting_hill_climbing_accepts_worse_moves_for_step_count_limit_steps() {
+    let config = AcceptorConfig::StepCountingHillClimbing(StepCountingHillClimbingConfig {
+        step_count_limit: Some(3),
+    });
+    let mut acceptor: AnyAcceptor<TestSolution> = build_acceptor(&config).unwrap();
+    let zero = SoftScore::of(0);
+    Acceptor::<TestSolution>::phase_started(&mut acceptor, &zero);
+    for _ in 0..2 {
+        Acceptor::<TestSolution>::step_ended(&mut acceptor, &zero, None);
+    }
+    assert!(accepts(&mut acceptor, zero, SoftScore::of(-1)));
+
+    Acceptor::<TestSolution>::step_ended(&mut acceptor, &zero, None);
+    assert!(!accepts(&mut acceptor, zero, SoftScore::of(-1)));
+    assert!(accepts(&mut acceptor, zero, SoftScore::of(1)));
+}
+
+#[test]
+fn great_deluge_raises_the_water_level_by_the_configured_ratio() {
+    // From -100 at a ratio of 0.5, one step raises the water level to -50.
+    let config = AcceptorConfig::GreatDeluge(GreatDelugeConfig {
+        water_level_increase_ratio: Some(0.5),
+    });
+    let mut acceptor: AnyAcceptor<TestSolution> = build_acceptor(&config).unwrap();
+    Acceptor::<TestSolution>::phase_started(&mut acceptor, &SoftScore::of(-100));
+    Acceptor::<TestSolution>::step_ended(&mut acceptor, &SoftScore::of(-40), None);
+
+    assert!(accepts(
+        &mut acceptor,
+        SoftScore::of(-40),
+        SoftScore::of(-50)
+    ));
+    assert!(!accepts(
+        &mut acceptor,
+        SoftScore::of(-40),
+        SoftScore::of(-51)
+    ));
+}
+
+#[test]
+fn simulated_annealing_hard_regression_policy_decides_hard_regressions() {
+    // At these temperatures a one-point regression is accepted with
+    // probability exp(-1e-12).
+    let hot = |policy| {
+        AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+            level_temperatures: Some(vec![1.0e12, 1.0e12]),
+            hard_regression_policy: policy,
+            ..Default::default()
+        })
+    };
+    let regresses = |config: &AcceptorConfig| {
+        let mut acceptor: AnyAcceptor<HardSoftTestSolution> =
+            CompiledAcceptor::<HardSoftTestSolution>::compile(config)
+                .unwrap()
+                .build(Some(7));
+        let zero = HardSoftScore::of(0, 0);
+        Acceptor::<HardSoftTestSolution>::phase_started(&mut acceptor, &zero);
+        (
+            accepts(&mut acceptor, zero, HardSoftScore::of(-1, 0)),
+            accepts(&mut acceptor, zero, HardSoftScore::of(0, -1)),
+        )
+    };
+
+    assert_eq!(regresses(&hot(None)), (true, true));
+    assert_eq!(
+        regresses(&hot(Some(
+            HardRegressionPolicyConfig::TemperatureControlled
+        ))),
+        (true, true)
+    );
+    assert_eq!(
+        regresses(&hot(Some(
+            HardRegressionPolicyConfig::NeverAcceptHardRegression
+        ))),
+        (false, true)
+    );
+}

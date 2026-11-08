@@ -773,6 +773,8 @@ sizes partitioned search separately.
 | `Count(n >= 2)` | `min(n, rayon::current_num_threads(), 32)` evaluators: the main director plus that many minus one replicas; 32 is one full evaluation window |
 
 Every policy reaches the sequential trajectory; `auto` changes speed only.
+`rayon::current_num_threads()` is read when the local-search phase starts, on
+the pool it solves in; compiling the configuration starts no thread pool.
 `PartitionedSearchConfig::thread_count`: `auto` runs one thread per partition
 up to the available CPU cores and the partitioner's recommended partition count, `none` one thread, `{ count = n }` at most `n`.
 

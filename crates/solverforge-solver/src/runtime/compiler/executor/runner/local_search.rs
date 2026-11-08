@@ -6,7 +6,7 @@
 
 use std::fmt::Debug;
 
-use solverforge_config::ScoreTieBreak;
+use solverforge_config::{MoveThreadCount, ScoreTieBreak};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::Director;
@@ -15,8 +15,8 @@ use crate::builder::{AnyAcceptor, AnyForager, CompiledAcceptor, CompiledForager}
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::localsearch::vnd::solve_vnd_with_resources;
 use crate::phase::localsearch::{
-    solve_local_search_with_resources, AcceptedCountForager, BestScoreForager,
-    DiversifiedLateAcceptanceAcceptor, EvaluationPolicy, FirstLastStepScoreImprovingForager,
+    resolve_evaluation_policy, solve_local_search_with_resources, AcceptedCountForager,
+    BestScoreForager, DiversifiedLateAcceptanceAcceptor, FirstLastStepScoreImprovingForager,
     LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
 };
 use crate::runtime::compiler::{
@@ -46,7 +46,9 @@ where
         forager: Option<CompiledForager>,
         score_tie_break: ScoreTieBreak,
         random_seed: Option<u64>,
-        evaluation_policy: EvaluationPolicy,
+        /// Resolved against the solve's thread pool when the phase runs, so
+        /// compiling a runner never starts a pool.
+        move_thread_count: MoveThreadCount,
     },
     VariableNeighborhoodDescent {
         phase_termination: Option<solverforge_config::TerminationConfig>,
@@ -80,7 +82,7 @@ where
                 forager,
                 score_tie_break,
                 random_seed,
-                evaluation_policy,
+                move_thread_count,
             } => {
                 let (mut acceptor, mut forager) = build_acceptor_and_forager::<S>(
                     *components,
@@ -89,6 +91,7 @@ where
                     *score_tie_break,
                     *random_seed,
                 );
+                let evaluation_policy = resolve_evaluation_policy(move_thread_count);
                 let mut source = selector.borrowed_source();
                 solver_scope.with_phase_termination(phase_termination.as_ref(), |solver_scope| {
                     solve_local_search_with_resources(
@@ -97,7 +100,7 @@ where
                         &mut acceptor,
                         &mut forager,
                         None,
-                        *evaluation_policy,
+                        evaluation_policy,
                         solver_scope,
                     );
                 });

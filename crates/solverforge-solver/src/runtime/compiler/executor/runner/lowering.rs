@@ -11,7 +11,6 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::phase::localsearch::resolve_evaluation_policy;
 use crate::runtime::compiler::{
     CompiledAcceptorForagerSelector, CompiledLocalSearch, CompiledRuntimeExtension,
     CompiledRuntimePhase, DefaultLocalSearchEligibility, DefaultRuntimeBindings,
@@ -88,9 +87,7 @@ where
                             forager: None,
                             score_tie_break: solverforge_config::ScoreTieBreak::Random,
                             random_seed: solver_config.resolved_random_seed(),
-                            evaluation_policy: resolve_evaluation_policy(
-                                &solver_config.move_thread_count,
-                            ),
+                            move_thread_count: solver_config.move_thread_count.clone(),
                         }),
                         Some(plan.candidate_trace_plan()),
                     )
@@ -177,7 +174,7 @@ where
                     forager,
                     score_tie_break: config.score_tie_break,
                     random_seed: solver_config.resolved_random_seed(),
-                    evaluation_policy: resolve_evaluation_policy(&solver_config.move_thread_count),
+                    move_thread_count: solver_config.move_thread_count.clone(),
                 },
                 declaration,
             ))

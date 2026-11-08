@@ -214,39 +214,73 @@ impl<S> ScalarVariableSlot<S> {
         entity_index: usize,
         value_candidate_limit: Option<usize>,
     ) -> Vec<usize> {
-        if let Some(provider) = self.candidate_values {
-            let values = provider(solution, entity_index, self.variable_index);
-            return match value_candidate_limit {
-                Some(limit) => values.iter().copied().take(limit).collect(),
-                None => values.to_vec(),
-            };
-        }
+        let mut values = Vec::new();
+        self.extend_candidate_values_for_entity(
+            solution,
+            entity_index,
+            value_candidate_limit,
+            &mut values,
+        );
+        values
+    }
 
+    /// Appends [`Self::candidate_values_for_entity`] to `values` in one bulk
+    /// copy, so a caller refilling its own buffer allocates at most once.
+    pub(crate) fn extend_candidate_values_for_entity(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value_candidate_limit: Option<usize>,
+        values: &mut Vec<usize>,
+    ) {
+        match self.candidate_values_of(solution, entity_index, value_candidate_limit) {
+            CandidateValues::Slice(slice) => values.extend_from_slice(slice),
+            CandidateValues::Range(range) => values.extend(range),
+        }
+    }
+
+    /// Visits [`Self::candidate_values_for_entity`] in order without
+    /// collecting them.
+    pub(crate) fn visit_candidate_values_for_entity(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value_candidate_limit: Option<usize>,
+        visit: &mut dyn FnMut(usize),
+    ) {
+        match self.candidate_values_of(solution, entity_index, value_candidate_limit) {
+            CandidateValues::Slice(slice) => slice.iter().for_each(|&value| visit(value)),
+            CandidateValues::Range(range) => range.for_each(visit),
+        }
+    }
+
+    fn candidate_values_of<'a>(
+        &self,
+        solution: &'a S,
+        entity_index: usize,
+        value_candidate_limit: Option<usize>,
+    ) -> CandidateValues<'a> {
+        let limit = value_candidate_limit.unwrap_or(usize::MAX);
+        let truncate = |values: &'a [usize]| &values[..limit.min(values.len())];
+        if let Some(provider) = self.candidate_values {
+            return CandidateValues::Slice(truncate(provider(
+                solution,
+                entity_index,
+                self.variable_index,
+            )));
+        }
         match self.value_source {
-            ValueSource::Empty => Vec::new(),
+            ValueSource::Empty => CandidateValues::Range(0..0),
             ValueSource::CountableRange { from, to } => {
-                let end = value_candidate_limit
-                    .map(|limit| from.saturating_add(limit).min(to))
-                    .unwrap_or(to);
-                (from..end).collect()
+                CandidateValues::Range(from..from.saturating_add(limit).min(to))
             }
             ValueSource::SolutionCount {
                 count_fn,
                 provider_index,
-            } => {
-                let count = count_fn(solution, provider_index);
-                let end = value_candidate_limit
-                    .map(|limit| limit.min(count))
-                    .unwrap_or(count);
-                (0..end).collect()
-            }
-            ValueSource::EntitySlice { values_for_entity } => {
-                let values = values_for_entity(solution, entity_index, self.variable_index);
-                match value_candidate_limit {
-                    Some(limit) => values.iter().copied().take(limit).collect(),
-                    None => values.to_vec(),
-                }
-            }
+            } => CandidateValues::Range(0..limit.min(count_fn(solution, provider_index))),
+            ValueSource::EntitySlice { values_for_entity } => CandidateValues::Slice(truncate(
+                values_for_entity(solution, entity_index, self.variable_index),
+            )),
         }
     }
 
@@ -400,4 +434,10 @@ impl<S> fmt::Debug for ScalarVariableSlot<S> {
             )
             .finish()
     }
+}
+
+/// The candidate values of one entity, already cut to the candidate limit.
+enum CandidateValues<'a> {
+    Slice(&'a [usize]),
+    Range(std::ops::Range<usize>),
 }

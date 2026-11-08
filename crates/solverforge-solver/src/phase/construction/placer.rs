@@ -159,6 +159,11 @@ where
         &mut self.candidates
     }
 
+    /// Ends the placement, handing back its candidate cursor.
+    pub(crate) fn into_candidates(self) -> C {
+        self.candidates
+    }
+
     pub(crate) fn take_move(&mut self, candidate_id: CandidateId) -> M {
         self.candidates.take_candidate(candidate_id)
     }
@@ -234,6 +239,13 @@ where
         D: Director<S>,
         IsCompleted: FnMut(&Placement<S, M, Self::CandidateCursor>) -> bool,
         ShouldStop: FnMut() -> bool;
+
+    /// Takes back a placement the phase has finished with, so a cursor that
+    /// reuses its candidate buffers across placements can reclaim them. A
+    /// cursor that keeps no buffers drops it.
+    fn recycle(&mut self, placement: Placement<S, M, Self::CandidateCursor>) {
+        drop(placement);
+    }
 }
 
 pub(crate) trait EntityPlacer<S, M>: Send + Debug

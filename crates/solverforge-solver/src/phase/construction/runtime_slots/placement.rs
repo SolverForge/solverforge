@@ -208,33 +208,24 @@ where
         indices
     }
 
+    /// Refills `values` with the entity's candidate values in placement
+    /// order. Ascending-key order sorts stably, so equal keys keep the order
+    /// the slot offered them in.
     fn ordered_values(
         &self,
         slot: &RuntimeScalarSlot<S>,
         solution: &S,
         entity_index: usize,
-    ) -> Vec<usize> {
-        let mut values = Vec::new();
-        slot.visit_candidate_values(
-            solution,
-            entity_index,
-            self.value_candidate_limit,
-            &mut |value| values.push(value),
-        );
+        values: &mut Vec<usize>,
+    ) {
+        values.clear();
+        slot.extend_candidate_values(solution, entity_index, self.value_candidate_limit, values);
         if self.value_order == ValueOrder::AscendingKey {
-            let mut indexed = values.into_iter().enumerate().collect::<Vec<_>>();
-            indexed.sort_by(|(left_order, left_value), (right_order, right_value)| {
-                let left_key = slot
-                    .construction_value_order_key(solution, entity_index, *left_value)
-                    .expect("validated runtime scalar queue construction must provide a value order key");
-                let right_key = slot
-                    .construction_value_order_key(solution, entity_index, *right_value)
-                    .expect("validated runtime scalar queue construction must provide a value order key");
-                left_key.cmp(&right_key).then(left_order.cmp(right_order))
+            values.sort_by_cached_key(|value| {
+                slot.construction_value_order_key(solution, entity_index, *value)
+                    .expect("validated runtime scalar queue construction must provide a value order key")
             });
-            return indexed.into_iter().map(|(_, value)| value).collect();
         }
-        values
     }
 }
 
@@ -243,7 +234,8 @@ where
     S: PlanningSolution,
 {
     store: CandidateStore<S, RuntimeScalarConstructionMove<S>>,
-    values: std::vec::IntoIter<usize>,
+    values: Vec<usize>,
+    next_value: usize,
     slot: RuntimeScalarSlot<S>,
     entity_index: usize,
 }
@@ -253,7 +245,8 @@ where
     S: PlanningSolution,
 {
     fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
-        let value = self.values.next()?;
+        let value = *self.values.get(self.next_value)?;
+        self.next_value += 1;
         Some(self.store.push(RuntimeScalarConstructionMove::new(
             self.slot.clone(),
             self.entity_index,
@@ -285,6 +278,10 @@ where
     next_slot_index: usize,
     active_slot_index: Option<usize>,
     entity_indices: std::vec::IntoIter<usize>,
+    /// The candidate store and value buffer of the last recycled placement,
+    /// reused by the next one so placements do not reallocate them.
+    spare_store: CandidateStore<S, RuntimeScalarConstructionMove<S>>,
+    spare_values: Vec<usize>,
 }
 
 impl<S> EntityPlacer<S, RuntimeScalarConstructionMove<S>> for RuntimeScalarConstructionPlacer<S>
@@ -303,6 +300,8 @@ where
             next_slot_index: 0,
             active_slot_index: None,
             entity_indices: Vec::new().into_iter(),
+            spare_store: CandidateStore::new(),
+            spare_values: Vec::new(),
         }
     }
 }
@@ -351,17 +350,21 @@ where
             if frozen.slot.current_value(solution, entity_index).is_some() {
                 continue;
             }
-            let values = self
-                .placer
-                .ordered_values(&frozen.slot, solution, entity_index);
-            if values.is_empty() {
+            self.placer.ordered_values(
+                &frozen.slot,
+                solution,
+                entity_index,
+                &mut self.spare_values,
+            );
+            if self.spare_values.is_empty() {
                 continue;
             }
             let placement = Placement::new(
                 EntityReference::new(frozen.slot.descriptor_index(), entity_index),
                 RuntimeScalarCandidateCursor {
-                    store: CandidateStore::with_capacity(values.len()),
-                    values: values.into_iter(),
+                    store: std::mem::take(&mut self.spare_store),
+                    values: std::mem::take(&mut self.spare_values),
+                    next_value: 0,
                     slot: frozen.slot.clone(),
                     entity_index,
                 },
@@ -374,7 +377,20 @@ where
             if !is_completed(&placement) {
                 return Some(placement);
             }
+            self.recycle(placement);
         }
         None
+    }
+
+    fn recycle(
+        &mut self,
+        placement: Placement<S, RuntimeScalarConstructionMove<S>, Self::CandidateCursor>,
+    ) {
+        let RuntimeScalarCandidateCursor {
+            mut store, values, ..
+        } = placement.into_candidates();
+        store.reset();
+        self.spare_store = store;
+        self.spare_values = values;
     }
 }

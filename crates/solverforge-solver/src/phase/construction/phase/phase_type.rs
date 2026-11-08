@@ -162,6 +162,7 @@ where
                 );
 
                 step_scope.complete();
+                placement_cursor.recycle(placement);
             }
 
             let previous_best_score = phase_scope.solver_scope().best_score().copied();

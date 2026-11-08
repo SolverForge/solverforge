@@ -229,6 +229,28 @@ impl<S> RuntimeScalarSlot<S> {
         }
     }
 
+    /// Appends the candidates [`Self::visit_candidate_values`] visits to
+    /// `values` in one bulk copy, so a caller refilling its own buffer
+    /// allocates at most once.
+    pub(crate) fn extend_candidate_values(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        limit: Option<usize>,
+        values: &mut Vec<usize>,
+    ) {
+        match self {
+            Self::Static(slot) => {
+                slot.extend_candidate_values_for_entity(solution, entity_index, limit, values);
+            }
+            Self::Dynamic(slot) => {
+                let candidates = slot.candidate_values(solution, entity_index);
+                let limit = limit.unwrap_or(usize::MAX).min(candidates.len());
+                values.extend_from_slice(&candidates[..limit]);
+            }
+        }
+    }
+
     /// Visits ordinary candidates in their declared source order.  `limit`
     /// limits source consumption, never a post-hoc result set, so lazy dynamic
     /// bindings and static value ranges share one ordering contract.
@@ -242,9 +264,7 @@ impl<S> RuntimeScalarSlot<S> {
         let limit = limit.unwrap_or(usize::MAX);
         match self {
             Self::Static(slot) => {
-                for value in slot.candidate_values_for_entity(solution, entity_index, Some(limit)) {
-                    visit(value);
-                }
+                slot.visit_candidate_values_for_entity(solution, entity_index, Some(limit), visit);
             }
             Self::Dynamic(slot) => {
                 for &value in slot

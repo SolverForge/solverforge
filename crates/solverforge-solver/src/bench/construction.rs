@@ -73,6 +73,12 @@ where
             .next_placement(score_director, |_| false, || false)
             .map(|placement| CompiledScalarPlacement { placement })
     }
+
+    /// Hands a finished placement back, as a construction phase does after
+    /// each step, so the next placement reuses its candidate buffers.
+    pub fn recycle(&mut self, placement: CompiledScalarPlacement<S>) {
+        self.cursor.recycle(placement.placement);
+    }
 }
 
 impl<S: PlanningSolution> Debug for CompiledScalarPlacementCursor<'_, S> {

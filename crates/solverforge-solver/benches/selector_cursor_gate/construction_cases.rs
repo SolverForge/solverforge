@@ -41,6 +41,7 @@ fn construction_full() {
             mix(&mut order_hash, value);
             assert!(placement.release_candidate(candidate_id));
         }
+        placements.recycle(placement);
     }
     emit("construction_full", 8_192, || {
         let mut count = 0;
@@ -57,6 +58,7 @@ fn construction_full() {
                     assert!(placement.release_candidate(candidate_id));
                     count += 1;
                 }
+                placements.recycle(placement);
             }
         }
         (count, order_hash, identity)

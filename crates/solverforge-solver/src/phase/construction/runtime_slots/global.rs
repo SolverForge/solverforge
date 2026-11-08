@@ -191,7 +191,7 @@ fn candidate_values<S>(
     limit: Option<usize>,
 ) -> Vec<usize> {
     let mut values = Vec::new();
-    slot.visit_candidate_values(solution, entity, limit, &mut |value| values.push(value));
+    slot.extend_candidate_values(solution, entity, limit, &mut values);
     values
 }
 

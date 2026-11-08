@@ -394,3 +394,25 @@ fn partitioned_termination_rejects_limits_on_the_merged_score() {
         ));
     }
 }
+
+#[test]
+fn a_runner_keeps_its_declaration_only_for_a_partitioned_phase() {
+    let runner = |phases: Vec<PhaseConfig>| {
+        let config = SolverConfig {
+            phases,
+            ..SolverConfig::default()
+        };
+        let declaration = context(config.resolved_random_seed())
+            .defaults()
+            .phase("repair", |_| MarkerExtension)
+            .partitioner("by_task", |_| MarkerPartitioner);
+        let (context, extensions) = declaration.into_runtime_parts();
+        let graph = compile_runtime_graph(&config, RuntimeGraphInput::new(context, extensions))
+            .expect("registered extensions compile");
+        super::executor::CompiledRuntimePhaseRunner::try_new(CompiledRuntimeExecutor::new(graph))
+            .expect("the runner prepares")
+    };
+
+    assert!(!runner(vec![custom("repair")]).keeps_declaration());
+    assert!(runner(vec![custom("repair"), partitioned(Some("by_task"))]).keeps_declaration());
+}

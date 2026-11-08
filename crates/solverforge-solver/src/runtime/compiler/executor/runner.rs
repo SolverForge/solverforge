@@ -54,9 +54,11 @@ where
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     H: RuntimeSource<S, V, DM, IDM>,
 {
-    /// The declaration the graph was compiled from: a partitioned phase
-    /// compiles each partition's runner from it.
-    source: H,
+    /// The declaration the graph was compiled from, kept only when a
+    /// partitioned phase compiles each partition's runner from it, so a
+    /// solve without one does not hold a second copy of the search context.
+    /// Boxed so the runner itself stays the size it is without one.
+    source: Option<Box<H>>,
     execution: PreparedRuntimeExecution<S, V, DM, IDM, SourceExtension<S, V, DM, IDM, H>>,
     prepared_phases: Vec<PreparedRuntimePhase<S, V, DM, IDM, SourceExtension<S, V, DM, IDM, H>>>,
     phases: Vec<RunnerPhase<S, V, DM, IDM>>,
@@ -139,6 +141,12 @@ where
     H: RuntimeSource<S, V, DM, IDM>,
     RuntimeGraphInput<S, V, DM, IDM, H::Extensions>: Sync,
 {
+    /// Whether the runner kept its declaration for a partitioned phase.
+    #[cfg(test)]
+    pub(crate) fn keeps_declaration(&self) -> bool {
+        self.source.is_some()
+    }
+
     /// Instantiates extensions in frozen configuration order, lowers every
     /// frozen local-search node once, and creates the one solve-owned provider
     /// resource set. It does not bind a list source or invoke a provider.
@@ -177,8 +185,14 @@ where
                 )
             })
             .collect::<RuntimeBuildResult<Vec<_>>>()?;
+        let partitioned = prepared_phases.iter().any(|phase| {
+            matches!(
+                phase,
+                PreparedRuntimePhase::Extension(RuntimeExtensionInstance::Partitioned(_))
+            )
+        });
         Ok(Self {
-            source: graph.source,
+            source: partitioned.then(|| Box::new(graph.source)),
             execution,
             prepared_phases,
             phases,
@@ -277,6 +291,9 @@ where
                 match extension {
                     RuntimeExtensionInstance::Custom(phase) => phase.solve(solver_scope),
                     RuntimeExtensionInstance::Partitioned(instance) => {
+                        let source = source
+                            .as_ref()
+                            .expect("a runner with a partitioned phase keeps its declaration");
                         solve_partitioned_instance(instance, source.input(), solver_scope);
                     }
                 }

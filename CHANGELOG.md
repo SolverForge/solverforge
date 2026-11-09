@@ -1,6 +1,85 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.25.0](https://github.com/SolverForge/solverforge/compare/v0.24.0...v0.25.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** SharedOperatorTerminal requires its operator to implement GroupedOperator, and changed_key_count now sums changed group keys instead of counting row-changing notifications.
+* **vnd:** VND phases now use `score_tie_break`, whose default is `random`, so a VND phase without `score_tie_break = "first"` may apply a different one of several equally scored best improving moves than before.
+* **move_thread_count:** `MoveThreadCount::Count` holds `NonZeroUsize` and `{ count = 0 }` is a configuration error. `ThreadCount::Specific` holds `NonZeroUsize`.
+* **solver:** `SearchBuilder::partitioned_phase` is removed. Register a `SolutionPartitioner` with `SearchBuilder::partitioner` instead; the framework builds and runs the phase from the `partitioned_search` configuration.
+* **partitioned:** `SolutionPartitioner::recommended_partition_count` returns `Option<NonZeroUsize>`, `FunctionalPartitioner::with_recommended_count` takes a `NonZeroUsize`, and `ThreadCount::resolve` takes the recommendation as a second argument.
+* **environment_mode:** `environment_mode = "fast_assert"` now panics on score drift at committed steps and best-solution updates.
+* **environment_mode:** `environment_mode = "full_assert"` now panics on drift in any score-director calculation, including move evaluations and evaluator replicas. `Director` gains the provided method `set_score_assertion`.
+* **environment_mode:** `environment_mode = "reproducible"`, `"fast_assert"` and `"full_assert"` without `random_seed` now solve with the fixed seed `REPRODUCIBLE_RANDOM_SEED` instead of an operating-system seed.
+* **construction:** `group_candidate_limit` without `group_name` is a configuration error.
+* **score_director:** `score_director.constraint_match_enabled` now defaults to `true`, and `false` disables `SolverManager::analyze_snapshot` for the job. `SolverRuntime::bind_snapshot_analysis` takes `Option<fn(&S) -> ScoreAnalysis<S::Score>>`, where `None` disables analysis. `SolverManagerError` gains the variant `SnapshotAnalysisDisabled`.
+* **score_director:** `score_director.constraint_provider` must name a `constraints` or `constraint_provider` path declared on the solution, or the solve fails. `try_run_dynamic_solver_with_config_parts` takes `&[DynamicConstraintProvider]` instead of one `constraints` function. `RuntimeBuildError` gains the variant `UnknownConstraintProvider`.
+* **termination:** `seconds_spent_limit = 0` or `minutes_spent_limit = 0` is now a zero time limit instead of no limit.
+* **acceptor:** `simulated_annealing` with both `calibration` and `level_temperatures` is a configuration error.
+* **acceptor:** `step_counting_hill_climbing.step_count_limit = 0` is a configuration error.
+* **scoring:** a Projection that emits more rows for one input than its MAX_EMITS now panics; raise MAX_EMITS to the real maximum.
+* **partitioned:** a `partitioned_search` phase whose `termination` sets `best_score_limit`, `unimproved_step_count_limit` or `unimproved_seconds_spent_limit` is a configuration error.
+* **construction:** a list construction heuristic with `value_candidate_limit`, `group_candidate_limit` or a non-default `construction_obligation` is a configuration error.
+* **acceptor:** a non-positive or non-finite `great_deluge.water_level_increase_ratio` is a configuration error.
+* **termination:** a solve with `best_score_limit`, `step_count_limit` or an unimproved limit but no `seconds_spent_limit`/`minutes_spent_limit` is no longer capped at 30 or 60 seconds. `try_run_solver_with_config_and_search`, `try_run_weighted_solver_with_config_and_search` and `try_run_dynamic_solver_with_config_parts` lose their `default_time_limit_secs` parameter. The `solverforge.execution_policy` trace drops `configured_entrypoint_default_time_limit_ns`, `effective_time_limit_ns` and `time_limit_source`.
+* **termination:** every configured solver-level termination criterion now applies, combined with OR; a solve with several criteria can stop earlier than before. The `solverforge.execution_policy` trace drops the `criterion` and `criterion_target` attributes and gains one attribute per criterion; `termination_composition` names every installed criterion.
+* **union:** the configuration error for fixed union weights changed from "must all be positive" to "need at least one positive weight"; a union with some zero weights now compiles and runs without those children.
+* **move_thread_count:** the default `move_thread_count = "auto"` may now evaluate local-search steps in parallel windows on up to four evaluators, which forks up to three working-solution replicas.
+
+### Features
+
+* **config:** apply a SolverConfigOverride with SolverConfig::with_override ([a73be45](https://github.com/SolverForge/solverforge/commit/a73be457c997c52577069f60132724156ca7d054))
+* **construction:** accept k from 2 to 5 for list_k_opt construction ([6ea7773](https://github.com/SolverForge/solverforge/commit/6ea7773d84d1543e391a2cdd3b22ed5e0a7ce197)), closes #179
+* **list_k_opt:** polish routes with k-opt for k from 3 to 5 ([161ceb1](https://github.com/SolverForge/solverforge/commit/161ceb1c2527dad65101fd9caf96bb2849c2cb88))
+* **manager:** run a retained job under a SolverConfigOverride ([958303a](https://github.com/SolverForge/solverforge/commit/958303a423ff0efbcc4edf898b0e9754aaeeb859)), closes #197
+* **move_thread_count:** implement the auto evaluation policy ([51e1bca](https://github.com/SolverForge/solverforge/commit/51e1bcaf69866cbfe837e235d832827747b2fdeb)), closes #173
+* **partitioned:** bound partitions by the phase termination ([6a9f27c](https://github.com/SolverForge/solverforge/commit/6a9f27c92a14d0d2ce877771ddc5ee6588c02d28)), closes #199
+* **score_director:** gate snapshot analysis on constraint_match_enabled ([5e33d37](https://github.com/SolverForge/solverforge/commit/5e33d374fc8545f92ae93e4fb549ae9a5e3900fe)), closes #170
+* **score_director:** select the constraint provider ([1353745](https://github.com/SolverForge/solverforge/commit/135374583cccdf69361f269df4890d3fb7228f95))
+* **scoring:** document ConstraintWeight and export it at the crate roots ([47b006f](https://github.com/SolverForge/solverforge/commit/47b006f03e7ed2c4afdde70f1812877d32fda7b1)), closes #214
+* **scoring:** fork a director over another solution ([5f14325](https://github.com/SolverForge/solverforge/commit/5f14325537909e4cab6a40760974cfd6a995c999))
+* **solver:** run partitioned_search in the framework ([11a4069](https://github.com/SolverForge/solverforge/commit/11a406913ce633e890051c0611372e2cb9ca7881))
+
+
+### Bug Fixes
+
+* **acceptor:** reject a great-deluge ratio that does not rise ([2031103](https://github.com/SolverForge/solverforge/commit/20311034e6ac7cdbdf5f89eafaf6375dd791442a))
+* **acceptor:** reject a zero step-counting step_count_limit ([0f1d83d](https://github.com/SolverForge/solverforge/commit/0f1d83d8864d936d12b70ca2a1ec5fe3557fee04))
+* **acceptor:** reject simulated-annealing calibration beside level_temperatures ([601f896](https://github.com/SolverForge/solverforge/commit/601f8968540d12014c3349ae5ff59815013c1c98)), closes #177
+* **construction:** reject scalar-only keys on list construction heuristics ([91362a4](https://github.com/SolverForge/solverforge/commit/91362a48ad713332537affa11fb0f66b2dc092a2))
+* **construction:** require group_name for group_candidate_limit ([62388fe](https://github.com/SolverForge/solverforge/commit/62388feae69eb9f01a32db6305efd6bdeda35463)), closes #193
+* **environment_mode:** check committed steps against a fresh score in fast_assert ([6c8e0ae](https://github.com/SolverForge/solverforge/commit/6c8e0ae4132010fc5dc9b21a1315afb54482fc6c))
+* **environment_mode:** check every score calculation in full_assert ([bd910d0](https://github.com/SolverForge/solverforge/commit/bd910d01523ff2d6988a55b6f478a28d2b3c38a4)), closes #172
+* **environment_mode:** seed every mode but non_reproducible with a fixed seed ([9f3f36d](https://github.com/SolverForge/solverforge/commit/9f3f36d47fece4c5b63acfb1333232ea8b0e3d0c))
+* **localsearch:** resolve move_thread_count when the phase solves ([4faa904](https://github.com/SolverForge/solverforge/commit/4faa904b191129129eecb21d598548666f31bce7)), closes #221
+* **move_thread_count:** reject zero thread counts ([6bc823b](https://github.com/SolverForge/solverforge/commit/6bc823ba18b3aeba71c7215e2310ea2cb17c2b7c))
+* **partitioned:** bound auto threads by the recommended partition count ([ea589bb](https://github.com/SolverForge/solverforge/commit/ea589bb0b9ac55a70a87fe9d225bf3a2b773f40b)), closes #201
+* **scoring:** count changed group keys in changed_key_count ([40e95ab](https://github.com/SolverForge/solverforge/commit/40e95abc68a74592d8e032aad9cd450a93db5359)), closes #210
+* **scoring:** panic when a projection emits more than MAX_EMITS ([b6cd9bf](https://github.com/SolverForge/solverforge/commit/b6cd9bf5ef1ab2d6f27c7445f162b7174e7f0891))
+* **scoring:** replace count_state's unsafe usize casts with downcasts ([f22f2bd](https://github.com/SolverForge/solverforge/commit/f22f2bd135380d0ce61f3e5cc03214b9a612f943))
+* **solver:** keep a runner's declaration only for partitioned search ([9f09b31](https://github.com/SolverForge/solverforge/commit/9f09b31973f35242283ec18ab81348bf3608fc9f)), closes #220
+* **termination:** add no hidden time limit ([fb8a0e0](https://github.com/SolverForge/solverforge/commit/fb8a0e0e91dbbcbd8f762468cefef3fa99acf462)), closes #174
+* **termination:** apply every configured solver termination criterion ([9a27c3b](https://github.com/SolverForge/solverforge/commit/9a27c3bcd87c59cbefc730a5d90a3cfd69ba426e))
+* **termination:** make time_limit literal and saturating ([df48d5a](https://github.com/SolverForge/solverforge/commit/df48d5a77c02e6a5d845d31f4bdb4eb662ba46f8))
+* **union:** a zero fixed union weight disables its child ([2ecd40c](https://github.com/SolverForge/solverforge/commit/2ecd40c1f6e0f0da1a2067f086743b0c157e654b)), closes #178
+* **vnd:** honour score_tie_break among equally scored best moves ([e28376f](https://github.com/SolverForge/solverforge/commit/e28376fa2d43591eccccb3f420b319b45cba2a1b)), closes #175
+
+
+### Performance Improvements
+
+* **construction:** reuse candidate buffers across placements ([721f5e6](https://github.com/SolverForge/solverforge/commit/721f5e63afda57c0abdb041171c984be74d9c1e9)), closes #222
+* **scoring:** size each projected row list by MAX_EMITS ([3602138](https://github.com/SolverForge/solverforge/commit/3602138242d1c54ddcc75712cdba5e51dad2eedb)), closes #208
+
+
+### Code Refactoring
+
+* **partitioned:** run a partition pass through one shared function ([0c470c0](https://github.com/SolverForge/solverforge/commit/0c470c019c88776482409f88b73ee19ba0b97d45))
+* **solver:** document ResourceMoveCursor and drop its unused method ([b2f02b5](https://github.com/SolverForge/solverforge/commit/b2f02b55c1ad6936d51b9ed952f2f9fc5ee5d16a)), closes #216
+
+
 ## [0.24.0](https://github.com/SolverForge/solverforge/compare/v0.23.0...v0.24.0) (2026-11-01)
 
 

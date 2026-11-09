@@ -23,6 +23,14 @@ BENCH_OWN_SOURCES=${BENCH_OWN_SOURCES:-0}
 # passwordless sudo; BENCH_ISOLATE=0 measures on a shared CPU and is recorded
 # as such in environment.json.
 BENCH_ISOLATE=${BENCH_ISOLATE:-1}
+# Cache and branch behaviour is graded on Cachegrind's simulation, not on the
+# hardware counters. The simulated L1 and last-level misses and branch
+# mispredictions depend only on the binary and its input, so they repeat to
+# within a count on this shared machine, while the same binary's hardware
+# cache-references move by several percent between runs (an identical-source
+# cartesian run measured +4.6%). Each side runs once per case under
+# `setarch -R` (no address randomisation), from the equal-length paths below.
+# The hardware counters stay in the report for diagnosis.
 # Each trial's hardware counters are the mean of PERF_REPEATS process runs.
 # cache-misses counts last-level misses, and the last-level cache is shared
 # with every other core, so one run's count spreads by 20-80% of its median
@@ -360,6 +368,20 @@ for case_name in "${CASES[@]}"; do
     done
 done
 
+command -v valgrind >/dev/null || {
+    echo "valgrind is required for the simulated cache and branch metrics" >&2
+    exit 2
+}
+for case_name in "${CASES[@]}"; do
+    case_iterations=$(measure_iterations_for_case "$case_name")
+    for side in baseline candidate; do
+        setarch -R valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes \
+            --cachegrind-out-file="$RESULTS/raw/${side}-${case_name}.cachegrind" \
+            "$(case_binary "$side" "$case_name")" "$case_name" "$case_iterations" \
+            >/dev/null 2>"$RESULTS/raw/${side}-${case_name}.cachegrind.log"
+    done
+done
+
 python3 - "$RESULTS" "$PERF_AVAILABLE" "$BENCH_TOLERANCE_PERCENT" "$BENCH_OWN_SOURCES" "${CASES[@]}" <<'PY' 
 import hashlib
 import json
@@ -408,6 +430,28 @@ def load_perf(side, case, trial):
         if event in perf_metrics:
             result[event] = float(columns[0].strip())
     return result
+
+# Hardware counters reported for diagnosis only; the simulated metrics below
+# grade cache and branch behaviour.
+reported_only = {"cycles", "branches", "branch-misses", "cache-references", "cache-misses"}
+
+def load_cachegrind(side, case):
+    path = root / "raw" / f"{side}-{case}.cachegrind"
+    events = summary = None
+    for line in path.read_text().splitlines():
+        if line.startswith("events:"):
+            events = line.split()[1:]
+        elif line.startswith("summary:"):
+            summary = [int(value) for value in line.split()[1:]]
+    if events is None or summary is None or len(events) != len(summary):
+        raise SystemExit(f"unreadable Cachegrind output for {side} {case}")
+    totals = dict(zip(events, summary))
+    return {
+        "sim_instructions": totals["Ir"],
+        "sim_l1_misses": totals["I1mr"] + totals["D1mr"] + totals["D1mw"],
+        "sim_ll_misses": totals["ILmr"] + totals["DLmr"] + totals["DLmw"],
+        "sim_branch_mispredicts": totals["Bcm"] + totals["Bim"],
+    }
 
 def bootstrap_upper(differences, seed):
     if not differences:
@@ -522,11 +566,28 @@ for case_index, case in enumerate(cases):
     else:
         metrics_for_case = metrics
 
+    simulated_baseline = load_cachegrind("baseline", case)
+    simulated_candidate = load_cachegrind("candidate", case)
+    for metric, before in simulated_baseline.items():
+        after = simulated_candidate[metric]
+        delta_percent = (after - before) * 100.0 / before if before else 0.0
+        passed = after <= before if before == 0 else delta_percent <= float(tolerance_percent)
+        failed |= not passed
+        case_report["metrics"][metric] = {
+            "baseline": before,
+            "candidate": after,
+            "delta_percent": delta_percent,
+            "criterion": f"simulated_budget_{float(tolerance_percent):g}_percent",
+            "passed": passed,
+        }
+
     # Deterministic counters must match exactly; any extra allocation,
-    # allocated byte, or live byte is a regression. Noisy wall-time and
-    # hardware-counter metrics are graded against the documented median
-    # regression budget (BENCH_TOLERANCE_PERCENT); the bootstrap upper bound
-    # stays in the report as a noise diagnostic, not an acceptance criterion.
+    # allocated byte, or live byte is a regression. Wall time and hardware
+    # instructions are graded against the documented median regression budget
+    # (BENCH_TOLERANCE_PERCENT); the remaining hardware counters are reported
+    # only, because the simulated metrics above grade cache and branch
+    # behaviour. The bootstrap upper bound stays in the report as a noise
+    # diagnostic, not an acceptance criterion.
     exact_metrics = {"allocations", "allocated_bytes", "peak_live_bytes"}
     budget = float(tolerance_percent)
     for metric_index, metric in enumerate(metrics_for_case):
@@ -541,7 +602,10 @@ for case_index, case in enumerate(cases):
             if baseline_median
             else 0.0
         )
-        if metric in exact_metrics or baseline_median == 0:
+        if metric in reported_only:
+            passed = True
+            criterion = "reported"
+        elif metric in exact_metrics or baseline_median == 0:
             passed = candidate_median <= baseline_median
             criterion = "exact"
         else:

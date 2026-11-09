@@ -82,7 +82,8 @@ deliberately, in its own commit, after the workspace passes on the new version.
    On a dedicated Linux host with `taskset`, `/usr/bin/time`, readable `/sys`
    CPU topology, CPU 10 available by default, passwordless `sudo` (the gate
    isolates the measured CPU and its siblings in a cgroup cpuset partition
-   while trials run), and optional unprivileged `perf` counters, run:
+   while trials run), `valgrind` (Cachegrind grades simulated cache and
+   branch behaviour), and optional unprivileged `perf` counters, run:
    `BENCH_CPU=10 WARMUPS=5 TRIALS=51 make bench-zero-regression`
    The gate cases drive the compiled runtime's own cursors through the hidden
    `solverforge_solver::__bench` handles (`CompiledRuntimeRunner` and the

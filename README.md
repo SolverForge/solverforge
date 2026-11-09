@@ -893,16 +893,20 @@ and the controlled paired benchmark gate below for regression decisions.
 `make pre-release` is portable across supported development hosts. Release
 qualification also requires the separate controlled-host
 `make bench-zero-regression` gate on Linux with `taskset`, `/usr/bin/time`,
-readable `/sys` CPU topology, the selected `BENCH_CPU` available (CPU 10 by
+`valgrind`, readable `/sys` CPU topology, the selected `BENCH_CPU` available (CPU 10 by
 default), and passwordless `sudo`, which the gate uses to give that CPU and its
 hyperthread siblings to the measurement alone through an isolated cgroup
 cpuset partition; `perf` counters are collected when permitted, each trial's
 counters averaged over `PERF_REPEATS` runs (45 by default). The gate builds an
 independently linked binary for each case, alternates paired trials, verifies
 full-enumeration candidate count and order separately from first-fit work,
-requires exact equality for the deterministic allocation counters, and grades
-noisy wall-time and hardware-counter medians against the documented
-`BENCH_TOLERANCE_PERCENT` median regression budget (5% by default). Both
+requires exact equality for the deterministic allocation counters, grades
+wall-time and hardware instruction medians against the documented
+`BENCH_TOLERANCE_PERCENT` median regression budget (5% by default), and grades
+cache and branch behaviour on Cachegrind's simulated instructions, L1 misses,
+last-level misses and branch mispredictions against the same budget. The
+simulation repeats to within a count on a shared machine; the hardware cache
+and branch counters stay in the report for diagnosis only. Both
 harness sides share one package name so identical sources produce identical
 symbol mangling and code layout, and the report records per-case `.text`
 SHA-256 fingerprints for both binaries. A host that cannot run the

@@ -74,6 +74,25 @@ if [[ $BENCH_OWN_SOURCES != 0 && $BENCH_OWN_SOURCES != 1 ]]; then
     exit 2
 fi
 
+# Both sides run from paths of equal length. The kernel copies the executable
+# path onto the new process's stack, so the path length shifts every stack
+# address and with it cache behaviour: one list_swap binary measured about
+# 260k cache-references from 88-character paths and about 295k from
+# 89-character ones, and the old baseline-<case>/candidate-<case> names put the
+# two sides on either side of that step.
+case_binary() {
+    local side=$1
+    local case_name=$2
+    case $side in
+        baseline) printf '%s\n' "$RESULTS/binaries/base/$case_name" ;;
+        candidate) printf '%s\n' "$RESULTS/binaries/cand/$case_name" ;;
+        *)
+            echo "unknown side: $side" >&2
+            exit 2
+            ;;
+    esac
+}
+
 measure_iterations_for_case() {
     local case_name=$1
     if [[ $case_name == cartesian ]]; then
@@ -226,7 +245,10 @@ build_case_binary() {
     SOLVERFORGE_BENCH_CASE="$case_name" CARGO_TARGET_DIR="$target" \
         cargo "+$TOOLCHAIN" build --manifest-path "$manifest" --release --locked \
         "${feature_args[@]}" >/dev/null
-    cp "$target/release/selector_cursor_gate" "$RESULTS/binaries/${side}-${case_name}"
+    local binary
+    binary=$(case_binary "$side" "$case_name")
+    mkdir -p "$(dirname "$binary")"
+    cp "$target/release/selector_cursor_gate" "$binary"
 }
 
 for case_name in "${CASES[@]}"; do
@@ -289,8 +311,8 @@ cat >"$RESULTS/environment.json" <<EOF
 EOF
 
 for case_name in "${CASES[@]}"; do
-    BASELINE_BIN="$RESULTS/binaries/baseline-${case_name}"
-    CANDIDATE_BIN="$RESULTS/binaries/candidate-${case_name}"
+    BASELINE_BIN=$(case_binary baseline "$case_name")
+    CANDIDATE_BIN=$(case_binary candidate "$case_name")
     case_iterations=$(measure_iterations_for_case "$case_name")
     for ((warmup = 0; warmup < WARMUPS; warmup++)); do
         taskset -c "$BENCH_CPU" "$BASELINE_BIN" "$case_name" "$case_iterations" >/dev/null
@@ -325,8 +347,8 @@ run_trial() {
 }
 
 for case_name in "${CASES[@]}"; do
-    BASELINE_BIN="$RESULTS/binaries/baseline-${case_name}"
-    CANDIDATE_BIN="$RESULTS/binaries/candidate-${case_name}"
+    BASELINE_BIN=$(case_binary baseline "$case_name")
+    CANDIDATE_BIN=$(case_binary candidate "$case_name")
     for ((trial = 0; trial < TRIALS; trial++)); do
         if ((trial % 2 == 0)); then
             run_trial baseline "$BASELINE_BIN" "$case_name" "$trial"
@@ -482,8 +504,8 @@ for case_index, case in enumerate(cases):
     case_report = {
         "semantic_match": semantic_match,
         "text_sha256": {
-            "baseline": text_sha256(root / "binaries" / f"baseline-{case}"),
-            "candidate": text_sha256(root / "binaries" / f"candidate-{case}"),
+            "baseline": text_sha256(root / "binaries" / "base" / case),
+            "candidate": text_sha256(root / "binaries" / "cand" / case),
         },
         "metrics": {},
     }

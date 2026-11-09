@@ -1,74 +1,78 @@
+//! Bounded nearest-destination selection shared by the nearby list cursors.
+
+use std::cmp::Ordering;
+
+/// One nearby destination: `(entity, position, distance)`.
 pub(crate) type NearbyCandidate = (usize, usize, f64);
 
-pub(crate) fn sort_and_limit_nearby_candidates(
-    candidates: &mut Vec<NearbyCandidate>,
-    max_nearby: usize,
-) {
-    use std::cmp::Ordering;
+/// The `limit` nearest destinations offered so far, in ascending distance.
+///
+/// Destinations at equal distance keep the order they were offered in, so the
+/// retained set is exactly what a stable sort by distance followed by a
+/// truncation to `limit` would keep. The buffer never grows past `limit` and
+/// keeps its capacity across [`Self::clear`], so a cursor reuses one buffer for
+/// every source position instead of collecting every reachable destination.
+#[derive(Debug)]
+pub(crate) struct BoundedNearbyCandidates {
+    retained: Vec<NearbyCandidate>,
+    limit: usize,
+}
 
-    if max_nearby == 0 {
-        candidates.clear();
-        return;
+impl BoundedNearbyCandidates {
+    /// Creates an empty buffer that retains at most `limit` destinations.
+    ///
+    /// Capacity grows on demand to the number of destinations actually
+    /// retained, so an unbounded `limit` reserves nothing up front.
+    pub(crate) fn new(limit: usize) -> Self {
+        Self {
+            retained: Vec::new(),
+            limit,
+        }
     }
 
-    let mut retained = 0;
-    for read in 0..candidates.len() {
-        let candidate = candidates[read];
-        let insertion = candidates[..retained].partition_point(|existing| {
+    /// Drops every retained destination while keeping the capacity.
+    pub(crate) fn clear(&mut self) {
+        self.retained.clear();
+    }
+
+    /// Offers one destination, keeping it only if it ranks among the nearest
+    /// `limit` destinations offered since the last [`Self::clear`].
+    #[inline]
+    pub(crate) fn offer(&mut self, candidate: NearbyCandidate) {
+        let insertion = self.retained.partition_point(|existing| {
             existing
                 .2
                 .partial_cmp(&candidate.2)
                 .unwrap_or(Ordering::Equal)
                 != Ordering::Greater
         });
-        if insertion >= max_nearby {
-            continue;
+        if insertion >= self.limit {
+            return;
         }
-
-        let next_retained = (retained + 1).min(max_nearby);
-        candidates.copy_within(insertion..next_retained - 1, insertion + 1);
-        candidates[insertion] = candidate;
-        retained = next_retained;
+        if self.retained.len() == self.limit {
+            self.retained.pop();
+        }
+        self.retained.insert(insertion, candidate);
     }
-    candidates.truncate(retained);
+
+    /// Number of retained destinations.
+    pub(crate) fn len(&self) -> usize {
+        self.retained.len()
+    }
+
+    /// Whether no destination is retained.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.retained.is_empty()
+    }
+
+    /// The `(entity, position)` of the retained destination at `index`.
+    #[inline]
+    pub(crate) fn destination(&self, index: usize) -> (usize, usize) {
+        let (entity, position, _) = self.retained[index];
+        (entity, position)
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use std::cmp::Ordering;
-
-    use super::{sort_and_limit_nearby_candidates, NearbyCandidate};
-
-    fn stable_sort_and_limit(
-        mut candidates: Vec<NearbyCandidate>,
-        max_nearby: usize,
-    ) -> Vec<NearbyCandidate> {
-        candidates.sort_by(|left, right| left.2.partial_cmp(&right.2).unwrap_or(Ordering::Equal));
-        candidates.truncate(max_nearby);
-        candidates
-    }
-
-    #[test]
-    fn bounded_order_matches_stable_full_sort() {
-        for len in 0_usize..96 {
-            let mut state = 0x9E37_79B9_u32 ^ len as u32;
-            let candidates = (0..len)
-                .map(|index| {
-                    state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-                    let distance = if index % 17 == 0 {
-                        -0.0
-                    } else {
-                        f64::from(state % 11)
-                    };
-                    (index / 7, index, distance)
-                })
-                .collect::<Vec<_>>();
-            for max_nearby in 0..=len + 2 {
-                let expected = stable_sort_and_limit(candidates.clone(), max_nearby);
-                let mut actual = candidates.clone();
-                sort_and_limit_nearby_candidates(&mut actual, max_nearby);
-                assert_eq!(actual, expected, "len={len}, max_nearby={max_nearby}");
-            }
-        }
-    }
-}
+#[path = "nearby_list_support_tests.rs"]
+mod tests;

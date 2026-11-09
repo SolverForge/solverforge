@@ -6,9 +6,7 @@ use crate::heuristic::selector::list_support::ordered_index;
 use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveStreamContext,
 };
-use crate::heuristic::selector::nearby_list_support::{
-    sort_and_limit_nearby_candidates, NearbyCandidate,
-};
+use crate::heuristic::selector::nearby_list_support::BoundedNearbyCandidates;
 use crate::heuristic::selector::precedence_route::PrecedenceRouteGraph;
 use crate::list_placement::OwnerRestriction;
 
@@ -34,11 +32,10 @@ where
     source_idx: usize,
     source_pos_offset: usize,
     current_source: (usize, usize),
-    destinations: Vec<(usize, usize)>,
+    destinations: BoundedNearbyCandidates,
     destination_offset: usize,
     fixed_to_current_entity: bool,
     precedence_route_graph: Option<PrecedenceRouteGraph>,
-    max_nearby: usize,
     descriptor_index: usize,
     source_salt: u64,
 }
@@ -73,11 +70,10 @@ where
             source_idx: 0,
             source_pos_offset: 0,
             current_source: (0, 0),
-            destinations: Vec::new(),
+            destinations: BoundedNearbyCandidates::new(max_nearby),
             destination_offset: 0,
             fixed_to_current_entity,
             precedence_route_graph: None,
-            max_nearby,
             descriptor_index,
             source_salt,
         }
@@ -102,7 +98,6 @@ where
     }
 
     fn load_next_source(&mut self, solution: &S) -> bool {
-        let mut candidates: Vec<NearbyCandidate> = Vec::new();
         while self.source_idx < self.entities.len() {
             let source_entity = self.entities[self.source_idx];
             let source_len = self.route_lens[self.source_idx];
@@ -129,7 +124,7 @@ where
                     continue;
                 }
 
-                candidates.clear();
+                self.destinations.clear();
                 for destination_position in source_position + 1..source_len {
                     let destination_restriction = self
                         .probe
@@ -163,7 +158,8 @@ where
                         destination_position,
                     );
                     if distance.is_finite() {
-                        candidates.push((source_entity, destination_position, distance));
+                        self.destinations
+                            .offer((source_entity, destination_position, distance));
                     }
                 }
 
@@ -206,7 +202,7 @@ where
                                 destination_position,
                             );
                             if distance.is_finite() {
-                                candidates.push((
+                                self.destinations.offer((
                                     destination_entity,
                                     destination_position,
                                     distance,
@@ -216,17 +212,10 @@ where
                     }
                 }
 
-                sort_and_limit_nearby_candidates(&mut candidates, self.max_nearby);
-                if candidates.is_empty() {
+                if self.destinations.is_empty() {
                     continue;
                 }
                 self.current_source = (source_entity, source_position);
-                self.destinations.clear();
-                self.destinations.extend(
-                    candidates
-                        .iter()
-                        .map(|&(entity, position, _)| (entity, position)),
-                );
                 self.destination_offset = 0;
                 return true;
             }
@@ -243,7 +232,8 @@ where
             return None;
         }
         let (source_entity, source_position) = self.current_source;
-        let (destination_entity, destination_position) = self.destinations[self.destination_offset];
+        let (destination_entity, destination_position) =
+            self.destinations.destination(self.destination_offset);
         self.destination_offset += 1;
         Some(self.emitter.emit_swap(
             source_entity,

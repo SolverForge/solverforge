@@ -1,6 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.25.1](https://github.com/SolverForge/solverforge/compare/v0.25.0...v0.25.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **bench:** run both zero-regression gate sides from equal-length paths ([f8d2d10](https://github.com/SolverForge/solverforge/commit/f8d2d103bed3b46734698070016de3387ae8aa9f)), closes #229
+
+
+### Performance Improvements
+
+* **list:** keep the nearest destinations in one bounded buffer per cursor ([f593fa8](https://github.com/SolverForge/solverforge/commit/f593fa875cf76cf1de7eb88df49436dd1bdd95bf)), closes #228
+
+
 ## [0.25.0](https://github.com/SolverForge/solverforge/compare/v0.24.0...v0.25.0) (2026-11-09)
 
 

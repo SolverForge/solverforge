@@ -18,17 +18,18 @@ commitUrlFormat = "https://github.com/SolverForge/solverforge/commit/{{hash}}"
 compareUrlFormat = "https://github.com/SolverForge/solverforge/compare/{{previousTag}}...{{currentTag}}"
 
 # Commit types and their changelog sections. Declaring the list replaces
-# csemver's default, which hides refactor: refactor commits get their own
-# section, and the remaining types keep the default hidden state. This must
-# stay above the first table header, or TOML scopes it into that table.
+# csemver's default, which hides refactor and perf: refactor and perf commits
+# get their own sections, and the remaining types keep the default hidden
+# state. This must stay above the first table header, or TOML scopes it into
+# that table.
 types = [
   { type = "feat", section = "Features" },
   { type = "fix", section = "Bug Fixes" },
+  { type = "perf", section = "Performance Improvements" },
   { type = "refactor", section = "Code Refactoring" },
   { type = "chore", hidden = true },
   { type = "docs", hidden = true },
   { type = "style", hidden = true },
-  { type = "perf", hidden = true },
   { type = "test", hidden = true },
 ]
 

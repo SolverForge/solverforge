@@ -1,3 +1,5 @@
+//! The compiled CVRP union selector lowers every node exactly once.
+
 use solverforge::{SolverEvent, SolverManager};
 
 #[path = "list_cvrp_k_opt_time_window/domain/mod.rs"]

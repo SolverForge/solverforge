@@ -4,25 +4,32 @@ use solverforge::stream::ConstraintFactory;
 
 use crate::{Task, Worker};
 
+/// Workers, tasks and per-constraint weights for the weighting tests.
 #[planning_solution(
     constraints = "constraints",
     solver_toml = "../fixtures/constraint_weights_solver.toml"
 )]
 pub struct Plan {
+    /// Workers tasks can be assigned to.
     #[problem_fact_collection]
     pub workers: Vec<Worker>,
 
+    /// Tasks the solver assigns.
     #[planning_entity_collection]
     pub tasks: Vec<Task>,
 
+    /// Weight multiplier per constraint name.
     #[constraint_weights]
     pub weights: ConstraintWeights,
 
+    /// The plan's score.
     #[planning_score]
     pub score: Option<HardSoftScore>,
 }
 
+/// Name of the constraint that rewards a task's preferred worker.
 pub const PREFERRED: &str = "Preferred worker";
+/// Name of the constraint that penalizes each worker's cost.
 pub const COST: &str = "Worker cost";
 
 fn constraints() -> impl ConstraintSet<Plan, HardSoftScore> {

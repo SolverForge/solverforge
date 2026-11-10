@@ -12,3 +12,11 @@ description = "Incremental constraint scoring for SolverForge"
 
 [dependencies]
 solverforge-core = { version = "=0.25.1", path = "../solverforge-core" }
+
+[lints.rust]
+unreachable_pub = "warn"
+missing_docs = "warn"
+unsafe_code = "forbid"
+
+[lints.clippy]
+type_complexity = "allow"

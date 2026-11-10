@@ -1,3 +1,6 @@
+//! The planning derive macros build the expected facts, entities, solutions and
+//! descriptors.
+
 // Integration tests for derive macros.
 
 use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};

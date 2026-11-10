@@ -24,3 +24,10 @@ rayon.workspace = true
 smallvec.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["sync"] }
+
+[lints.rust]
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+type_complexity = "allow"

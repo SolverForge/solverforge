@@ -1,3 +1,5 @@
+//! Stock CVRP k-opt moves reject reversals that break a time window.
+
 use solverforge::{SolverEvent, SolverManager};
 
 #[path = "list_cvrp_k_opt_time_window/domain/mod.rs"]

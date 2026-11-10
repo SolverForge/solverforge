@@ -1,6 +1,5 @@
 //! A one-variable scalar model the solver's integration tests compile:
 //! tasks assigned a worker from `0..4`. Each test binary uses part of it.
-#![allow(dead_code)]
 
 use std::any::TypeId;
 
@@ -15,14 +14,14 @@ use solverforge_solver::{
 };
 
 #[derive(Clone, Debug)]
-pub struct Task {
-    pub worker: Option<usize>,
+pub(crate) struct Task {
+    pub(crate) worker: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
-pub struct Plan {
-    pub tasks: Vec<Task>,
-    pub score: Option<SoftScore>,
+pub(crate) struct Plan {
+    pub(crate) tasks: Vec<Task>,
+    pub(crate) score: Option<SoftScore>,
 }
 
 impl PlanningSolution for Plan {
@@ -38,7 +37,7 @@ impl PlanningSolution for Plan {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct NoMeter;
+pub(crate) struct NoMeter;
 
 impl CrossEntityDistanceMeter<Plan> for NoMeter {
     fn distance(&self, _: &Plan, _: usize, _: usize, _: usize, _: usize) -> f64 {
@@ -76,7 +75,7 @@ fn descriptor() -> SolutionDescriptor {
 }
 
 /// The search context binding the model's one scalar slot.
-pub fn context() -> SearchContext<Plan, usize, NoMeter, NoMeter> {
+pub(crate) fn context() -> SearchContext<Plan, usize, NoMeter, NoMeter> {
     let slot = VariableSlot::Scalar(ScalarVariableSlot::new(
         0,
         0,
@@ -93,7 +92,7 @@ pub fn context() -> SearchContext<Plan, usize, NoMeter, NoMeter> {
 }
 
 /// `count` tasks, none assigned.
-pub fn unassigned(count: usize) -> Plan {
+pub(crate) fn unassigned(count: usize) -> Plan {
     Plan {
         tasks: (0..count).map(|_| Task { worker: None }).collect(),
         score: None,
@@ -101,6 +100,6 @@ pub fn unassigned(count: usize) -> Plan {
 }
 
 /// A director over `plan` scoring the task count.
-pub fn director(plan: Plan) -> solverforge_scoring::ScoreDirector<Plan, ()> {
+pub(crate) fn director(plan: Plan) -> solverforge_scoring::ScoreDirector<Plan, ()> {
     solverforge_scoring::ScoreDirector::simple(plan, descriptor(), |plan, _| plan.tasks.len())
 }

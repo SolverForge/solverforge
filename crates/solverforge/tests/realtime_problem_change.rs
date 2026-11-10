@@ -1,3 +1,6 @@
+//! Real-time problem changes: applied mid-solve, queued while paused, and
+//! rejected for finished or unknown jobs.
+
 use solverforge::{
     ClosureProblemChange, Director, ProblemChange, SolverEvent, SolverLifecycleState,
     SolverManager, SolverManagerError,

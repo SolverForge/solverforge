@@ -3,17 +3,21 @@ use solverforge::stream::ConstraintFactory;
 
 use crate::{Route, Visit};
 
+/// Routes and visits for the variable-order test.
 #[planning_solution(
     constraints = "constraints",
     solver_toml = "../fixtures/mixed_variable_order_runtime_solver.toml"
 )]
 pub struct Plan {
+    /// Routes the solver plans.
     #[planning_entity_collection]
     pub routes: Vec<Route>,
 
+    /// Visits the routes may take.
     #[problem_fact_collection]
     pub visits: Vec<Visit>,
 
+    /// The plan's score.
     #[planning_score]
     pub score: Option<HardSoftScore>,
 }

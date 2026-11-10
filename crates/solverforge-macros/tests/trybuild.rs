@@ -1,3 +1,5 @@
+//! Compile-pass and compile-fail cases for the SolverForge procedural macros.
+
 use std::path::Path;
 
 #[test]

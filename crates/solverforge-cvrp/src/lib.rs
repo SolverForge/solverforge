@@ -4,8 +4,6 @@
 //! the `VrpSolution` trait, and the stock helpers behind
 //! `#[planning_list_variable(domain = "cvrp")]`.
 
-#![warn(missing_docs)]
-
 mod helpers;
 mod meters;
 mod problem_data;

@@ -18,3 +18,6 @@ num-format = "0.4.4"
 
 [features]
 verbose-logging = []
+
+[lints.rust]
+missing_docs = "warn"

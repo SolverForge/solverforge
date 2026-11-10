@@ -1,3 +1,6 @@
+//! Clarke-Wright construction publishes its constructed list solution through
+//! `SolverManager`.
+
 use solverforge::{SolverEvent, SolverManager};
 
 #[path = "list_clarke_wright_publication/domain/mod.rs"]

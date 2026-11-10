@@ -1,3 +1,6 @@
+//! Grouping over self-joined streams: tri, quad and penta joins count
+//! combinations and retract them incrementally.
+
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_scoring::stream::collector::count;

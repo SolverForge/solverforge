@@ -1,3 +1,6 @@
+//! Parallel scalar local search keeps a fixed-work trajectory identical across
+//! thread counts.
+
 use solverforge::{
     CandidateTraceDisposition, SolverEvent, SolverManager, SolverTelemetry, SolverTerminalReason,
 };

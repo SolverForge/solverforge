@@ -35,3 +35,6 @@ rayon.workspace = true
 serde.workspace = true
 toml.workspace = true
 tracing.workspace = true
+
+[lints.rust]
+missing_docs = "warn"

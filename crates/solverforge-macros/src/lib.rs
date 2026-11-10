@@ -5,8 +5,6 @@
 //! `#[problem_fact]` and `#[solverforge_constraints]`; the generated code
 //! refers to `::solverforge` paths.
 
-#![warn(missing_docs)]
-
 use proc_macro::TokenStream;
 
 mod attr_parse;

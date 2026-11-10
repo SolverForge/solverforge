@@ -1,3 +1,6 @@
+//! Constraint weights: solving, validation and score analysis under
+//! `#[constraint_weights]`.
+
 // Facade-level runtime constraint weights on a macro-generated model.
 
 #[path = "constraint_weights/mod.rs"]

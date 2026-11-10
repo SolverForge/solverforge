@@ -1,3 +1,6 @@
+//! `planning_model!` attaches scalar hooks declared in a different module from
+//! the solution.
+
 #[path = "scalar_multi_module_runtime/mod.rs"]
 mod domain;
 

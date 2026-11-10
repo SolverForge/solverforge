@@ -15,10 +15,6 @@
 //! there is no `Box<dyn Trait>` on the scoring path.
 
 // Zero-erasure architecture intentionally uses complex generic types
-#![allow(clippy::type_complexity)]
-#![warn(unreachable_pub)]
-#![warn(missing_docs)]
-#![forbid(unsafe_code)]
 
 // Core modules
 pub mod api;

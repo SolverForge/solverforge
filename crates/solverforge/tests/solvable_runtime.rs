@@ -1,3 +1,6 @@
+//! Runtime facade types: candidate-trace configuration, provenance and events
+//! from a manual `Solvable`.
+
 use solverforge::__internal::PlanningSolution as PlanningSolutionTrait;
 use solverforge::{
     CandidateTraceConfig, CandidateTraceExternalDigest, QualifiedCandidateTraceRunProvenance,

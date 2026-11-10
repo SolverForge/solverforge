@@ -1,3 +1,5 @@
+//! A scalar-only solution runs construction in the retained runtime.
+
 use solverforge::{SolverEvent, SolverManager, SolverTerminalReason};
 
 #[path = "scalar_runtime_publication/domain/mod.rs"]

@@ -1,3 +1,5 @@
+//! One bound generated source can build several scalar targets.
+
 use solverforge::prelude::*;
 
 #[path = "scalar_target_source_reuse/domain/mod.rs"]

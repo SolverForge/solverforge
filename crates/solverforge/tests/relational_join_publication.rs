@@ -1,3 +1,5 @@
+//! Relational join chains compile through the facade and publish hard scores.
+
 /* Facade publication of the independent-key chained join.
 
 Exercises the shipped P3 fluent surface through `solverforge::` paths:

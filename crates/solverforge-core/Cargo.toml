@@ -20,3 +20,10 @@ serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 toml.workspace = true
+
+[lints.rust]
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+type_complexity = "allow"

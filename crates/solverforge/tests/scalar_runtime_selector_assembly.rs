@@ -1,3 +1,5 @@
+//! A scalar-only solution builds its default move selector.
+
 use solverforge::{SolverEvent, SolverLifecycleState, SolverManager};
 
 #[path = "scalar_runtime_selector_assembly/domain/mod.rs"]

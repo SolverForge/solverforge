@@ -1,3 +1,6 @@
+//! Facade projections, groups, anti-joins and flattening work over owned rows
+//! without cloning payloads.
+
 #![allow(clippy::type_complexity)] // Test closures spell full row-view types deliberately.
 
 use solverforge::stream::{

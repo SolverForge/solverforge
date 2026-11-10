@@ -41,8 +41,6 @@
 //! }
 //! ```
 
-#![warn(missing_docs)]
-
 mod acceptor;
 mod director;
 mod error;

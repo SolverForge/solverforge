@@ -1,3 +1,6 @@
+//! `#[planning_solution]` with and without `solver_toml`: the embedded
+//! configuration never depends on the working directory.
+
 use std::fs;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};

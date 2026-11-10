@@ -8,8 +8,6 @@
 //! - **DEBUG**: Progress updates (1/sec with speed and score)
 //! - **TRACE**: Individual step evaluations
 
-#![warn(missing_docs)]
-
 mod banner;
 mod format;
 mod init;

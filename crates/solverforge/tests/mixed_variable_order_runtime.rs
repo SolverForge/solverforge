@@ -1,3 +1,6 @@
+//! Generic construction orders a list variable before a scalar variable on the
+//! same entity.
+
 #[path = "mixed_variable_order_runtime/mod.rs"]
 mod domain;
 

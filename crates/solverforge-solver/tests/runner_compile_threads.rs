@@ -13,6 +13,9 @@ use solverforge_config::{
 };
 use solverforge_solver::__bench::CompiledRuntimeRunner;
 
+// Each test binary uses part of the shared model.
+#[allow(dead_code)]
+#[path = "support/scalar_model.rs"]
 mod support;
 
 fn thread_count() -> usize {

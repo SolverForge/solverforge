@@ -1,3 +1,5 @@
+//! A list-variable job routes an element added while it is solving.
+
 use std::time::{Duration, Instant};
 
 use solverforge::{Analyzable, ClosureProblemChange, SolverEvent, SolverManager};

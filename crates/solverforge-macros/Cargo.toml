@@ -21,3 +21,6 @@ proc-macro2.workspace = true
 [dev-dependencies]
 solverforge = { path = "../solverforge" }
 trybuild = "1.0.116"
+
+[lints.rust]
+missing_docs = "warn"

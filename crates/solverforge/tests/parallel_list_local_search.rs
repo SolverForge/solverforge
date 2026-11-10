@@ -1,3 +1,6 @@
+//! Parallel list local search keeps the trajectory and list shadows identical
+//! across thread counts.
+
 use solverforge::{
     AppliedMoveTelemetry, CandidateTraceDisposition, SolverEvent, SolverManager, SolverTelemetry,
     SolverTerminalReason,

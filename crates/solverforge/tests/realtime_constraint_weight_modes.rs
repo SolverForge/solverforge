@@ -1,3 +1,6 @@
+//! Mid-solve constraint-weight changes switch between weighted and unit scoring
+//! and rescore the job.
+
 // Mid-solve constraint weight changes across the director's weight modes.
 //
 // A job whose weights are all `1` scores on the unweighted director; a

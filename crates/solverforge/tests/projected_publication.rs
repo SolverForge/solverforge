@@ -1,138 +1,15 @@
+//! Projected and cross-joined streams are public through the facade and infer
+//! their output types.
+
 use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
 use solverforge::IncrementalConstraint;
 
-#[problem_fact]
-pub struct Capacity {
-    #[planning_id]
-    pub id: usize,
-    pub bucket: usize,
-    pub amount: i64,
-}
+#[path = "projected_publication/domain.rs"]
+mod domain;
 
-#[planning_entity]
-pub struct Assignment {
-    #[planning_id]
-    pub id: usize,
-    pub bucket: usize,
-    pub demand: i64,
-}
-
-pub struct CapacityEntry {
-    pub bucket: usize,
-    pub delta: i64,
-}
-
-pub struct AssignmentCapacity {
-    pub bucket: usize,
-    pub demand: i64,
-    pub capacity: i64,
-}
-
-pub struct GroupRow {
-    pub group: usize,
-    pub parent: Option<usize>,
-}
-
-#[planning_solution]
-pub struct Plan {
-    #[problem_fact_collection]
-    pub capacities: Vec<Capacity>,
-    #[planning_entity_collection]
-    pub assignments: Vec<Assignment>,
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
-
-impl solverforge::__internal::PlanningModelSupport for Plan {
-    fn attach_descriptor_hooks(_descriptor: &mut solverforge::__internal::SolutionDescriptor) {}
-
-    fn attach_runtime_scalar_hooks(
-        slot: solverforge::__internal::ScalarVariableSlot<Self>,
-    ) -> solverforge::__internal::ScalarVariableSlot<Self> {
-        slot
-    }
-
-    fn validate_model(_descriptor: &solverforge::__internal::SolutionDescriptor) {}
-
-    fn update_entity_shadows(
-        _solution: &mut Self,
-        _descriptor_index: usize,
-        _entity_index: usize,
-    ) -> bool {
-        false
-    }
-
-    fn update_all_shadows(_solution: &mut Self) -> bool {
-        false
-    }
-}
-
-struct AssignmentEntries;
-
-impl Projection<Assignment> for AssignmentEntries {
-    type Out = CapacityEntry;
-    const MAX_EMITS: usize = 1;
-
-    fn project<Sink>(&self, assignment: &Assignment, sink: &mut Sink)
-    where
-        Sink: ProjectionSink<Self::Out>,
-    {
-        sink.emit(CapacityEntry {
-            bucket: assignment.bucket,
-            delta: assignment.demand,
-        });
-    }
-}
-
-struct CapacityEntries;
-
-impl Projection<Capacity> for CapacityEntries {
-    type Out = CapacityEntry;
-    const MAX_EMITS: usize = 1;
-
-    fn project<Sink>(&self, capacity: &Capacity, sink: &mut Sink)
-    where
-        Sink: ProjectionSink<Self::Out>,
-    {
-        sink.emit(CapacityEntry {
-            bucket: capacity.bucket,
-            delta: -capacity.amount,
-        });
-    }
-}
-
-struct GroupRows;
-
-impl Projection<Assignment> for GroupRows {
-    type Out = GroupRow;
-    const MAX_EMITS: usize = 1;
-
-    fn project<Sink>(&self, assignment: &Assignment, sink: &mut Sink)
-    where
-        Sink: ProjectionSink<Self::Out>,
-    {
-        sink.emit(GroupRow {
-            group: assignment.bucket,
-            parent: (assignment.demand >= 0).then_some(assignment.demand as usize),
-        });
-    }
-}
-
-struct CustomCapacityExtract;
-
-impl solverforge::stream::CollectionExtract<Plan> for CustomCapacityExtract {
-    type Item = Capacity;
-
-    fn extract<'s>(&self, plan: &'s Plan) -> &'s [Capacity] {
-        plan.capacities.as_slice()
-    }
-
-    // Capacities are problem facts: no planning-variable change alters them.
-    fn change_source(&self) -> solverforge::stream::ChangeSource {
-        solverforge::stream::ChangeSource::Static
-    }
-}
+pub use domain::{Assignment, AssignmentCapacity, Capacity, CapacityEntry, GroupRow, Plan};
+use domain::{AssignmentEntries, CapacityEntries, CustomCapacityExtract, GroupRows};
 
 #[test]
 fn projected_stream_is_public_and_infers_output_type() {

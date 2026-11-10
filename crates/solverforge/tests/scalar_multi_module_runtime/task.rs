@@ -2,11 +2,14 @@ use solverforge::prelude::*;
 
 use super::Plan;
 
+/// A task whose worker variable uses hooks declared in this module.
 #[planning_entity]
 pub struct Task {
+    /// Stable task id.
     #[planning_id]
     pub id: usize,
 
+    /// Assigned worker, if any.
     #[planning_variable(
         value_range_provider = "workers",
         allows_unassigned = true,
@@ -34,4 +37,5 @@ pub(super) fn worker_priority(_plan: &Plan, task: &Task, worker: usize) -> i64 {
     task.id.abs_diff(worker) as i64
 }
 
+/// Alias the solution uses for its entity collection.
 pub type WorkTask = Task;

@@ -137,7 +137,7 @@ or `solverforge-solver` differs from `crates/<crate>/public-api.txt`. A change
 that adds, removes or changes a public item regenerates that snapshot with
 `python3 scripts/check-public-api.py --bless` in the same commit, so review
 sees the surface change. Inside those crates, `pub` means supported surface:
-`#![warn(unreachable_pub)]` is on, implementation modules are private, and
+`unreachable_pub = "warn"` is set in their Cargo `[lints]` tables, implementation modules are private, and
 `solverforge-solver` exports every supported item once, at its root.
 
 When a public API change also affects how users discover or reason about the
@@ -364,8 +364,10 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
   must leave them in place. Every crate in the workspace (`solverforge`,
   `solverforge-core`, `solverforge-config`, `solverforge-scoring`,
   `solverforge-solver`, `solverforge-console`, `solverforge-macros`,
-  `solverforge-bridge` and `solverforge-cvrp`) warns on `missing_docs`, so
-  every new public item needs a doc comment.
+  `solverforge-bridge` and `solverforge-cvrp`) warns on `missing_docs` through
+  its Cargo `[lints]` table, which also covers its integration tests, so
+  every new public item, test crate root and test fixture needs a doc
+  comment.
 - Move implementation code into dedicated files.
 - Keep Rust source and test files under 500 LOC. When a module grows beyond
   that boundary, split it by subsystem or behavior into adjacent implementation

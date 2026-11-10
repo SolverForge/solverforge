@@ -12,3 +12,6 @@ description = "CVRP domain helpers for SolverForge"
 
 [dependencies]
 solverforge-solver = { version = "=0.25.1", path = "../solverforge-solver" }
+
+[lints.rust]
+missing_docs = "warn"

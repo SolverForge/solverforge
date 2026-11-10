@@ -1,5 +1,5 @@
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SoftScore;
+use solverforge_core::score::{HardSoftScore, SoftScore};
 use std::any::Any;
 
 use super::*;
@@ -12,6 +12,23 @@ struct DummySolution {
 
 impl PlanningSolution for DummySolution {
     type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+#[derive(Clone, Debug)]
+struct HardSoftSolution {
+    score: Option<HardSoftScore>,
+}
+
+impl PlanningSolution for HardSoftSolution {
+    type Score = HardSoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -110,6 +127,41 @@ fn late_acceptance_uses_late_score_threshold() {
     assert!(acceptor.is_accepted(&SoftScore::of(-10), &SoftScore::of(-5), None));
     assert!(acceptor.is_accepted(&SoftScore::of(-10), &SoftScore::of(-10), None));
     assert!(!acceptor.is_accepted(&SoftScore::of(-10), &SoftScore::of(-15), None));
+}
+
+#[test]
+fn late_acceptance_keeps_history_after_lowest_level_improvement() {
+    let mut acceptor = LateAcceptanceAcceptor::<DummySolution>::new(5);
+    acceptor.phase_started(&SoftScore::of(-10));
+    acceptor.step_ended(&SoftScore::of(-8), None);
+
+    // The late entry is still the initial -10, so a move worse than the new
+    // best -8 but better than -10 is accepted. Re-anchoring on the best would
+    // reject it and leave nothing but hill climbing.
+    assert!(acceptor.is_accepted(&SoftScore::of(-8), &SoftScore::of(-9), None));
+    assert!(!acceptor.is_accepted(&SoftScore::of(-8), &SoftScore::of(-11), None));
+}
+
+#[test]
+fn late_acceptance_keeps_history_after_soft_only_improvement() {
+    let mut acceptor = LateAcceptanceAcceptor::<HardSoftSolution>::new(5);
+    acceptor.phase_started(&HardSoftScore::of(0, -10));
+    acceptor.step_ended(&HardSoftScore::of(0, -8), None);
+
+    assert!(acceptor.is_accepted(&HardSoftScore::of(0, -8), &HardSoftScore::of(0, -9), None));
+}
+
+#[test]
+fn late_acceptance_re_anchors_when_a_dominating_level_changes() {
+    let mut acceptor = LateAcceptanceAcceptor::<HardSoftSolution>::new(5);
+    acceptor.phase_started(&HardSoftScore::of(-1, -10));
+    acceptor.step_ended(&HardSoftScore::of(0, -20), None);
+
+    // Every late entry is now the feasible best: a move that keeps the hard
+    // level but worsens the soft level below it is no longer admitted by a
+    // stale infeasible entry.
+    assert!(!acceptor.is_accepted(&HardSoftScore::of(0, -20), &HardSoftScore::of(0, -25), None));
+    assert!(acceptor.is_accepted(&HardSoftScore::of(0, -20), &HardSoftScore::of(0, -20), None));
 }
 
 #[test]

@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::Score;
 
 use super::Acceptor;
 use crate::heuristic::r#move::MoveTabuSignature;
@@ -12,6 +13,17 @@ use crate::heuristic::r#move::MoveTabuSignature;
 /// Maintains a circular buffer of recent scores and accepts moves that
 /// are better than a score from N steps ago.
 ///
+/// The buffer is filled with the initial score when the phase starts and
+/// re-anchored to the best score only when a dominating level of that best
+/// score changes (the hard level of a hard/soft score; the hard and medium
+/// levels of a hard/medium/soft score), so that entries from before a
+/// feasibility change cannot admit moves that keep the new level but ruin
+/// the lower ones. A single-level score never re-anchors. Improvements in
+/// the lowest level alone leave the buffer as it is: re-anchoring on those
+/// would leave every entry equal to the best, after which only moves at
+/// least as good as the best could ever be accepted and the search would
+/// degrade into hill climbing.
+///
 pub(crate) struct LateAcceptanceAcceptor<S: PlanningSolution> {
     // Size of the late acceptance list.
     late_acceptance_size: usize,
@@ -19,8 +31,8 @@ pub(crate) struct LateAcceptanceAcceptor<S: PlanningSolution> {
     score_history: Vec<Option<S::Score>>,
     // Current index in the buffer.
     current_index: usize,
-    // Best score seen so far in this phase; the buffer resets to it whenever a
-    // new best is committed, re-anchoring the acceptance window.
+    // Best score seen so far in this phase; the buffer is re-anchored to it
+    // when one of its dominating levels changes.
     best_score: Option<S::Score>,
 }
 
@@ -110,12 +122,25 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
         self.score_history[self.current_index] = Some(*step_score);
         self.current_index = (self.current_index + 1) % self.late_acceptance_size;
 
-        // Re-anchor the whole window on a new best so the acceptance bar does
-        // not still quote pre-improvement scores.
-        let new_best = self.best_score.is_none_or(|best| step_score > &best);
-        if new_best {
+        // Re-anchor the window only when a dominating level of the best score
+        // changes; see the type documentation for why lowest-level
+        // improvements must leave the history alone.
+        let re_anchor = match self.best_score {
+            Some(best) if step_score > &best => dominating_level_changed(&best, step_score),
+            Some(_) => false,
+            None => true,
+        };
+        if self.best_score.is_none_or(|best| step_score > &best) {
             self.best_score = Some(*step_score);
+        }
+        if re_anchor {
             self.score_history.fill(Some(*step_score));
         }
     }
+}
+
+/// Whether any level above the lowest differs between two scores.
+fn dominating_level_changed<Sc: Score>(previous: &Sc, next: &Sc) -> bool {
+    (0..Sc::levels_count().saturating_sub(1))
+        .any(|level| previous.level_number(level) != next.level_number(level))
 }

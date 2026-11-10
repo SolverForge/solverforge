@@ -10,8 +10,8 @@ use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::{
-    requires_weighted_mode, ConstraintSet, Director, ReplicaDescriptor, ScoreDirector,
-    UnweightedMode, WeightMode, WeightedMode,
+    requires_weighted_mode, ConstraintSet, Director, ScoreDirector, UnweightedMode, WeightMode,
+    WeightedMode,
 };
 use tracing::info;
 
@@ -301,13 +301,10 @@ where
     W: WeightMode,
     Runner: for<'d> Phase<
             S,
-            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, UnweightedMode>,
+            ScoreDirector<S, C, &'d SolutionDescriptor, UnweightedMode>,
             ChannelProgressCallback<S>,
-        > + for<'d> Phase<
-            S,
-            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, W>,
-            ChannelProgressCallback<S>,
-        > + Send
+        > + for<'d> Phase<S, ScoreDirector<S, C, &'d SolutionDescriptor, W>, ChannelProgressCallback<S>>
+        + Send
         + std::fmt::Debug,
     BuildRunner: FnOnce(&SolverConfig, &SolutionDescriptor) -> RuntimeBuildResult<Runner>,
 {
@@ -343,7 +340,8 @@ where
             weight_modes::ModeSolve {
                 solution,
                 constraints: main_constraints,
-                descriptor: ReplicaDescriptor::new(&descriptor, constraints),
+                constraint_builder: constraints,
+                descriptor: &descriptor,
                 entity_count_by_descriptor,
                 runtime,
                 config: &config,

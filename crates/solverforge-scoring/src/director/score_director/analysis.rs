@@ -18,7 +18,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
     M: WeightMode,
 {
     /// Evaluates every constraint of the working solution under the director's weight mode.

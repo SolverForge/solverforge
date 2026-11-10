@@ -4,7 +4,7 @@ use std::any::TypeId;
 
 use super::support::*;
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::director::score_director::{requires_weighted_mode, ReplicaDescriptor, UnweightedMode};
+use crate::director::score_director::{requires_weighted_mode, UnweightedMode};
 use solverforge_core::domain::SolutionDescriptor;
 
 fn unassigned() -> impl IncrementalConstraint<Plan, HardSoftScore> {
@@ -63,10 +63,11 @@ fn fork_replica_keeps_the_weighted_mode() {
     let descriptor = SolutionDescriptor::new("", TypeId::of::<()>());
     let build = (|_: &Plan| (unassigned(),)) as fn(&Plan) -> _;
     let solution = unassigned_weighted(5);
-    let director = ScoreDirector::with_descriptor_weighted(
+    let director = ScoreDirector::with_replicas_weighted(
         solution.clone(),
         build(&solution),
-        ReplicaDescriptor::new(&descriptor, build),
+        build,
+        &descriptor,
         |_, _| 0,
     );
 

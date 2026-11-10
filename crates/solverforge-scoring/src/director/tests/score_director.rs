@@ -2,7 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
-use crate::director::score_director::{ReplicaDescriptor, ScoreDirector};
+use crate::director::score_director::ScoreDirector;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::Director;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -344,10 +344,11 @@ fn reset_rebuilds_replica_constraints_from_the_rewritten_solution() {
         score: None,
     };
     let descriptor = test_descriptor();
-    let mut director = ScoreDirector::with_descriptor(
+    let mut director = ScoreDirector::with_replicas(
         solution.clone(),
         solution_weighted_constraints(&solution),
-        ReplicaDescriptor::new(&descriptor, solution_weighted_constraints),
+        solution_weighted_constraints,
+        &descriptor,
         |_, _| 0,
     );
     assert_eq!(director.calculate_score(), SoftScore::of(-2));
@@ -379,10 +380,11 @@ fn fork_replica_matches_score_and_stays_independent() {
         score: None,
     };
     let descriptor = test_descriptor();
-    let mut director = ScoreDirector::with_descriptor(
+    let mut director = ScoreDirector::with_replicas(
         solution.clone(),
         unassigned_constraints(&solution),
-        ReplicaDescriptor::new(&descriptor, unassigned_constraints),
+        unassigned_constraints,
+        &descriptor,
         |_, _| 0,
     );
     let main_score = director.calculate_score();
@@ -416,10 +418,11 @@ fn fork_for_solution_scores_its_own_solution_independently() {
         score: None,
     };
     let descriptor = test_descriptor();
-    let mut director = ScoreDirector::with_descriptor(
+    let mut director = ScoreDirector::with_replicas(
         solution.clone(),
         unassigned_constraints(&solution),
-        ReplicaDescriptor::new(&descriptor, unassigned_constraints),
+        unassigned_constraints,
+        &descriptor,
         |_, _| 0,
     );
     let main_score = director.calculate_score();
@@ -463,10 +466,11 @@ fn fork_of_uninitialized_director_initializes_the_replica() {
         score: None,
     };
     let descriptor = test_descriptor();
-    let director = ScoreDirector::with_descriptor(
+    let director = ScoreDirector::with_replicas(
         solution.clone(),
         unassigned_constraints(&solution),
-        ReplicaDescriptor::new(&descriptor, unassigned_constraints),
+        unassigned_constraints,
+        &descriptor,
         |_, _| 0,
     );
     assert!(!director.is_initialized());

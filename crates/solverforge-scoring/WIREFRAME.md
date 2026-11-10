@@ -243,8 +243,8 @@ src/
 │   ├── traits.rs                                   — Director<S> trait
 │   ├── score_director.rs                           — Re-exports ScoreDirector pieces
 │   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc,M> (zero-erasure incremental)
-│   │   ├── score_director/constructors.rs          — ScoreDirector constructors, weighted constructors, into_weight_mode
-│   │   ├── score_director/descriptor.rs            — DirectorDescriptor, ReplicaDescriptor
+│   │   ├── score_director/constructors.rs          — ScoreDirector constructors, weighted constructors, replica-forking constructors, into_weight_mode
+│   │   ├── score_director/descriptor.rs            — DirectorDescriptor (owned or borrowed SolutionDescriptor)
 │   │   ├── score_director/list_shadows.rs          — Retract/insert of list-shadowed element rows around owner shadow updates
 │   │   ├── score_director/weight_mode.rs           — WeightMode (sealed), UnweightedMode, WeightedMode, requires_weighted_mode, static per-mode scoring dispatch
 │   │   ├── score_director/analysis.rs              — ScoreDirector constraint_results/constraint_analyses/constraint_match_totals
@@ -376,7 +376,7 @@ pub use api::constraint_set::{
 pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 
 // Score Directors
-pub use director::score_director::{DirectorDescriptor, ReplicaDescriptor, ScoreDirector};
+pub use director::score_director::{DirectorDescriptor, ScoreDirector};
 pub use director::{Director, DirectorScoreState, SolvableSolution};
 
 // Analysis
@@ -624,22 +624,20 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
-- `with_descriptor(solution, constraints, descriptor: Desc, entity_counter)` — `Desc` is an owned `SolutionDescriptor` or a `ReplicaDescriptor`; `new()`, `simple()` and `simple_zero()` build owned-descriptor directors.
-- `Director::fork_replica` forks only directors holding a `ReplicaDescriptor`, in the same weight mode: the replica clones the working solution, builds its constraint set from that clone with the recorded constructor, initializes it, and shares the same borrowed descriptor. Owned-descriptor directors return `None`.
-- `Director::fork_for_solution` forks the same way over a given solution instead of a clone of the working solution, and leaves the incremental state uninitialized so the first score calculation, on the thread that solves it, initializes it. Owned-descriptor directors return `None`.
-- `reset()` discards incremental state after an external rewrite of the working solution. Directors holding a `ReplicaDescriptor` rebuild their constraint set from the current working solution with the recorded constructor, so solution-derived constraint plans follow fact and entity changes; owned-descriptor directors reset their existing set.
+- `with_descriptor(solution, constraints, descriptor: Desc, entity_counter)` — `Desc` is an owned `SolutionDescriptor` or a borrowed `&SolutionDescriptor`; `new()`, `simple()` and `simple_zero()` build owned-descriptor directors.
+- `with_replicas(solution, constraints, constraint_builder: fn(&S) -> C, descriptor: &'d SolutionDescriptor, entity_counter)` (plus `with_replicas_weighted` and `with_replicas_in_mode`) — a director that records `constraint_builder` and borrows the descriptor, so it can fork replicas. The constructor is a field of the director rather than part of its descriptor type, so `C` appears once in the director's type and debug-info type names stay proportional to the constraint set.
+- `Director::fork_replica` forks only directors built with `with_replicas`, in the same weight mode: the replica clones the working solution, builds its constraint set from that clone with the recorded constructor, initializes it, and shares the same borrowed descriptor. Other directors return `None`.
+- `Director::fork_for_solution` forks the same way over a given solution instead of a clone of the working solution, and leaves the incremental state uninitialized so the first score calculation, on the thread that solves it, initializes it. Other directors return `None`.
+- `reset()` discards incremental state after an external rewrite of the working solution. Directors built with `with_replicas` rebuild their constraint set from the current working solution with the recorded constructor, so solution-derived constraint plans follow fact and entity changes; other directors reset their existing set.
 - Implements `Director<S>`
 
 **`WeightMode`** (sealed trait) — `const WEIGHTED: bool`; implemented only by `UnweightedMode` (zero-sized, no weight storage) and `WeightedMode` (bound per-slot multipliers).
 
 **`requires_weighted_mode<S: PlanningSolution>(solution: &S) -> bool`** — `S::HAS_CONSTRAINT_WEIGHTS` and some multiplier of `solution.constraint_weights()` differs from `1`.
 
-**`DirectorDescriptor<S, C>`** (trait) — how a `ScoreDirector` holds its descriptor.
+**`DirectorDescriptor`** (trait) — how a `ScoreDirector` holds its descriptor; implemented for an owned `SolutionDescriptor` and a borrowed `&SolutionDescriptor`.
 - `solution_descriptor(&self) -> &SolutionDescriptor`
-- `replica(&self) -> Option<(Self, fn(&S) -> C)>` — the handle and constraint-set constructor for an evaluator replica; `None` for an owned `SolutionDescriptor`.
-
-**`ReplicaDescriptor<'d, S, C>`** — `Copy`; a borrowed `&'d SolutionDescriptor` plus the constraint-set constructor `fn(&S) -> C`.
-- `new(descriptor: &'d SolutionDescriptor, constraints: fn(&S) -> C)`
+- `share(&self) -> Option<Self>` — the same descriptor for an evaluator replica: `Some` for a borrowed descriptor, `None` for an owned one.
 
 ### Constraint Types
 

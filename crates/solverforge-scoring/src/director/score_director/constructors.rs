@@ -37,7 +37,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
 {
     /// Creates a new zero-erasure unweighted score director with a solution
     /// descriptor; see `with_descriptor_in_mode`.
@@ -75,7 +75,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
 {
     /// Creates a weighted score director with a solution descriptor: the
     /// weighted counterpart of `with_descriptor`.
@@ -94,7 +94,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
     M: WeightMode,
 {
     /// Creates a new zero-erasure score director in weight mode `M` with a
@@ -108,7 +108,8 @@ where
     /// * `solution` - The initial solution
     /// * `constraints` - Tuple of monomorphized constraints (e.g., `(C1, C2, C3)`)
     /// * `solution_descriptor` - Metadata for solver infrastructure: an owned
-    ///   `SolutionDescriptor`, or a `ReplicaDescriptor` to fork evaluator replicas
+    ///   `SolutionDescriptor` or a borrowed one; `with_replicas_in_mode` builds
+    ///   a director that forks evaluator replicas
     /// * `entity_counter` - Function returning entity count for descriptor index
     pub fn with_descriptor_in_mode(
         solution: S,
@@ -127,6 +128,7 @@ where
             list_shadow_rows: ListShadowRows::default(),
             weight_mode,
             solution_descriptor,
+            constraint_builder: None,
             entity_counter,
             _phantom: PhantomData,
         }
@@ -148,9 +150,92 @@ where
             list_shadow_rows: self.list_shadow_rows,
             weight_mode,
             solution_descriptor: self.solution_descriptor,
+            constraint_builder: self.constraint_builder,
             entity_counter: self.entity_counter,
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<'d, S, C, M> ScoreDirector<S, C, &'d SolutionDescriptor, M>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    M: WeightMode,
+{
+    /// Creates a score director in weight mode `M` that forks evaluator
+    /// replicas: each replica shares `solution_descriptor` and gets a
+    /// constraint set built by `constraint_builder` from its own working
+    /// solution. `constraints` is the set for `solution`, normally
+    /// `constraint_builder(&solution)`. Reset rebuilds the set the same way,
+    /// because constraint sets may compile solution-derived plans that a plain
+    /// reset would keep stale.
+    pub fn with_replicas_in_mode(
+        solution: S,
+        constraints: C,
+        constraint_builder: fn(&S) -> C,
+        solution_descriptor: &'d SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
+    ) -> Self {
+        let mut director = Self::with_descriptor_in_mode(
+            solution,
+            constraints,
+            solution_descriptor,
+            entity_counter,
+        );
+        director.constraint_builder = Some(constraint_builder);
+        director
+    }
+}
+
+impl<'d, S, C> ScoreDirector<S, C, &'d SolutionDescriptor>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    /// Creates an unweighted score director that forks evaluator replicas;
+    /// see `with_replicas_in_mode`.
+    pub fn with_replicas(
+        solution: S,
+        constraints: C,
+        constraint_builder: fn(&S) -> C,
+        solution_descriptor: &'d SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
+    ) -> Self {
+        Self::with_replicas_in_mode(
+            solution,
+            constraints,
+            constraint_builder,
+            solution_descriptor,
+            entity_counter,
+        )
+    }
+}
+
+impl<'d, S, C> ScoreDirector<S, C, &'d SolutionDescriptor, WeightedMode>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    /// Creates a weighted score director that forks evaluator replicas; see
+    /// `with_replicas_in_mode`.
+    pub fn with_replicas_weighted(
+        solution: S,
+        constraints: C,
+        constraint_builder: fn(&S) -> C,
+        solution_descriptor: &'d SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
+    ) -> Self {
+        Self::with_replicas_in_mode(
+            solution,
+            constraints,
+            constraint_builder,
+            solution_descriptor,
+            entity_counter,
+        )
     }
 }
 

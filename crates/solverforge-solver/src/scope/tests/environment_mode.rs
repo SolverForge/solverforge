@@ -9,7 +9,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
 use solverforge_scoring::stream::collection_extract::{source, ChangeSource};
-use solverforge_scoring::{ConstraintSet, Director, ReplicaDescriptor, ScoreDirector};
+use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
 
 use crate::scope::SolverScope;
 
@@ -64,12 +64,8 @@ fn drifted_scope(
         score: None,
     };
     let constraints = unassigned_for(&solution);
-    let director = ScoreDirector::with_descriptor(
-        solution,
-        constraints,
-        ReplicaDescriptor::new(descriptor, unassigned_for),
-        |_, _| 0,
-    );
+    let director =
+        ScoreDirector::with_replicas(solution, constraints, unassigned_for, descriptor, |_, _| 0);
     let mut scope = SolverScope::new(director).with_environment_mode(mode);
     scope.start_solving();
     assert_eq!(scope.calculate_score(), SoftScore::of(-1));

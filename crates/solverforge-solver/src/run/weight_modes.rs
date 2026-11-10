@@ -14,7 +14,7 @@ use super::*;
 use crate::scope::WeightModeControl;
 use crate::solver::SolveSession;
 
-type ModeDirector<'d, S, C, M> = ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, M>;
+type ModeDirector<'d, S, C, M> = ScoreDirector<S, C, &'d SolutionDescriptor, M>;
 
 type ModeSession<'d, S, C, M, Runner> = SolveSession<
     'static,
@@ -83,7 +83,8 @@ enum Running<A, B> {
 pub(super) struct ModeSolve<'d, 'c, S: PlanningSolution, C> {
     pub(super) solution: S,
     pub(super) constraints: C,
-    pub(super) descriptor: ReplicaDescriptor<'d, S, C>,
+    pub(super) constraint_builder: fn(&S) -> C,
+    pub(super) descriptor: &'d SolutionDescriptor,
     pub(super) entity_count_by_descriptor: fn(&S, usize) -> usize,
     pub(super) runtime: SolverRuntime<S>,
     pub(super) config: &'c SolverConfig,
@@ -105,6 +106,7 @@ where
     let ModeSolve {
         solution,
         constraints,
+        constraint_builder,
         descriptor,
         entity_count_by_descriptor,
         runtime,
@@ -127,19 +129,19 @@ where
         control,
     };
     let mut running = if start_weighted {
-        Running::Weighted(
-            start.session::<C, W>(ScoreDirector::with_descriptor_in_mode(
-                solution,
-                constraints,
-                descriptor,
-                entity_count_by_descriptor,
-            )),
-        )
+        Running::Weighted(start.session::<C, W>(ScoreDirector::with_replicas_in_mode(
+            solution,
+            constraints,
+            constraint_builder,
+            descriptor,
+            entity_count_by_descriptor,
+        )))
     } else {
         Running::Unweighted(start.session::<C, UnweightedMode>(
-            ScoreDirector::with_descriptor_in_mode(
+            ScoreDirector::with_replicas_in_mode(
                 solution,
                 constraints,
+                constraint_builder,
                 descriptor,
                 entity_count_by_descriptor,
             ),

@@ -20,7 +20,7 @@ use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 /// - `S`: The solution type (must implement `PlanningSolution`)
 /// - `C`: The constraint set type (tuple of monomorphized constraints)
 /// - `Desc`: How the solution descriptor is held; an owned `SolutionDescriptor`
-///   by default, or a `ReplicaDescriptor` for directors that fork evaluator
+///   by default, or a borrowed `&SolutionDescriptor` for directors that fork evaluator
 ///   replicas
 /// - `M`: The runtime constraint weight mode, fixed for the director's lifetime:
 ///   `UnweightedMode` by default (coded weights, no weight storage), or
@@ -90,7 +90,7 @@ pub struct ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode>
 where
     S: PlanningSolution,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
     M: WeightMode,
 {
     pub(super) working_solution: S,
@@ -103,6 +103,9 @@ where
     /// The weight mode and, for `WeightedMode`, its bound multipliers.
     pub(super) weight_mode: M,
     pub(super) solution_descriptor: Desc,
+    /// Builds the constraint set for a solution: set by `with_replicas`, used
+    /// to fork evaluator replicas and to rebuild the set on reset.
+    pub(super) constraint_builder: Option<fn(&S) -> C>,
     /// Entity counter function.
     ///
     /// Returns the number of entities for the given descriptor index.
@@ -117,7 +120,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
     M: WeightMode,
 {
     /// Builds an initialized evaluator replica: a clone of the working
@@ -137,14 +140,16 @@ where
     /// score assertion. Its incremental state is uninitialized; the first
     /// score calculation initializes it, on whichever thread runs it.
     pub(crate) fn fork_for_solution_impl(&self, solution: S) -> Option<Self> {
-        let (descriptor, constraints) = self.solution_descriptor.replica()?;
-        let replica_constraints = constraints(&solution);
+        let descriptor = self.solution_descriptor.share()?;
+        let constraint_builder = self.constraint_builder?;
+        let replica_constraints = constraint_builder(&solution);
         let mut director = Self::with_descriptor_in_mode(
             solution,
             replica_constraints,
             descriptor,
             self.entity_counter,
         );
+        director.constraint_builder = Some(constraint_builder);
         director.score_assertion = self.score_assertion;
         Some(director)
     }
@@ -245,8 +250,10 @@ where
     /// because constraint sets may compile solution-derived plans that a plain
     /// reset would keep stale.
     pub(crate) fn reset_impl(&mut self) {
-        match self.solution_descriptor.replica() {
-            Some((_, constraints)) => self.constraints = constraints(&self.working_solution),
+        match self.constraint_builder {
+            Some(constraint_builder) => {
+                self.constraints = constraint_builder(&self.working_solution)
+            }
             None => self.constraints.reset_all(),
         }
         self.list_shadow_rows.clear();

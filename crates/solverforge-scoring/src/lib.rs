@@ -46,8 +46,8 @@ Score Directors
 */
 
 pub use director::score_director::{
-    requires_weighted_mode, DirectorDescriptor, ReplicaDescriptor, ScoreDirector, UnweightedMode,
-    WeightMode, WeightedMode,
+    requires_weighted_mode, DirectorDescriptor, ScoreDirector, UnweightedMode, WeightMode,
+    WeightedMode,
 };
 pub use director::{Director, DirectorScoreState, SolvableSolution};
 

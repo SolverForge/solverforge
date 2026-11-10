@@ -54,13 +54,11 @@ macro_rules! forkable_director {
     ($solution:expr, $descriptor:expr) => {{
         let solution: crate::test_utils::NQueensSolution = $solution;
         let constraints = super::support::queen_constraints(&solution);
-        solverforge_scoring::ScoreDirector::with_descriptor(
+        solverforge_scoring::ScoreDirector::with_replicas(
             solution,
             constraints,
-            solverforge_scoring::ReplicaDescriptor::new(
-                $descriptor,
-                super::support::queen_constraints,
-            ),
+            super::support::queen_constraints,
+            $descriptor,
             |s: &NQueensSolution, _| s.queens.len(),
         )
     }};

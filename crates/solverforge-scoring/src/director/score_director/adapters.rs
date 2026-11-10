@@ -12,7 +12,7 @@ where
     S: PlanningSolution + std::fmt::Debug,
     S::Score: std::fmt::Debug,
     C: ConstraintSet<S, S::Score>,
-    Desc: DirectorDescriptor<S, C>,
+    Desc: DirectorDescriptor,
     M: WeightMode,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,7 +23,7 @@ where
             .field("weighted", &M::WEIGHTED)
             .field(
                 "forks_replicas",
-                &self.solution_descriptor.replica().is_some(),
+                &(self.constraint_builder.is_some() && self.solution_descriptor.share().is_some()),
             )
             .finish()
     }
@@ -34,7 +34,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score> + Send,
-    Desc: DirectorDescriptor<S, C> + Send,
+    Desc: DirectorDescriptor + Send,
     M: WeightMode,
 {
     fn working_solution(&self) -> &S {

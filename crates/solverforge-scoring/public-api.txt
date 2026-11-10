@@ -65,9 +65,7 @@ struct constraint::relational::SharedOperatorTerminal: pub struct SharedOperator
     constraint::relational::SharedOperatorTerminal: pub fn update_count(&self) -> usize
     constraint::relational::SharedOperatorTerminal: pub fn changed_key_count(&self) -> usize
 struct director::DirectorScoreState: pub struct DirectorScoreState<Sc> { pub solution_score: Option<Sc>, pub committed_score: Option<Sc>, pub initialized: bool, }
-struct director::score_director::ReplicaDescriptor: pub struct ReplicaDescriptor<'d, S, C> { /* private fields */ }
-    director::score_director::ReplicaDescriptor: pub fn new(descriptor: &'d SolutionDescriptor, constraints: fn(&S) -> C) -> Self
-struct director::score_director::ScoreDirector: pub struct ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode> where S: PlanningSolution, C: ConstraintSet<S, S::Score>, Desc: DirectorDescriptor<S, C>, M: WeightMode,{ /* private fields */ }
+struct director::score_director::ScoreDirector: pub struct ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode> where S: PlanningSolution, C: ConstraintSet<S, S::Score>, Desc: DirectorDescriptor, M: WeightMode,{ /* private fields */ }
     director::score_director::ScoreDirector: pub fn constraint_results(&self) -> Vec<ConstraintResult<'_, S::Score>>
     director::score_director::ScoreDirector: pub fn constraint_analyses(&self) -> Vec<ConstraintAnalysis<'_, S::Score>>
     director::score_director::ScoreDirector: pub fn constraint_match_totals(&self) -> Vec<(String, u32, S::Score, usize)>
@@ -77,6 +75,9 @@ struct director::score_director::ScoreDirector: pub struct ScoreDirector<S, C, D
     director::score_director::ScoreDirector: pub fn with_descriptor_weighted( solution: S, constraints: C, solution_descriptor: Desc, entity_counter: fn(&S, usize) -> usize, ) -> Self
     director::score_director::ScoreDirector: pub fn with_descriptor_in_mode( solution: S, constraints: C, solution_descriptor: Desc, entity_counter: fn(&S, usize) -> usize, ) -> Self
     director::score_director::ScoreDirector: pub fn into_weight_mode<M2: WeightMode>(self) -> ScoreDirector<S, C, Desc, M2>
+    director::score_director::ScoreDirector: pub fn with_replicas_in_mode( solution: S, constraints: C, constraint_builder: fn(&S) -> C, solution_descriptor: &'d SolutionDescriptor, entity_counter: fn(&S, usize) -> usize, ) -> Self
+    director::score_director::ScoreDirector: pub fn with_replicas( solution: S, constraints: C, constraint_builder: fn(&S) -> C, solution_descriptor: &'d SolutionDescriptor, entity_counter: fn(&S, usize) -> usize, ) -> Self
+    director::score_director::ScoreDirector: pub fn with_replicas_weighted( solution: S, constraints: C, constraint_builder: fn(&S) -> C, solution_descriptor: &'d SolutionDescriptor, entity_counter: fn(&S, usize) -> usize, ) -> Self
     director::score_director::ScoreDirector: pub fn simple( solution: S, descriptor: SolutionDescriptor, entity_counter: fn(&S, usize) -> usize, ) -> Self
     director::score_director::ScoreDirector: pub fn simple_zero(solution: S) -> Self
     director::score_director::ScoreDirector: pub fn working_solution(&self) -> &S
@@ -522,9 +523,9 @@ trait director::Director: pub trait Director<S: PlanningSolution>: Send { Show 1
     director::Director: fn reset(&mut self)
     director::Director: fn fork_replica(&self) -> Option<Self> where Self: Sized,
     director::Director: fn fork_for_solution(&self, _solution: S) -> Option<Self> where Self: Sized,
-trait director::score_director::DirectorDescriptor: pub trait DirectorDescriptor<S, C> { // Required methods fn solution_descriptor(&self) -> &SolutionDescriptor; fn replica(&self) -> Option<(Self, fn(&S) -> C)> where Self: Sized; }
+trait director::score_director::DirectorDescriptor: pub trait DirectorDescriptor { // Required methods fn solution_descriptor(&self) -> &SolutionDescriptor; fn share(&self) -> Option<Self> where Self: Sized; }
     director::score_director::DirectorDescriptor: fn solution_descriptor(&self) -> &SolutionDescriptor
-    director::score_director::DirectorDescriptor: fn replica(&self) -> Option<(Self, fn(&S) -> C)> where Self: Sized,
+    director::score_director::DirectorDescriptor: fn share(&self) -> Option<Self> where Self: Sized,
 trait director::score_director::WeightMode: pub trait WeightMode: Mode + Send + Sync + Sized + 'static { const WEIGHTED: bool; }
     director::score_director::WeightMode: const WEIGHTED: bool
 trait director::shadow_aware::SolvableSolution: pub trait SolvableSolution: PlanningSolution { // Required methods fn descriptor() -> SolutionDescriptor; fn entity_count(solution: &Self, descriptor_index: usize) -> usize; }

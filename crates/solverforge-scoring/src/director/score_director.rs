@@ -11,6 +11,6 @@ mod incremental;
 mod list_shadows;
 mod weight_mode;
 
-pub use descriptor::{DirectorDescriptor, ReplicaDescriptor};
+pub use descriptor::DirectorDescriptor;
 pub use incremental::ScoreDirector;
 pub use weight_mode::{requires_weighted_mode, UnweightedMode, WeightMode, WeightedMode};

@@ -31,6 +31,24 @@ BENCH_ISOLATE=${BENCH_ISOLATE:-1}
 # cartesian run measured +4.6%). Each side runs once per case under
 # `setarch -R` (no address randomisation), from the equal-length paths below.
 # The hardware counters stay in the report for diagnosis.
+# The simulation repeats exactly for one binary, but it depends on where the
+# linker places each function, and that placement follows symbol hashes: any
+# change to a generic type name reorders functions whose bodies are untouched.
+# Each side is therefore built in SIM_LAYOUTS layouts that differ only in
+# `-C metadata`, and every simulated metric is taken as its median across
+# them; layout 0 is the binary the timed trials run. SIM_JOBS simulations run
+# at once, which does not change their counts.
+# Across layouts of one source, simulated instructions, data-L1 misses and
+# last-level misses hold within a fraction of a percent, so they are graded.
+# Simulated instruction-L1 misses and branch mispredictions are reported only:
+# the simulated caches and predictor index by address, so layouts of one
+# source (v0.25.1) moved instruction-L1 misses by up to 133% and indirect
+# mispredictions by up to 475%, and an edit inside one function turned 970
+# indirect mispredictions into 859k with equal instruction counts. Branch
+# behaviour is graded on the hardware branch-misses counter instead, whose
+# baseline interquartile range on the isolated CPU stays at 0.04-2.2%.
+SIM_LAYOUTS=${SIM_LAYOUTS:-5}
+SIM_JOBS=${SIM_JOBS:-8}
 # Each trial's hardware counters are the mean of PERF_REPEATS process runs.
 # cache-misses counts last-level misses, and the last-level cache is shared
 # with every other core, so one run's count spreads by 20-80% of its median
@@ -72,6 +90,10 @@ if [[ $BENCH_ISOLATE == 1 ]] && ! sudo -n true 2>/dev/null; then
     echo "BENCH_ISOLATE=1 needs passwordless sudo to isolate CPU ${BENCH_CPU}" >&2
     exit 2
 fi
+if ! [[ $SIM_LAYOUTS =~ ^[1-9][0-9]*$ && $SIM_JOBS =~ ^[1-9][0-9]*$ ]]; then
+    echo "SIM_LAYOUTS and SIM_JOBS must be positive integers" >&2
+    exit 2
+fi
 if [[ $BASELINE_CURSOR_API != 0 && $BASELINE_CURSOR_API != 1 ]]; then
     echo "BASELINE_CURSOR_API must be 0 or 1" >&2
     exit 2
@@ -91,9 +113,10 @@ fi
 case_binary() {
     local side=$1
     local case_name=$2
+    local layout=${3:-0}
     case $side in
-        baseline) printf '%s\n' "$RESULTS/binaries/base/$case_name" ;;
-        candidate) printf '%s\n' "$RESULTS/binaries/cand/$case_name" ;;
+        baseline) printf '%s\n' "$RESULTS/binaries/base/l$layout/$case_name" ;;
+        candidate) printf '%s\n' "$RESULTS/binaries/cand/l$layout/$case_name" ;;
         *)
             echo "unknown side: $side" >&2
             exit 2
@@ -239,8 +262,13 @@ done
 build_case_binary() {
     local side=$1
     local case_name=$2
+    local layout=$3
     local manifest="$RESULTS/harnesses/$side/Cargo.toml"
-    local target="$RESULTS/targets/$side"
+    local target="$RESULTS/targets/$side/l$layout"
+    local rustflags=${RUSTFLAGS:-}
+    if ((layout > 0)); then
+        rustflags="$rustflags -C metadata=sf-layout-$layout"
+    fi
     local feature_args=()
     if [[ $case_name == scoring_weights_* ]]; then
         # Both sides score with the same weights, so the case compares the
@@ -250,19 +278,53 @@ build_case_binary() {
     elif [[ $side == candidate || $BASELINE_CURSOR_API == 1 ]]; then
         feature_args=(--features candidate)
     fi
-    SOLVERFORGE_BENCH_CASE="$case_name" CARGO_TARGET_DIR="$target" \
+    SOLVERFORGE_BENCH_CASE="$case_name" CARGO_TARGET_DIR="$target" RUSTFLAGS="$rustflags" \
         cargo "+$TOOLCHAIN" build --manifest-path "$manifest" --release --locked \
         "${feature_args[@]}" >/dev/null
     local binary
-    binary=$(case_binary "$side" "$case_name")
+    binary=$(case_binary "$side" "$case_name" "$layout")
     mkdir -p "$(dirname "$binary")"
     cp "$target/release/selector_cursor_gate" "$binary"
 }
 
 for case_name in "${CASES[@]}"; do
-    build_case_binary baseline "$case_name"
-    build_case_binary candidate "$case_name"
+    for ((layout = 0; layout < SIM_LAYOUTS; layout++)); do
+        build_case_binary baseline "$case_name" "$layout"
+        build_case_binary candidate "$case_name" "$layout"
+    done
 done
+
+command -v valgrind >/dev/null || {
+    echo "valgrind is required for the simulated cache and branch metrics" >&2
+    exit 2
+}
+# Simulated counts do not depend on machine load, so the simulations run
+# before the timed trials, SIM_JOBS at a time, outside the isolated CPU.
+simulate() {
+    local side=$1
+    local case_name=$2
+    local layout=$3
+    local case_iterations
+    case_iterations=$(measure_iterations_for_case "$case_name")
+    setarch -R valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes \
+        --cachegrind-out-file="$RESULTS/raw/${side}-${case_name}-l${layout}.cachegrind" \
+        "$(case_binary "$side" "$case_name" "$layout")" "$case_name" "$case_iterations" \
+        >/dev/null 2>"$RESULTS/raw/${side}-${case_name}-l${layout}.cachegrind.log"
+}
+running=0
+for case_name in "${CASES[@]}"; do
+    for ((layout = 0; layout < SIM_LAYOUTS; layout++)); do
+        for side in baseline candidate; do
+            simulate "$side" "$case_name" "$layout" &
+            running=$((running + 1))
+            if ((running >= SIM_JOBS)); then
+                wait -n
+                running=$((running - 1))
+            fi
+        done
+    done
+done
+wait
 
 GOVERNOR=unknown
 if [[ -r "/sys/devices/system/cpu/cpu${BENCH_CPU}/cpufreq/scaling_governor" ]]; then
@@ -315,7 +377,7 @@ if [[ $BENCH_ISOLATE == 1 ]]; then
 fi
 
 cat >"$RESULTS/environment.json" <<EOF
-{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS,"construction_first_fit":$FIRST_FIT_MEASURE_ITERATIONS,"full_list":$FULL_LIST_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"isolated_cpus":"$ISOLATED_CPUS","perf_repeats":$PERF_REPEATS,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
+{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS,"construction_first_fit":$FIRST_FIT_MEASURE_ITERATIONS,"full_list":$FULL_LIST_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"isolated_cpus":"$ISOLATED_CPUS","perf_repeats":$PERF_REPEATS,"sim_layouts":$SIM_LAYOUTS,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
 EOF
 
 for case_name in "${CASES[@]}"; do
@@ -368,21 +430,7 @@ for case_name in "${CASES[@]}"; do
     done
 done
 
-command -v valgrind >/dev/null || {
-    echo "valgrind is required for the simulated cache and branch metrics" >&2
-    exit 2
-}
-for case_name in "${CASES[@]}"; do
-    case_iterations=$(measure_iterations_for_case "$case_name")
-    for side in baseline candidate; do
-        setarch -R valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes \
-            --cachegrind-out-file="$RESULTS/raw/${side}-${case_name}.cachegrind" \
-            "$(case_binary "$side" "$case_name")" "$case_name" "$case_iterations" \
-            >/dev/null 2>"$RESULTS/raw/${side}-${case_name}.cachegrind.log"
-    done
-done
-
-python3 - "$RESULTS" "$PERF_AVAILABLE" "$BENCH_TOLERANCE_PERCENT" "$BENCH_OWN_SOURCES" "${CASES[@]}" <<'PY' 
+python3 - "$RESULTS" "$PERF_AVAILABLE" "$BENCH_TOLERANCE_PERCENT" "$BENCH_OWN_SOURCES" "$SIM_LAYOUTS" "${CASES[@]}" <<'PY' 
 import hashlib
 import json
 import math
@@ -396,7 +444,8 @@ root = pathlib.Path(sys.argv[1])
 perf_available = sys.argv[2] == "1"
 tolerance_percent = sys.argv[3]
 own_sources = sys.argv[4] == "1"
-cases = sys.argv[5:]
+sim_layouts = int(sys.argv[5])
+cases = sys.argv[6:]
 metrics = ["wall_ns", "allocations", "allocated_bytes", "peak_live_bytes", "max_rss_kb"]
 perf_metrics = [
     "instructions",
@@ -431,12 +480,14 @@ def load_perf(side, case, trial):
             result[event] = float(columns[0].strip())
     return result
 
-# Hardware counters reported for diagnosis only; the simulated metrics below
-# grade cache and branch behaviour.
-reported_only = {"cycles", "branches", "branch-misses", "cache-references", "cache-misses"}
+# Hardware counters reported for diagnosis only. branch-misses is graded: the
+# simulated predictor depends on code addresses, the hardware one does not.
+reported_only = {"cycles", "branches", "cache-references", "cache-misses"}
+# Simulated metrics that move with code placement alone; reported only.
+simulated_reported_only = {"sim_i1_misses", "sim_branch_mispredicts"}
 
-def load_cachegrind(side, case):
-    path = root / "raw" / f"{side}-{case}.cachegrind"
+def load_cachegrind_layout(side, case, layout):
+    path = root / "raw" / f"{side}-{case}-l{layout}.cachegrind"
     events = summary = None
     for line in path.read_text().splitlines():
         if line.startswith("events:"):
@@ -448,9 +499,20 @@ def load_cachegrind(side, case):
     totals = dict(zip(events, summary))
     return {
         "sim_instructions": totals["Ir"],
-        "sim_l1_misses": totals["I1mr"] + totals["D1mr"] + totals["D1mw"],
+        "sim_d1_misses": totals["D1mr"] + totals["D1mw"],
         "sim_ll_misses": totals["ILmr"] + totals["DLmr"] + totals["DLmw"],
+        "sim_i1_misses": totals["I1mr"],
         "sim_branch_mispredicts": totals["Bcm"] + totals["Bim"],
+    }
+
+# Each simulated metric is graded on its median across the side's layouts
+# (builds that differ only in symbol hashes), so function placement luck does
+# not decide the verdict; every layout's count stays in the report.
+def load_cachegrind(side, case):
+    layouts = [load_cachegrind_layout(side, case, layout) for layout in range(sim_layouts)]
+    return {
+        metric: (statistics.median(values[metric] for values in layouts), [values[metric] for values in layouts])
+        for metric in layouts[0]
     }
 
 def bootstrap_upper(differences, seed):
@@ -548,8 +610,8 @@ for case_index, case in enumerate(cases):
     case_report = {
         "semantic_match": semantic_match,
         "text_sha256": {
-            "baseline": text_sha256(root / "binaries" / "base" / case),
-            "candidate": text_sha256(root / "binaries" / "cand" / case),
+            "baseline": text_sha256(root / "binaries" / "base" / "l0" / case),
+            "candidate": text_sha256(root / "binaries" / "cand" / "l0" / case),
         },
         "metrics": {},
     }
@@ -568,25 +630,32 @@ for case_index, case in enumerate(cases):
 
     simulated_baseline = load_cachegrind("baseline", case)
     simulated_candidate = load_cachegrind("candidate", case)
-    for metric, before in simulated_baseline.items():
-        after = simulated_candidate[metric]
+    for metric, (before, baseline_layouts) in simulated_baseline.items():
+        after, candidate_layouts = simulated_candidate[metric]
         delta_percent = (after - before) * 100.0 / before if before else 0.0
-        passed = after <= before if before == 0 else delta_percent <= float(tolerance_percent)
+        if metric in simulated_reported_only:
+            passed = True
+            criterion = "reported"
+        else:
+            passed = after <= before if before == 0 else delta_percent <= float(tolerance_percent)
+            criterion = f"simulated_layout_median_budget_{float(tolerance_percent):g}_percent"
         failed |= not passed
         case_report["metrics"][metric] = {
             "baseline": before,
             "candidate": after,
+            "baseline_layouts": baseline_layouts,
+            "candidate_layouts": candidate_layouts,
             "delta_percent": delta_percent,
-            "criterion": f"simulated_budget_{float(tolerance_percent):g}_percent",
+            "criterion": criterion,
             "passed": passed,
         }
 
     # Deterministic counters must match exactly; any extra allocation,
-    # allocated byte, or live byte is a regression. Wall time and hardware
-    # instructions are graded against the documented median regression budget
-    # (BENCH_TOLERANCE_PERCENT); the remaining hardware counters are reported
-    # only, because the simulated metrics above grade cache and branch
-    # behaviour. The bootstrap upper bound stays in the report as a noise
+    # allocated byte, or live byte is a regression. Wall time, hardware
+    # instructions and hardware branch-misses are graded against the documented
+    # median regression budget (BENCH_TOLERANCE_PERCENT); the remaining hardware
+    # counters are reported only, because the simulated metrics above grade
+    # cache behaviour. The bootstrap upper bound stays in the report as a noise
     # diagnostic, not an acceptance criterion.
     exact_metrics = {"allocations", "allocated_bytes", "peak_live_bytes"}
     budget = float(tolerance_percent)

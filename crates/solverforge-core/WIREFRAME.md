@@ -66,7 +66,8 @@ src/
 │   │   ├── problem_fact.rs                — ProblemFactDescriptor struct
 │   │   ├── var_descriptor.rs              — VariableDescriptor struct
 │   │   └── tests/
-│   │       ├── mod.rs                     — Shared test helpers and module declarations
+│   │       ├── mod.rs                     — Test module declarations and shared imports
+│   │       ├── fixtures.rs                — Shared TestEntity/TestSolution fixtures and entity descriptor builder
 │   │       ├── entity_descriptor.rs       — EntityDescriptor tests
 │   │       ├── solution_descriptor.rs     — SolutionDescriptor tests
 │   │       └── variable_descriptor.rs     — VariableDescriptor tests

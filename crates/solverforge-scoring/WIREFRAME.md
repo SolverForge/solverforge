@@ -271,7 +271,10 @@ src/
 │   ├── tri_stream.rs                               — TriConstraintStream, TriConstraintBuilder (via macro)
 │   ├── quad_stream.rs                              — QuadConstraintStream, QuadConstraintBuilder (via macro)
 │   ├── penta_stream.rs                             — PentaConstraintStream, PentaConstraintBuilder (via macro)
+│   ├── chain.rs                                    — Public `stream::chain` re-exports of Chain and ChainBuilder
 │   ├── chain_stream.rs                             — Chain/ChainBuilder: arity-free fluent join continuation
+│   ├── cross.rs                                    — Public `stream::cross` re-exports of the cross-join streams and builders
+│   ├── projected.rs                                — Public `stream::projected` re-exports of the projected streams and builders
 │   ├── cross_penta_stream.rs                       — stream::cross::Penta and its Penta::join → Chain
 │   ├── cross_penta_stream/scored.rs                — PentaScored operator (tree plus authored filter)
 │   ├── grouped_stream.rs                           — Re-exports
@@ -314,7 +317,8 @@ src/
 │   ├── join_target.rs                              — JoinTarget/ToViewPlan dispatch for self-join, keyed cross-join, comparison, overlap, composed, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
-│   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
+│   │   ├── mod.rs                                  — Module declarations; re-exports impl_arity_stream!
+│   │   ├── dispatch.rs                             — impl_arity_stream! dispatcher macro
 │   │   ├── nary_stream.rs                          — Module declarations for arity stream macros
 │   │   └── nary_stream/
 │   │       ├── shared.rs                           — Shared arity stream macro helpers

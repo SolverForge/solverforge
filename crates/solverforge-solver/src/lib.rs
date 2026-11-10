@@ -169,29 +169,10 @@ pub use stats::telemetry::Throughput;
 /// compilation a configured solve runs. Hidden and not part of the supported
 /// API: no compatibility promise covers them.
 #[doc(hidden)]
-pub mod __bench {
-    pub use crate::bench::{
-        CandidateVisitor, CompiledNeighborhood, CompiledNeighborhoodCursor, CompiledRuntimeRunner,
-        CompiledScalarPlacement, CompiledScalarPlacementCursor, CompiledScalarPlacer,
-    };
-}
+pub mod __bench;
 
 /// Solver internals other SolverForge crates build on: the host-provider
 /// contracts `solverforge-bridge` re-exports for host-language bindings.
 /// Hidden and not part of the supported API.
 #[doc(hidden)]
-pub mod __private {
-    pub use crate::builder::context::candidate_metric::RuntimeCandidateMetric;
-    pub use crate::builder::context::candidate_metric::RuntimeCandidateMetricBinding;
-    pub use crate::builder::context::candidate_metric::RuntimeCandidateMetricRegistry;
-    pub use crate::builder::context::provider::registry::RuntimeProviderRegistry;
-    pub use crate::builder::context::provider::types::ProviderResolutionError;
-    pub use crate::builder::context::provider::types::RawProviderCandidate;
-    pub use crate::builder::context::provider::types::RawProviderEdit;
-    pub use crate::builder::context::provider::types::RuntimeConflictRepairProviderBinding;
-    pub use crate::builder::context::provider::types::RuntimeHostCompoundProvider;
-    pub use crate::builder::context::provider::types::RuntimeHostProviderErrorBoundary;
-    pub use crate::builder::context::provider::types::RuntimeProviderLimits;
-    pub use crate::builder::context::provider::types::RuntimeScalarGroupProviderBinding;
-    pub use crate::builder::search::custom::NoDynamicExtensions;
-}
+pub mod __private;

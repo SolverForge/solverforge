@@ -357,7 +357,12 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 
 ## Code Organization
 
-- Keep `mod.rs` files limited to module declarations and re-exports.
+- Keep every `mod.rs` and `lib.rs` limited to module declarations and `use`
+  re-exports: no functions, types, impls, constants, macro definitions,
+  inline module bodies or crate-level attributes. `planning_model!`
+  manifests and the proc-macro entry points Rust requires in
+  `solverforge-macros/src/lib.rs` are the only exceptions; lint levels live in
+  each crate's Cargo `[lints]` table.
 - Crate roots document the crate with inner `//!` doc comments and public
   items use `///` (or `/** */`); plain `//` and `/* */` comments never
   replace them. docs.rs renders only doc comments, so a comment-style sweep

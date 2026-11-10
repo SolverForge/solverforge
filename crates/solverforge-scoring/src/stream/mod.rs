@@ -114,28 +114,13 @@ mod weighting_support;
 mod tests;
 
 /// Cross-collection join streams and their builders.
-pub mod cross {
-    pub use super::cross_bi_stream::{
-        Bi, Builder, ComplementedGrouped, ComplementedGroupedBuilder, Grouped, GroupedBuilder,
-    };
-    pub use super::cross_penta_stream::{Penta, PentaBuilder};
-    pub use super::cross_quad_stream::{Quad, QuadBuilder};
-    pub use super::cross_tri_stream::Tri;
-}
+pub mod cross;
 
 /// Chain stream and builder.
-pub mod chain {
-    pub use super::chain_stream::{Chain, ChainBuilder};
-}
+pub mod chain;
 
 /// Projected streams: rows emitted by a [`Projection`] instead of stored entities.
-pub mod projected {
-    pub use super::projected_stream::{
-        Bi, BiBuilder, Builder, ComplementedGrouped, ComplementedGroupedBuilder, DirectedBi,
-        DirectedBiBuilder, Grouped, GroupedBuilder, JoinedSource, ProjectedJoinTarget, Projection,
-        ProjectionSink, RowCoordinate, RowOwner, Source, Stream,
-    };
-}
+pub mod projected;
 
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};

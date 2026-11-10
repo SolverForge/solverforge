@@ -31,10 +31,20 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 ```
 src/
 ├── __internal.rs  — Hidden macro support re-exports and helpers
+├── analysis.rs    — `analysis` facade re-exports
+├── builder.rs     — `builder` facade re-exports
+├── config.rs      — `config` facade re-exports
+├── console.rs     — `console` facade re-export (feature `console`)
+├── constraint.rs  — `constraint` facade re-exports
 ├── cvrp.rs        — CVRP facade re-exports
+├── director.rs    — `director` facade re-exports
+├── domain.rs      — `domain` facade re-exports
+├── heuristic.rs   — `heuristic` facade re-exports
 ├── lib.rs         — Crate docs (`//!`, Quick Start doctest), top-level re-exports and module declarations
+├── phase.rs       — `phase` facade re-exports
 ├── planning.rs    — Planning target helpers for scalar groups and conflict repair
 ├── prelude.rs     — Prelude exports
+├── stats.rs       — `stats` facade re-exports
 └── stream.rs      — Fluent constraint stream facade
 doc/quick_start/   — Quick Start model (employee, shift, schedule, solver.toml) included by the crate docs and compiled by its doctest
 ```

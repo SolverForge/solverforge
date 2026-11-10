@@ -24,6 +24,8 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 ```
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
+├── __bench.rs                           — Hidden `__bench` module: re-exports of the bench handles
+├── __private.rs                         — Hidden `__private` module: re-exports of the host-provider contracts
 ├── bench.rs                             — Hidden `__bench` handles: CompiledRuntimeRunner and CandidateVisitor
 ├── bench/neighborhood.rs                — CompiledNeighborhood and CompiledNeighborhoodCursor over the lowered local-search composition cursor
 ├── bench/construction.rs                — CompiledScalarPlacer and its placement cursors over the compiled descriptor-placement placer
@@ -105,6 +107,7 @@ src/
 │   │   ├── segment_layout.rs           — Post-move segment coordinate derivation and reverse-identity helpers for sublist moves
 │   │   ├── ruin.rs                      — Test-only RuinMove<S, V> oracle
 │   │   ├── k_opt.rs                     — CutPoint and the test-only KOptMove<S, V> oracle
+│   │   ├── list_undo_journal.rs        — ListUndoJournal: inline undo storage for arbitrary-length list edits
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
@@ -340,7 +343,7 @@ src/
 │   │   ├── list_construction/cheapest/kernel.rs — Source-indexed cheapest candidate ordering, precedence, and owner filtering
 │   │   ├── list_construction/cheapest/live.rs — Live score/trace/commit observer for the one cheapest kernel
 │   │   ├── list_construction/regret.rs — Explicit-source-key public facade for canonical regret insertion
-│   │   ├── list_construction/regret/kernel/ — Source-indexed regret evaluation, precedence, fallback, and execution kernel
+│   │   ├── list_construction/regret/kernel/ — Source-indexed regret evaluation, precedence, fallback, and execution kernel (`budgets.rs` work budgets, `choice.rs` regret values and comparisons)
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright/kernel.rs — Canonical savings merge and route assignment (savings.rs generates and sorts savings) shared by public/static/dynamic adapters
 │   │   ├── list_clarke_wright/tests.rs — Tests

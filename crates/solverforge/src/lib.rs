@@ -116,76 +116,33 @@ pub use solverforge_core::{
     MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
 };
 
+/// Score analysis types returned by constraints and score directors.
+pub mod analysis;
+/// Search declaration building blocks behind `SearchContext` and `Search`.
+pub mod builder;
 /// Every solver configuration type: phases, move selectors, acceptors,
 /// foragers, termination and the configuration error.
-pub mod config {
-    pub use solverforge_config::*;
-}
+pub mod config;
+/// Built-in constraint implementations that the stream builders produce.
+pub mod constraint;
 /// Stock CVRP profile: problem data, distance meters and route hooks.
 pub mod cvrp;
-/// Solver and phase statistics, telemetry and candidate-trace types.
-pub mod stats {
-    pub use solverforge_solver::{
-        AppliedMoveTelemetry, CandidatePullTelemetry, CandidateTraceCompositeIdentity,
-        CandidateTraceConstructionTarget, CandidateTraceCoordinate, CandidateTraceDigest,
-        CandidateTraceDisposition, CandidateTraceExecutionPolicy, CandidateTraceExternalDigest,
-        CandidateTraceHeader, CandidateTraceIdentity, CandidateTraceInputAttestation,
-        CandidateTraceInputProvenance, CandidateTraceInputProvenanceStatus,
-        CandidateTraceOperationIdentity, CandidateTracePhaseAttribute, CandidateTracePhasePlan,
-        CandidateTraceProvenanceStatus, CandidateTraceQualificationError,
-        CandidateTraceQualificationStatus, CandidateTraceSource, CandidateTraceTelemetry,
-        MoveTelemetry, PhaseStats, PhaseTelemetry, QualifiedCandidateTraceRunProvenance,
-        SelectorTelemetry, SolverStats, SolverTelemetry, Throughput,
-        CANDIDATE_TRACE_FORMAT_VERSION,
-    };
-}
+/// Score directors and their weight modes.
+pub mod director;
 /// Planning-model traits and runtime descriptors (`PlanningSolution`,
 /// `SolutionDescriptor`, entity and variable descriptors).
-pub mod domain {
-    pub use solverforge_core::domain::*;
-}
-/// Score analysis types returned by constraints and score directors.
-pub mod analysis {
-    pub use solverforge_scoring::api::analysis::*;
-}
-/// Built-in constraint implementations that the stream builders produce.
-pub mod constraint {
-    pub use solverforge_scoring::constraint::*;
-}
-/// Score directors and their weight modes.
-pub mod director {
-    pub use solverforge_scoring::director::*;
-}
-/// Search declaration building blocks behind `SearchContext` and `Search`.
-pub mod builder {
-    pub use solverforge_solver::{
-        bind_scalar_groups, local_search, CustomSearchPhase, ListVariableSlot, RuntimeModel,
-        ScalarGroupBinding, ScalarVariableSlot, Search, SearchContext, ValueSource, VariableSlot,
-    };
-}
+pub mod domain;
 /// Moves, move selectors and move cursors for custom search.
-pub mod heuristic {
-    pub use solverforge_solver::{
-        CandidateId, CrossEntityDistanceMeter, DefaultCrossEntityDistanceMeter,
-        DefaultDistanceMeter, Move, MoveAffectedEntity, MoveCandidateRef, MoveCandidateUndo,
-        MoveCursor, MoveSelector, MoveSelectorIter, MoveStreamContext, MoveTabuScope,
-        MoveTabuSignature, ScopedEntityTabuToken, ScopedValueTabuToken, SequentialCompositeMoveRef,
-    };
-}
+pub mod heuristic;
 /// Phases and their parts: local search acceptors and foragers, exhaustive
 /// search deciders, partitioned search.
-pub mod phase {
-    pub use solverforge_solver::{
-        Acceptor, ChildPhases, ExhaustiveSearchConfig, ExhaustiveSearchDecider,
-        ExhaustiveSearchNode, ExhaustiveSearchPhase, ExplorationType, ForagerDecision,
-        FunctionalPartitioner, LocalSearchForager, PartitionedSearchConfig, PartitionedSearchPhase,
-        Phase, ScoreBounder, SimpleDecider, SolutionPartitioner, ThreadCount,
-    };
-}
+pub mod phase;
 /// Scalar and repair planning types and source-to-target helpers.
 pub mod planning;
 /// Glob import for domain models and constraint providers.
 pub mod prelude;
+/// Solver and phase statistics, telemetry and candidate-trace types.
+pub mod stats;
 /// Fluent constraint stream API.
 pub mod stream;
 
@@ -254,6 +211,4 @@ Console Output (feature-gated)
 /// banner and solver lifecycle and progress events. Available with the
 /// `console` feature.
 #[cfg(feature = "console")]
-pub mod console {
-    pub use solverforge_console::init;
-}
+pub mod console;

@@ -47,7 +47,7 @@ where
         let hard = weight.is_hard();
         JoinedGroupedBuilder {
             node: self.node,
-            weight: move |k: &K, r: &R| weight.score((k, r)),
+            weight: crate::stream::closures::weight2::<K, R, Sc, _>(weight),
             impact: ImpactType::Penalty,
             hard,
             marker: PhantomData,
@@ -65,7 +65,7 @@ where
         let hard = weight.is_hard();
         JoinedGroupedBuilder {
             node: self.node,
-            weight: move |k: &K, r: &R| weight.score((k, r)),
+            weight: crate::stream::closures::weight2::<K, R, Sc, _>(weight),
             impact: ImpactType::Reward,
             hard,
             marker: PhantomData,

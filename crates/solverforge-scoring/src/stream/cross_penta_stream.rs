@@ -164,17 +164,7 @@ where
             filter: AndPentaFilter::new(
                 self.filter,
                 FnPentaFilter::new(
-                    move |_s: &S,
-                          a: &A,
-                          b: &B,
-                          c: &C,
-                          d: &D,
-                          e: &E,
-                          _ai: usize,
-                          _bi: usize,
-                          _ci: usize,
-                          _di: usize,
-                          _ei: usize| { predicate(a, b, c, d, e) },
+                    crate::stream::closures::penta_filter::<S, A, B, C, D, E, _>(predicate),
                 ),
             ),
             _phantom: PhantomData,
@@ -235,7 +225,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |a: &A, b: &B, c: &C, d: &D, e: &E| weight.score((a, b, c, d, e)),
+            crate::stream::closures::weight5::<A, B, C, D, E, Sc, _>(weight),
             is_hard,
         )
     }
@@ -275,7 +265,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |a: &A, b: &B, c: &C, d: &D, e: &E| weight.score((a, b, c, d, e)),
+            crate::stream::closures::weight5::<A, B, C, D, E, Sc, _>(weight),
             is_hard,
         )
     }
@@ -422,10 +412,8 @@ where
         let is_hard = self.is_hard;
         let constraint_ref = ConstraintRef::new("", name);
         let scored = PentaScored::new(self.tree, self.filter);
-        let weight_fn = move |_: &S, row: &PentaRow<'_, S, EA, EB, EC, ED, EE, P1, P2, P3, P4>| {
-            let (a, b, c, d, e) = PentaEntities::entities(row);
-            weight(a, b, c, d, e)
-        };
+        let weight_fn =
+            crate::stream::closures::penta_row_weight::<S, A, B, C, D, E, Sc, _>(weight);
         OperatorTerminal::new(constraint_ref, self.impact_type, scored, weight_fn, is_hard)
     }
 }

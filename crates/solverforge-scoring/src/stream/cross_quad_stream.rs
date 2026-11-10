@@ -141,17 +141,9 @@ where
             tree: self.tree,
             filter: AndQuadFilter::new(
                 self.filter,
-                FnQuadFilter::new(
-                    move |_s: &S,
-                          a: &A,
-                          b: &B,
-                          c: &C,
-                          d: &D,
-                          _ai: usize,
-                          _bi: usize,
-                          _ci: usize,
-                          _di: usize| { predicate(a, b, c, d) },
-                ),
+                FnQuadFilter::new(crate::stream::closures::quad_filter::<S, A, B, C, D, _>(
+                    predicate,
+                )),
             ),
             _phantom: PhantomData,
         }
@@ -265,7 +257,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |a: &A, b: &B, c: &C, d: &D| weight.score((a, b, c, d)),
+            crate::stream::closures::weight4::<A, B, C, D, Sc, _>(weight),
             is_hard,
         )
     }
@@ -301,7 +293,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |a: &A, b: &B, c: &C, d: &D| weight.score((a, b, c, d)),
+            crate::stream::closures::weight4::<A, B, C, D, Sc, _>(weight),
             is_hard,
         )
     }
@@ -371,10 +363,7 @@ where
             child_inserted: Vec::new(),
             marker: PhantomData,
         };
-        let weight_fn = move |_: &S, row: &QuadRow<'_, S, EA, EB, EC, ED, P1, P2, P3>| {
-            let (a, b, c, d) = QuadEntities::entities(row);
-            weight(a, b, c, d)
-        };
+        let weight_fn = crate::stream::closures::quad_row_weight::<S, A, B, C, D, Sc, _>(weight);
         OperatorTerminal::new(constraint_ref, self.impact_type, scored, weight_fn, is_hard)
     }
 }

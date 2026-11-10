@@ -10,7 +10,7 @@ use super::super::relational::operator::{CollectionNode, JoinNode, Operator, Pai
 use super::super::relational::Leaf;
 use super::super::weighting_support::ConstraintWeight;
 use super::base::Bi;
-use super::scored::{BiEntities, BiScored};
+use super::scored::BiScored;
 use crate::constraint::relational::OperatorTerminal;
 
 impl<S, A, B, P, EA, EB, F, Sc> Bi<S, A, B, P, EA, EB, F, Sc>
@@ -62,7 +62,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |a: &A, b: &B| weight.score((a, b)),
+            crate::stream::closures::weight2::<A, B, Sc, _>(weight),
             is_hard,
         )
     }
@@ -82,7 +82,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |a: &A, b: &B| weight.score((a, b)),
+            crate::stream::closures::weight2::<A, B, Sc, _>(weight),
             is_hard,
         )
     }
@@ -143,10 +143,7 @@ where
         );
         let scored = BiScored::new(tree, self.filter);
         let weight = self.weight;
-        let weight_fn = move |_: &S, row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| {
-            let (a, b) = row.entities();
-            weight(a, b)
-        };
+        let weight_fn = crate::stream::closures::pair_row_weight::<S, A, B, Sc, _>(weight);
         OperatorTerminal::new(
             ConstraintRef::new("", name),
             self.impact_type,

@@ -53,27 +53,13 @@ where
         R: Send + Sync + 'static,
         Acc: Accumulator<V, R> + 'static,
     {
-        let filter = self.filter;
-        let input = FilterNode::new(self.tree, move |s: &S, row: &Row<'_, A, B, C>| {
-            filter.test(
-                s,
-                row.left.left.entity,
-                row.left.right.entity,
-                row.right.entity,
-                row.left.left.index,
-                row.left.right.index,
-                row.right.index,
-            )
-        });
+        let input = FilterNode::new(
+            self.tree,
+            crate::stream::closures::triple_row_filter::<S, A, B, C, _>(self.filter),
+        );
         JoinedGroupedStream::new(
             input,
-            move |row: &Row<'_, A, B, C>| {
-                key(
-                    row.left.left.entity,
-                    row.left.right.entity,
-                    row.right.entity,
-                )
-            },
+            crate::stream::closures::triple_row_key::<A, B, C, GK, _>(key),
             TupleCollector::new(collector),
         )
     }

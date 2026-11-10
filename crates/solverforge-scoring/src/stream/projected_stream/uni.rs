@@ -57,7 +57,9 @@ where
             source: self.source,
             filter: AndUniFilter::new(
                 self.filter,
-                FnUniFilter::new(move |_s: &S, output: &Out| predicate(output)),
+                FnUniFilter::new(crate::stream::closures::entity_filter::<S, Out, _>(
+                    predicate,
+                )),
             ),
             _phantom: PhantomData,
         }
@@ -157,7 +159,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Penalty,
-            move |output: &Out| weight.score((output,)),
+            crate::stream::closures::weight1::<Out, Sc, _>(weight),
             is_hard,
         )
     }
@@ -177,7 +179,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Reward,
-            move |output: &Out| weight.score((output,)),
+            crate::stream::closures::weight1::<Out, Sc, _>(weight),
             is_hard,
         )
     }

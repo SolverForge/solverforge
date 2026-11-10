@@ -52,7 +52,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |a: &A| weight.score((a,)),
+            crate::stream::closures::weight1::<A, Sc, _>(weight),
             is_hard,
         )
     }
@@ -70,7 +70,11 @@ where
         W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
     {
         let is_hard = weight.is_hard();
-        self.into_weighted_builder(ImpactType::Reward, move |a: &A| weight.score((a,)), is_hard)
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            crate::stream::closures::weight1::<A, Sc, _>(weight),
+            is_hard,
+        )
     }
 }
 
@@ -101,8 +105,7 @@ where
         self,
         name: &str,
     ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
-        let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A| filter.test(s, a);
+        let combined_filter = crate::stream::closures::uni_filter_fn::<S, A, _>(self.filter);
 
         IncrementalUniConstraint::new(
             ConstraintRef::new("", name),

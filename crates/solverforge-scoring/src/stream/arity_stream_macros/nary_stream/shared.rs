@@ -162,14 +162,24 @@ macro_rules! impl_nary_arity_stream_common {
                     key_extractor: self.key_extractor,
                     filter: super::filter::$and_filter::new(
 	                        self.filter,
-	                        super::filter::$fn_filter::new(
-	                            move |_s: &S,
-	                                  $($entity: &A),+
-	                                  $(, $filter_idx: usize)*| {
-	                                let _ = ($($filter_idx),*);
-	                                predicate($($entity),+)
-	                            },
-	                        ),
+	                        super::filter::$fn_filter::new({
+                            fn narrow<S, A, P>(
+                                predicate: P,
+                            ) -> impl Fn(
+                                &S,
+                                $(repeat_tokens!($entity => &A)),+
+                                $(, repeat_tokens!($filter_idx => usize))*
+                            ) -> bool + Send + Sync
+                            where
+                                P: Fn($(repeat_tokens!($entity => &A)),+) -> bool + Send + Sync,
+                            {
+                                move |_s: &S, $($entity: &A),+ $(, $filter_idx: usize)*| {
+                                    let _ = ($($filter_idx),*);
+                                    predicate($($entity),+)
+                                }
+                            }
+                            narrow::<S, A, P>(predicate)
+                        }),
 	                    ),
 	                    _phantom: std::marker::PhantomData,
                 }
@@ -199,18 +209,33 @@ macro_rules! impl_nary_arity_stream_common {
                 for<'i> crate::stream::relational::TupleCollector<Co, V, R, Acc>:
                     super::collector::Collector<[crate::stream::relational::Leaf<'i, A>; $arity], Value = V, Result = R, Accumulator = Acc>,
             {
-                let filter = self.filter;
-                let input = crate::stream::relational::operator::SelfJoinNode::new(
-                    crate::stream::relational::operator::CollectionNode::new(self.extractor, 0), self.key_extractor);
-                let filtered = crate::stream::relational::operator::FilterNode::new(input,
+                fn narrow_filter<S, A, F>(
+                    filter: F,
+                ) -> impl Fn(&S, &[crate::stream::relational::Leaf<'_, A>; $arity]) -> bool + Send + Sync
+                where
+                    F: super::filter::$filter_trait<S, $(repeat_tokens!($entity => A)),+>,
+                {
                     move |s: &S, row: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
                         filter.test(s, $(row[repeat_nary_arity_position!($entity)].entity,)+
                             $(row[repeat_nary_arity_position!($filter_idx)].index),+)
-                    });
-                super::JoinedGroupedStream::new(filtered,
+                    }
+                }
+                fn narrow_key<A, GK, GF>(
+                    key: GF,
+                ) -> impl Fn(&[crate::stream::relational::Leaf<'_, A>; $arity]) -> GK + Send + Sync
+                where
+                    GF: Fn($(repeat_tokens!($entity => &A)),+) -> GK + Send + Sync,
+                {
                     move |row: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
                         key($(row[repeat_nary_arity_position!($entity)].entity),+)
-                    }, crate::stream::relational::TupleCollector::new(collector))
+                    }
+                }
+                let input = crate::stream::relational::operator::SelfJoinNode::new(
+                    crate::stream::relational::operator::CollectionNode::new(self.extractor, 0), self.key_extractor);
+                let filtered = crate::stream::relational::operator::FilterNode::new(input,
+                    narrow_filter::<S, A, F>(self.filter));
+                super::JoinedGroupedStream::new(filtered,
+                    narrow_key::<A, GK, GF>(key), crate::stream::relational::TupleCollector::new(collector))
             }
 
             /// Penalizes each match by `weight`.
@@ -240,8 +265,20 @@ macro_rules! impl_nary_arity_stream_common {
                 let is_hard = weight.is_hard();
                 self.into_weighted_builder(
                     solverforge_core::ImpactType::Penalty,
-                    move |$($entity: &A),+| {
-                        weight.score(($($entity),+))
+                    {
+                        fn narrow<A, Sc, W>(
+                            weight: W,
+                        ) -> impl Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync
+                        where
+                            Sc: solverforge_core::score::Score,
+                            W: for<'w> super::weighting_support::ConstraintWeight<
+                                    ($(repeat_tokens!($entity => &'w A)),+),
+                                    Sc,
+                                > + Send + Sync,
+                        {
+                            move |$($entity: &A),+| weight.score(($($entity),+))
+                        }
+                        narrow::<A, Sc, W>(weight)
                     },
                     is_hard,
                 )
@@ -274,8 +311,20 @@ macro_rules! impl_nary_arity_stream_common {
                 let is_hard = weight.is_hard();
                 self.into_weighted_builder(
                     solverforge_core::ImpactType::Reward,
-                    move |$($entity: &A),+| {
-                        weight.score(($($entity),+))
+                    {
+                        fn narrow<A, Sc, W>(
+                            weight: W,
+                        ) -> impl Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync
+                        where
+                            Sc: solverforge_core::score::Score,
+                            W: for<'w> super::weighting_support::ConstraintWeight<
+                                    ($(repeat_tokens!($entity => &'w A)),+),
+                                    Sc,
+                                > + Send + Sync,
+                        {
+                            move |$($entity: &A),+| weight.score(($($entity),+))
+                        }
+                        narrow::<A, Sc, W>(weight)
                     },
                     is_hard,
                 )
@@ -348,15 +397,12 @@ macro_rules! impl_nary_arity_stream_common {
                     + Sync,
                 Sc,
             > {
-                let filter = self.filter;
-                let user_weight = self.weight;
-                let input = crate::stream::relational::operator::CollectionNode::new(self.extractor, 0);
-                let node = crate::stream::relational::operator::SelfJoinNode::new(
-                    input,
-                    self.key_extractor,
-                );
-                let scored = crate::stream::relational::operator::FilterNode::new(
-                    node,
+                fn narrow_filter<S, A, F>(
+                    filter: F,
+                ) -> impl for<'a, 'b> Fn(&'a S, &[crate::stream::relational::Leaf<'b, A>; $arity]) -> bool + Send + Sync
+                where
+                    F: super::filter::$filter_trait<S, $(repeat_tokens!($entity => A)),+>,
+                {
                     move |s: &S, view: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
                         let arr = view;
                         filter.test(
@@ -364,15 +410,29 @@ macro_rules! impl_nary_arity_stream_common {
                             $(&arr[repeat_nary_arity_position!($entity)].entity,)+
                             $(arr[repeat_nary_arity_position!($filter_idx)].index),+
                         )
-                    },
+                    }
+                }
+                fn narrow_weight<S, A, Sc, W>(
+                    user_weight: W,
+                ) -> impl for<'a, 'b> Fn(&'a S, &[crate::stream::relational::Leaf<'b, A>; $arity]) -> Sc + Send + Sync
+                where
+                    W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
+                {
+                    move |_s: &S, view: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
+                        let arr = view;
+                        user_weight($(&arr[repeat_nary_arity_position!($entity)].entity),+)
+                    }
+                }
+                let input = crate::stream::relational::operator::CollectionNode::new(self.extractor, 0);
+                let node = crate::stream::relational::operator::SelfJoinNode::new(
+                    input,
+                    self.key_extractor,
                 );
-                let weight_fn = move |
-                    _s: &S,
-                    view: &[crate::stream::relational::Leaf<'_, A>; $arity],
-                | {
-                    let arr = view;
-                    user_weight($(&arr[repeat_nary_arity_position!($entity)].entity),+)
-                };
+                let scored = crate::stream::relational::operator::FilterNode::new(
+                    node,
+                    narrow_filter::<S, A, F>(self.filter),
+                );
+                let weight_fn = narrow_weight::<S, A, Sc, W>(self.weight);
                 crate::constraint::relational::OperatorTerminal::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type,

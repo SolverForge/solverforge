@@ -188,7 +188,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |key: &GK, result: &R| weight.score((key, result)),
+            crate::stream::closures::weight2::<GK, R, Sc, _>(weight),
             is_hard,
         )
     }
@@ -230,7 +230,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |key: &GK, result: &R| weight.score((key, result)),
+            crate::stream::closures::weight2::<GK, R, Sc, _>(weight),
             is_hard,
         )
     }
@@ -379,9 +379,7 @@ where
         let group_key = self.group_key_fn;
         let group = GroupNode::new(
             input,
-            move |row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| {
-                group_key(row.left.entity, row.right.entity)
-            },
+            crate::stream::closures::pair_row_key::<A, B, GK, _>(group_key),
             TupleCollector::new(self.collector),
         );
         let key_t = self.key_t;
@@ -390,7 +388,7 @@ where
             CollectionNode::new(self.extractor_t, 2),
             group,
             ViewEqualPlan::new(EntityKey::new(key_t.clone()), GroupKey),
-            move |_solution: &S, row: &Leaf<'_, T>| default_fn(row.entity),
+            crate::stream::closures::leaf_default::<S, T, R, _>(default_fn),
         );
         SharedOperatorBuilder::first_with_hard(
             tree,

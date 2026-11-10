@@ -85,7 +85,7 @@ where
         let is_hard = weight_fn.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Penalty,
-            move |key: &K, result: &R| weight_fn.score((key, result)),
+            crate::stream::closures::weight2::<K, R, Sc, _>(weight_fn),
             is_hard,
         )
     }
@@ -105,7 +105,7 @@ where
         let is_hard = weight_fn.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Reward,
-            move |key: &K, result: &R| weight_fn.score((key, result)),
+            crate::stream::closures::weight2::<K, R, Sc, _>(weight_fn),
             is_hard,
         )
     }
@@ -142,7 +142,7 @@ where
         D: Fn(&B) -> R + Send + Sync,
     {
         let key_fn = self.key_fn;
-        let key_a = move |output: &Out| Some((key_fn)(output));
+        let key_a = crate::stream::closures::some_key::<Out, K, _>(key_fn);
         ComplementedGrouped {
             source: self.source,
             extractor_b,
@@ -253,9 +253,9 @@ where
         let tree = GroupNode::new(
             FilterNode::new(
                 SourceNode::new(self.source),
-                move |solution: &S, row: &ProjectedRow<'_, Out>| filter.test(solution, row.value),
+                super::row_closures::projected_row_filter::<S, Out, _>(filter),
             ),
-            move |row: &ProjectedRow<'_, Out>| key(row.value),
+            super::row_closures::projected_row_key::<Out, K, _>(key),
             ProjectedCollector::new(self.collector),
         );
         SharedOperatorBuilder::first_with_hard(

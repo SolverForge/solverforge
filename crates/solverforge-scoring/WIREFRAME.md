@@ -304,6 +304,7 @@ src/
 │   ├── projected_stream/bi.rs                      — stream::projected::Bi and terminal builder
 │   ├── projected_stream/directed_bi.rs             — stream::projected::DirectedBi and terminal builder for directed projected self-joins
 │   ├── projected_stream/join_target.rs             — ProjectedJoinTarget dispatch for symmetric and directed projected self-joins
+│   ├── projected_stream/row_closures.rs            — Filter and key closures over projected rows, generic only over what they capture
 │   ├── projected_stream/grouped.rs                 — stream::projected::Grouped, reward, complement, and terminal builder
 │   ├── projected_stream/complemented_grouped.rs    — stream::projected::ComplementedGrouped and builder
 │   ├── projected_stream/source.rs                  — Projection, projected row coordinates, Source trait
@@ -314,6 +315,7 @@ src/
 │   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, source() constructor
 │   ├── unassigned.rs                               — UnassignedEntity and the `.unassigned()` stream method
 │   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
+│   ├── closures.rs                                 — Filter, key and weight closures built in functions generic only over what they capture, so constraint types do not repeat upstream stream types
 │   ├── join_target.rs                              — JoinTarget/ToViewPlan dispatch for self-join, keyed cross-join, comparison, overlap, composed, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
@@ -1003,6 +1005,8 @@ The entire pipeline from stream builder to constraint evaluation is fully monomo
 4. `.named("name")` — produces `IncrementalUniConstraint<S, A, E, impl Fn, W, Sc>`
 
 All closures are stored as concrete generic type parameters. No `Box<dyn Fn>`, no `Arc`. The constraint types carry the full closure types through their generics.
+
+A closure written inside a generic method has a type naming every generic parameter of that method, and debug info prints that type in full. Combinators therefore never build the closures they store inline: `stream/closures.rs`, `projected_stream/row_closures.rs` and the `narrow*` functions inside the n-ary stream macros build them in functions generic only over what the closure captures, so a filter chain or weight names its own parts once instead of repeating the whole upstream stream type at every stage.
 
 ### Incremental Scoring Protocol
 

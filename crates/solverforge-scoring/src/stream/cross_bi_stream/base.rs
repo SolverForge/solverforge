@@ -142,9 +142,9 @@ where
             plan: self.plan,
             filter: AndBiFilter::new(
                 self.filter,
-                FnBiFilter::new(move |_s: &S, a: &A, b: &B, _a_idx: usize, _b_idx: usize| {
-                    predicate(a, b)
-                }),
+                FnBiFilter::new(crate::stream::closures::pair_filter::<S, A, B, _>(
+                    predicate,
+                )),
             ),
             _phantom: PhantomData,
         }

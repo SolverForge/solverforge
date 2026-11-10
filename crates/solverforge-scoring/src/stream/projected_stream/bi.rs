@@ -58,11 +58,9 @@ where
             key_fn: self.key_fn,
             pair_filter: AndBiFilter::new(
                 self.pair_filter,
-                FnBiFilter::new(
-                    move |_s: &S, left: &Out, right: &Out, _left_idx: usize, _right_idx: usize| {
-                        predicate(left, right)
-                    },
-                ),
+                FnBiFilter::new(crate::stream::closures::pair_filter::<S, Out, Out, _>(
+                    predicate,
+                )),
             ),
             _phantom: PhantomData,
         }
@@ -104,7 +102,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Penalty,
-            move |left: &Out, right: &Out| weight.score((left, right)),
+            crate::stream::closures::weight2::<Out, Out, Sc, _>(weight),
             is_hard,
         )
     }
@@ -124,7 +122,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Reward,
-            move |left: &Out, right: &Out| weight.score((left, right)),
+            crate::stream::closures::weight2::<Out, Out, Sc, _>(weight),
             is_hard,
         )
     }

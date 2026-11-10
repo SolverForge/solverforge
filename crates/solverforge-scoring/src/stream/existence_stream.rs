@@ -122,7 +122,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |_s: &S, row: &Leaf<'_, A>| weight.score((row.entity,)),
+            crate::stream::closures::leaf_weight::<S, A, Sc, _>(weight),
             is_hard,
         )
     }
@@ -152,7 +152,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |_s: &S, row: &Leaf<'_, A>| weight.score((row.entity,)),
+            crate::stream::closures::leaf_weight::<S, A, Sc, _>(weight),
             is_hard,
         )
     }

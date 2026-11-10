@@ -119,7 +119,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |key: &K, result: &R| weight.score((key, result)),
+            crate::stream::closures::weight2::<K, R, Sc, _>(weight),
             is_hard,
         )
     }
@@ -156,7 +156,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |key: &K, result: &R| weight.score((key, result)),
+            crate::stream::closures::weight2::<K, R, Sc, _>(weight),
             is_hard,
         )
     }
@@ -248,9 +248,9 @@ where
         let group = GroupNode::new(
             FilterNode::new(
                 SourceNode::new(self.source),
-                move |solution: &S, row: &ProjectedRow<'_, Out>| filter.test(solution, row.value),
+                super::row_closures::projected_row_filter::<S, Out, _>(filter),
             ),
-            move |row: &ProjectedRow<'_, Out>| key_a(row.value),
+            super::row_closures::projected_row_key::<Out, Option<K>, _>(key_a),
             ProjectedCollector::new(self.collector),
         );
         let key_b = self.key_b;
@@ -259,7 +259,7 @@ where
             CollectionNode::new(self.extractor_b, target_binding),
             group,
             ViewEqualPlan::new(OptionalEntityKey::new(key_b.clone()), GroupKey),
-            move |_solution: &S, row: &Leaf<'_, B>| default_fn(row.entity),
+            crate::stream::closures::leaf_default::<S, B, R, _>(default_fn),
         );
         SharedOperatorBuilder::first_with_hard(
             tree,

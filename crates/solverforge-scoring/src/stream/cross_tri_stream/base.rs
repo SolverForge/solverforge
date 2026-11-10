@@ -186,15 +186,9 @@ where
             tree: self.tree,
             filter: AndTriFilter::new(
                 self.filter,
-                FnTriFilter::new(
-                    move |_s: &S,
-                          a: &A,
-                          b: &B,
-                          c: &C,
-                          _a_idx: usize,
-                          _b_idx: usize,
-                          _c_idx: usize| { predicate(a, b, c) },
-                ),
+                FnTriFilter::new(crate::stream::closures::triple_filter::<S, A, B, C, _>(
+                    predicate,
+                )),
             ),
             _phantom: PhantomData,
         }
@@ -296,7 +290,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |a: &A, b: &B, c: &C| weight.score((a, b, c)),
+            crate::stream::closures::weight3::<A, B, C, Sc, _>(weight),
             is_hard,
         )
     }
@@ -317,7 +311,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |a: &A, b: &B, c: &C| weight.score((a, b, c)),
+            crate::stream::closures::weight3::<A, B, C, Sc, _>(weight),
             is_hard,
         )
     }
@@ -380,10 +374,7 @@ where
             child_inserted: Vec::new(),
             marker: PhantomData,
         };
-        let weight_fn = move |_: &S, row: &TriRow<'_, S, EA, EB, EC, P1, P2>| {
-            let (a, b, c) = TriEntities::entities(row);
-            weight(a, b, c)
-        };
+        let weight_fn = crate::stream::closures::triple_row_weight::<S, A, B, C, Sc, _>(weight);
         OperatorTerminal::new(constraint_ref, self.impact_type, scored, weight_fn, is_hard)
     }
 }

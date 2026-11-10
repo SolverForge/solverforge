@@ -3,6 +3,7 @@ mod complemented_grouped;
 mod directed_bi;
 mod grouped;
 mod join_target;
+mod row_closures;
 mod source;
 mod uni;
 

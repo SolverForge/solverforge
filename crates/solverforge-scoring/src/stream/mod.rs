@@ -80,6 +80,7 @@ mod arity_stream_macros;
 mod balance_stream;
 mod bi_stream;
 mod chain_stream;
+mod closures;
 pub mod collection_extract;
 pub mod collector;
 mod complemented_stream;

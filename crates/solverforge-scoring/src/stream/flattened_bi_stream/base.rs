@@ -166,9 +166,9 @@ where
             a_lookup_fn: self.a_lookup_fn,
             filter: AndBiFilter::new(
                 self.filter,
-                FnBiFilter::new(move |_s: &S, a: &A, c: &C, _a_idx: usize, _b_idx: usize| {
-                    predicate(a, c)
-                }),
+                FnBiFilter::new(crate::stream::closures::pair_filter::<S, A, C, _>(
+                    predicate,
+                )),
             ),
             _phantom: PhantomData,
         }
@@ -248,7 +248,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |a: &A, c: &C| weight.score((a, c)),
+            crate::stream::closures::weight2::<A, C, Sc, _>(weight),
             is_hard,
         )
     }
@@ -285,7 +285,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |a: &A, c: &C| weight.score((a, c)),
+            crate::stream::closures::weight2::<A, C, Sc, _>(weight),
             is_hard,
         )
     }

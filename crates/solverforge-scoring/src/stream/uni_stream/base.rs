@@ -98,7 +98,7 @@ where
             extractor: self.extractor,
             filter: AndUniFilter::new(
                 self.filter,
-                FnUniFilter::new(move |_s: &S, a: &A| predicate(a)),
+                FnUniFilter::new(crate::stream::closures::entity_filter::<S, A, _>(predicate)),
             ),
             _phantom: PhantomData,
         }

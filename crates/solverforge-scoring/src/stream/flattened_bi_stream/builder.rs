@@ -137,10 +137,7 @@ where
         let tree = super::super::relational::operator::JoinNode::new(left, right, plan);
         let scored = FlattenedBiScored::new(tree, self.filter);
         let weight = self.weight;
-        let weight_fn = move |_: &S, row: &Pair<Leaf<'_, A>, FlattenView<'_, Leaf<'_, B>, C>>| {
-            let (a, c) = super::scored::FlattenedBiEntities::entities(row);
-            weight(a, c)
-        };
+        let weight_fn = crate::stream::closures::flattened_row_weight::<S, A, B, C, Sc, _>(weight);
         OperatorTerminal::new(
             ConstraintRef::new("", name),
             self.impact_type,

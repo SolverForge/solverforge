@@ -151,7 +151,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |k: &K, r: &R, b: &B| weight.score((k, r, b)),
+            crate::stream::closures::weight3::<K, R, B, Sc, _>(weight),
             is_hard,
         )
     }
@@ -182,7 +182,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |k: &K, r: &R, b: &B| weight.score((k, r, b)),
+            crate::stream::closures::weight3::<K, R, B, Sc, _>(weight),
             is_hard,
         )
     }

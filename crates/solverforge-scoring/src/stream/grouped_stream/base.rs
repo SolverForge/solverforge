@@ -109,7 +109,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Penalty,
-            move |key: &K, result: &R| weight.score((key, result)),
+            crate::stream::closures::weight2::<K, R, Sc, _>(weight),
             is_hard,
         )
     }
@@ -142,7 +142,7 @@ where
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Reward,
-            move |key: &K, result: &R| weight.score((key, result)),
+            crate::stream::closures::weight2::<K, R, Sc, _>(weight),
             is_hard,
         )
     }
@@ -176,7 +176,7 @@ where
         D: Fn(&B) -> R + Send + Sync + 'static,
     {
         let key_fn = self.key_fn;
-        let wrapped_key_fn = move |a: &A| Some((key_fn)(a));
+        let wrapped_key_fn = crate::stream::closures::some_key::<A, K, _>(key_fn);
         ComplementedConstraintStream::new(
             self.extractor,
             extractor_b,

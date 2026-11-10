@@ -418,6 +418,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             #scalar_helpers
             #list_metadata
 
+            #[doc(hidden)]
             pub fn entity_descriptor(solution_field: &'static str) -> ::solverforge::__internal::EntityDescriptor {
                 let mut desc = ::solverforge::__internal::EntityDescriptor::new(
                     #name_str,

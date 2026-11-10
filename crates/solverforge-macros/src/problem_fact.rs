@@ -68,6 +68,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         #planning_id_impl
 
         impl #impl_generics #name #ty_generics #where_clause {
+            #[doc(hidden)]
             pub fn problem_fact_descriptor(
                 solution_field: &'static str,
             ) -> ::solverforge::__internal::ProblemFactDescriptor {

@@ -10,6 +10,7 @@ pub(super) fn generate_list_metadata(
 ) -> Result<TokenStream, Error> {
     let Some(field) = list_variables.first().copied() else {
         return Ok(quote! {
+            #[doc(hidden)]
             pub const __SOLVERFORGE_LIST_VARIABLE_COUNT: usize = 0;
         });
     };
@@ -118,6 +119,7 @@ pub(super) fn generate_list_metadata(
         (quote! {}, quote! { ::core::option::Option::None })
     };
     Ok(quote! {
+        #[doc(hidden)]
         pub const __SOLVERFORGE_LIST_VARIABLE_COUNT: usize = 1;
         const __SOLVERFORGE_LIST_VARIABLE_NAME: &'static str = #field_name_str;
         const __SOLVERFORGE_LIST_ELEMENT_COLLECTION: &'static str = #element_collection;

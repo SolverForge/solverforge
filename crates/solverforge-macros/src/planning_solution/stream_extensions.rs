@@ -37,6 +37,7 @@ pub(super) fn generate_collection_source_methods(
         let descriptor_index_lit = syn::Index::from(descriptor_index);
 
         source_methods.push(quote! {
+            #[doc = concat!("Constraint-stream source over the `", stringify!(#field_name), "` collection.")]
             pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
@@ -58,6 +59,7 @@ pub(super) fn generate_collection_source_methods(
 
         let change_source = unowned_change_source(&quote! { Self }, field_name);
         source_methods.push(quote! {
+            #[doc = concat!("Constraint-stream source over the `", stringify!(#field_name), "` collection.")]
             pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
@@ -79,6 +81,7 @@ pub(super) fn generate_collection_source_methods(
 
         let change_source = unowned_change_source(&quote! { Self }, field_name);
         source_methods.push(quote! {
+            #[doc = concat!("Constraint-stream source over the `", stringify!(#field_name), "` collection.")]
             pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
@@ -161,6 +164,7 @@ pub(super) fn generate_constraint_stream_extensions(
     }
 
     quote! {
+        #[doc = concat!("Constraint-stream entry points for each `", stringify!(#solution_name), "` collection.")]
         pub trait #trait_name<Sc: ::solverforge::Score + 'static> {
             #(#trait_methods)*
         }
@@ -192,6 +196,7 @@ fn push_stream_extension_method(
     };
 
     trait_methods.push(quote! {
+        #[doc = concat!("Streams every row of the `", stringify!(#field_name), "` collection.")]
         fn #field_name(self) -> #return_type;
     });
 

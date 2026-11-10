@@ -201,6 +201,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         }
 
         impl #impl_generics #name #ty_generics #where_clause {
+            #[doc(hidden)]
             pub fn descriptor() -> ::solverforge::__internal::SolutionDescriptor {
                 let mut descriptor = ::solverforge::__internal::SolutionDescriptor::new(
                     #name_str,
@@ -218,6 +219,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 descriptor
             }
 
+            #[doc(hidden)]
             #[inline]
             pub fn entity_count(this: &Self, descriptor_index: usize) -> usize {
                 match descriptor_index {

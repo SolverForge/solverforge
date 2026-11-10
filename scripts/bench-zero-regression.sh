@@ -47,6 +47,12 @@ BENCH_ISOLATE=${BENCH_ISOLATE:-1}
 # indirect mispredictions into 859k with equal instruction counts. Branch
 # behaviour is graded on the hardware branch-misses counter instead, whose
 # baseline interquartile range on the isolated CPU stays at 0.04-2.2%.
+# The timed trials rotate through the same layouts: trial t runs layout
+# t mod SIM_LAYOUTS on both sides, so every timed metric (wall time, hardware
+# instructions and branch misses) is a median over all layouts rather than
+# the reading of one placement. Measured on one layout, identical code moved
+# by 32 bytes read +10% wall time (ruin) and +9.9% hardware branch misses
+# (nearby_swap), while the medians over five layouts moved +1.2% and +1.0%.
 SIM_LAYOUTS=${SIM_LAYOUTS:-5}
 SIM_JOBS=${SIM_JOBS:-8}
 # Each trial's hardware counters are the mean of PERF_REPEATS process runs.
@@ -381,12 +387,11 @@ cat >"$RESULTS/environment.json" <<EOF
 EOF
 
 for case_name in "${CASES[@]}"; do
-    BASELINE_BIN=$(case_binary baseline "$case_name")
-    CANDIDATE_BIN=$(case_binary candidate "$case_name")
     case_iterations=$(measure_iterations_for_case "$case_name")
     for ((warmup = 0; warmup < WARMUPS; warmup++)); do
-        taskset -c "$BENCH_CPU" "$BASELINE_BIN" "$case_name" "$case_iterations" >/dev/null
-        taskset -c "$BENCH_CPU" "$CANDIDATE_BIN" "$case_name" "$case_iterations" >/dev/null
+        layout=$((warmup % SIM_LAYOUTS))
+        taskset -c "$BENCH_CPU" "$(case_binary baseline "$case_name" "$layout")" "$case_name" "$case_iterations" >/dev/null
+        taskset -c "$BENCH_CPU" "$(case_binary candidate "$case_name" "$layout")" "$case_name" "$case_iterations" >/dev/null
     done
 done
 
@@ -417,9 +422,10 @@ run_trial() {
 }
 
 for case_name in "${CASES[@]}"; do
-    BASELINE_BIN=$(case_binary baseline "$case_name")
-    CANDIDATE_BIN=$(case_binary candidate "$case_name")
     for ((trial = 0; trial < TRIALS; trial++)); do
+        layout=$((trial % SIM_LAYOUTS))
+        BASELINE_BIN=$(case_binary baseline "$case_name" "$layout")
+        CANDIDATE_BIN=$(case_binary candidate "$case_name" "$layout")
         if ((trial % 2 == 0)); then
             run_trial baseline "$BASELINE_BIN" "$case_name" "$trial"
             run_trial candidate "$CANDIDATE_BIN" "$case_name" "$trial"

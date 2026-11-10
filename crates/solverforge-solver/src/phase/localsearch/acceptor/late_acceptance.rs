@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::ScoreLevel;
 use solverforge_core::Score;
 
 use super::Acceptor;
@@ -15,10 +16,11 @@ use crate::heuristic::r#move::MoveTabuSignature;
 ///
 /// The buffer is filled with the initial score when the phase starts and
 /// re-anchored to the best score only when a dominating level of that best
-/// score changes (the hard level of a hard/soft score; the hard and medium
-/// levels of a hard/medium/soft score), so that entries from before a
-/// feasibility change cannot admit moves that keep the new level but ruin
-/// the lower ones. A single-level score never re-anchors. Improvements in
+/// score changes: every hard and medium level (the hard level of a hard/soft
+/// score, the hard and medium levels of a hard/medium/soft score, the hard
+/// levels of a bendable score), so that entries from before a feasibility
+/// change cannot admit moves that keep the new level but ruin the soft ones.
+/// A score with only soft levels never re-anchors. Improvements in
 /// the lowest level alone leave the buffer as it is: re-anchoring on those
 /// would leave every entry equal to the best, after which only moves at
 /// least as good as the best could ever be accepted and the search would
@@ -139,8 +141,10 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
     }
 }
 
-/// Whether any level above the lowest differs between two scores.
+/// Whether any hard or medium level differs between two scores.
 fn dominating_level_changed<Sc: Score>(previous: &Sc, next: &Sc) -> bool {
-    (0..Sc::levels_count().saturating_sub(1))
-        .any(|level| previous.level_number(level) != next.level_number(level))
+    (0..Sc::levels_count()).any(|level| {
+        Sc::level_label(level) != ScoreLevel::Soft
+            && previous.level_number(level) != next.level_number(level)
+    })
 }

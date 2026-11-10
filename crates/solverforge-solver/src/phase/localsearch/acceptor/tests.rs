@@ -1,5 +1,5 @@
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::{HardSoftScore, SoftScore};
+use solverforge_core::score::{BendableScore, HardSoftScore, SoftScore};
 use std::any::Any;
 
 use super::*;
@@ -12,6 +12,23 @@ struct DummySolution {
 
 impl PlanningSolution for DummySolution {
     type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BendableSolution {
+    score: Option<BendableScore<1, 2>>,
+}
+
+impl PlanningSolution for BendableSolution {
+    type Score = BendableScore<1, 2>;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -162,6 +179,33 @@ fn late_acceptance_re_anchors_when_a_dominating_level_changes() {
     // stale infeasible entry.
     assert!(!acceptor.is_accepted(&HardSoftScore::of(0, -20), &HardSoftScore::of(0, -25), None));
     assert!(acceptor.is_accepted(&HardSoftScore::of(0, -20), &HardSoftScore::of(0, -20), None));
+}
+
+#[test]
+fn late_acceptance_keeps_history_after_bendable_soft_improvement() {
+    let mut acceptor = LateAcceptanceAcceptor::<BendableSolution>::new(5);
+    acceptor.phase_started(&BendableScore::of([0], [-10, -10]));
+    // The first soft level improves: a soft level, so the history stays.
+    acceptor.step_ended(&BendableScore::of([0], [-8, -10]), None);
+
+    assert!(acceptor.is_accepted(
+        &BendableScore::of([0], [-8, -10]),
+        &BendableScore::of([0], [-9, -10]),
+        None
+    ));
+}
+
+#[test]
+fn late_acceptance_re_anchors_when_a_bendable_hard_level_changes() {
+    let mut acceptor = LateAcceptanceAcceptor::<BendableSolution>::new(5);
+    acceptor.phase_started(&BendableScore::of([-1], [-10, -10]));
+    acceptor.step_ended(&BendableScore::of([0], [-20, -20]), None);
+
+    assert!(!acceptor.is_accepted(
+        &BendableScore::of([0], [-20, -20]),
+        &BendableScore::of([0], [-25, -20]),
+        None
+    ));
 }
 
 #[test]

@@ -21,7 +21,30 @@ pub(super) fn generate_ruin_batches<S>(
 where
     S: PlanningSolution,
 {
-    let entity_count = slot.entity_count(solution);
+    ruin_batches(
+        slot.entity_count(solution),
+        min_ruin_count,
+        max_ruin_count,
+        moves_per_step,
+        rng,
+    )
+}
+
+/// Draws `moves_per_step` batches of distinct entity indexes, each the prefix
+/// of a partial Fisher-Yates shuffle of the identity permutation.
+///
+/// The permutation is restored to the identity after each batch by rewriting
+/// only the positions the shuffle touched: the prefix, and the original
+/// positions of the values the batch took. A value that enters the prefix
+/// never moves again, so every other position still holds its own index.
+/// Restoring costs O(ruin count) per batch instead of O(entity count).
+fn ruin_batches(
+    entity_count: usize,
+    min_ruin_count: usize,
+    max_ruin_count: usize,
+    moves_per_step: usize,
+    rng: &mut SmallRng,
+) -> Vec<Vec<usize>> {
     let min = min_ruin_count.min(entity_count);
     let max = max_ruin_count.min(entity_count);
     let mut permutation: Vec<usize> = (0..entity_count).collect();
@@ -29,9 +52,6 @@ where
         .map(|_| {
             if entity_count == 0 {
                 return Vec::new();
-            }
-            for (index, entity) in permutation.iter_mut().enumerate() {
-                *entity = index;
             }
             let ruin_count = if min == max {
                 min
@@ -42,10 +62,21 @@ where
                 let swap_index = rng.random_range(index..entity_count);
                 permutation.swap(index, swap_index);
             }
-            permutation[..ruin_count].to_vec()
+            let batch = permutation[..ruin_count].to_vec();
+            for (index, entity) in permutation[..ruin_count].iter_mut().enumerate() {
+                *entity = index;
+            }
+            for &entity in &batch {
+                permutation[entity] = entity;
+            }
+            batch
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "ruin_tests.rs"]
+mod tests;
 
 struct RuinSnapshot {
     assigned: Vec<bool>,

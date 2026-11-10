@@ -1,6 +1,27 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.26.0](https://github.com/SolverForge/solverforge/compare/v0.25.1...v0.26.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** solverforge-scoring removes ReplicaDescriptor. Build a replica-forking director with ScoreDirector::with_replicas(solution, constraints, constraint_builder, &descriptor, entity_counter) (or the _weighted/_in_mode variants) instead of with_descriptor(solution, constraints, ReplicaDescriptor::new(&descriptor, constraint_builder), entity_counter). DirectorDescriptor has no type parameters, and DirectorDescriptor::replica() is replaced by share().
+
+### Bug Fixes
+
+* **bench:** grade cache and branch behaviour on Cachegrind simulation ([41519c2](https://github.com/SolverForge/solverforge/commit/41519c25cceebb1511c3bb0e2ce024d53282e0b9)), closes #232
+* **bench:** grade cache and branch behaviour on layout-stable counters ([ab2e99e](https://github.com/SolverForge/solverforge/commit/ab2e99e8f734e5417b124b5d3b644ab4ad1ca4a8)), closes #239
+* **macros:** document or hide every generated public item ([73ead60](https://github.com/SolverForge/solverforge/commit/73ead605eee63c0e0ad7c4a422e3ab25665dd9cb)), closes #235
+* **scoring:** build stream closures in narrowly generic functions ([97ef409](https://github.com/SolverForge/solverforge/commit/97ef4096b542f01699ac831ee2a316aa2037559a))
+
+
+### Code Refactoring
+
+* keep module roots to declarations and re-exports ([69d0457](https://github.com/SolverForge/solverforge/commit/69d04574a5d4aa2c06965b4fac158f29979471ef)), closes #234
+* **scoring:** keep the replica constraint builder out of the descriptor type ([bc60fe5](https://github.com/SolverForge/solverforge/commit/bc60fe5b24f83a7424fa44dab57b4c603ab25a52)), closes #238
+
+
 ## [0.25.1](https://github.com/SolverForge/solverforge/compare/v0.25.0...v0.25.1) (2026-11-09)
 
 

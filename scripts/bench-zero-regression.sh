@@ -44,13 +44,17 @@ BENCH_ISOLATE=${BENCH_ISOLATE:-1}
 # the simulated caches and predictor index by address, so layouts of one
 # source (v0.25.1) moved instruction-L1 misses by up to 133% and indirect
 # mispredictions by up to 475%, and an edit inside one function turned 970
-# indirect mispredictions into 859k with equal instruction counts. Branch
-# behaviour is graded on the hardware branch-misses counter instead, whose
-# baseline interquartile range on the isolated CPU stays at 0.04-2.2%.
+# indirect mispredictions into 859k with equal instruction counts. The
+# hardware branch-misses counter is reported only as well: its run-to-run
+# spread is small, but it depends on branch addresses too. On identical
+# instruction counts, a few bytes of padding inside one function moved
+# nearby_swap's branch misses +9.6% on four of five layouts while its wall
+# time moved -0.3%. Branch and cache behaviour that costs time shows up in
+# the graded wall time.
 # The timed trials rotate through the same layouts: trial t runs layout
 # t mod SIM_LAYOUTS on both sides, so every timed metric (wall time, hardware
-# instructions and branch misses) is a median over all layouts rather than
-# the reading of one placement. Measured on one layout, identical code moved
+# instructions, the reported hardware counters) is a median over all layouts
+# rather than the reading of one placement. Measured on one layout, identical code moved
 # by 32 bytes read +10% wall time (ruin) and +9.9% hardware branch misses
 # (nearby_swap), while the medians over five layouts moved +1.2% and +1.0%.
 SIM_LAYOUTS=${SIM_LAYOUTS:-5}
@@ -486,9 +490,9 @@ def load_perf(side, case, trial):
             result[event] = float(columns[0].strip())
     return result
 
-# Hardware counters reported for diagnosis only. branch-misses is graded: the
-# simulated predictor depends on code addresses, the hardware one does not.
-reported_only = {"cycles", "branches", "cache-references", "cache-misses"}
+# Hardware counters reported for diagnosis only: like the simulated cache and
+# branch metrics, they depend on code and data addresses as well as on work.
+reported_only = {"cycles", "branches", "branch-misses", "cache-references", "cache-misses"}
 # Simulated metrics that move with code placement alone; reported only.
 simulated_reported_only = {"sim_i1_misses", "sim_branch_mispredicts"}
 
@@ -657,11 +661,10 @@ for case_index, case in enumerate(cases):
         }
 
     # Deterministic counters must match exactly; any extra allocation,
-    # allocated byte, or live byte is a regression. Wall time, hardware
-    # instructions and hardware branch-misses are graded against the documented
-    # median regression budget (BENCH_TOLERANCE_PERCENT); the remaining hardware
-    # counters are reported only, because the simulated metrics above grade
-    # cache behaviour. The bootstrap upper bound stays in the report as a noise
+    # allocated byte, or live byte is a regression. Wall time and hardware
+    # instructions are graded against the documented median regression budget
+    # (BENCH_TOLERANCE_PERCENT); the remaining hardware counters are reported
+    # only, because they move with code placement as well as with work. The bootstrap upper bound stays in the report as a noise
     # diagnostic, not an acceptance criterion.
     exact_metrics = {"allocations", "allocated_bytes", "peak_live_bytes"}
     budget = float(tolerance_percent)

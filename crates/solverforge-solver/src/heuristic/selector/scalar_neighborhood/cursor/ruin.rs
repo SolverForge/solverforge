@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rand::rngs::SmallRng;
 use rand::RngExt;
 use solverforge_config::RecreateHeuristicType;
@@ -33,11 +35,11 @@ where
 /// Draws `moves_per_step` batches of distinct entity indexes, each the prefix
 /// of a partial Fisher-Yates shuffle of the identity permutation.
 ///
-/// The permutation is restored to the identity after each batch by rewriting
-/// only the positions the shuffle touched: the prefix, and the original
-/// positions of the values the batch took. A value that enters the prefix
-/// never moves again, so every other position still holds its own index.
-/// Restoring costs O(ruin count) per batch instead of O(entity count).
+/// The shuffle is simulated without the permutation: `displaced` records only
+/// the positions whose value a swap has changed, and every other position
+/// holds its own index. A batch therefore costs O(ruin count) time and memory,
+/// reads no entity-sized array, and yields exactly the batches and random
+/// draws of shuffling a full identity permutation.
 fn ruin_batches(
     entity_count: usize,
     min_ruin_count: usize,
@@ -47,7 +49,7 @@ fn ruin_batches(
 ) -> Vec<Vec<usize>> {
     let min = min_ruin_count.min(entity_count);
     let max = max_ruin_count.min(entity_count);
-    let mut permutation: Vec<usize> = (0..entity_count).collect();
+    let mut displaced: HashMap<usize, usize> = HashMap::with_capacity(max);
     (0..moves_per_step)
         .map(|_| {
             if entity_count == 0 {
@@ -58,16 +60,16 @@ fn ruin_batches(
             } else {
                 rng.random_range(min..=max)
             };
+            displaced.clear();
+            let mut batch = Vec::with_capacity(ruin_count);
             for index in 0..ruin_count {
                 let swap_index = rng.random_range(index..entity_count);
-                permutation.swap(index, swap_index);
-            }
-            let batch = permutation[..ruin_count].to_vec();
-            for (index, entity) in permutation[..ruin_count].iter_mut().enumerate() {
-                *entity = index;
-            }
-            for &entity in &batch {
-                permutation[entity] = entity;
+                let at_index = displaced.get(&index).copied().unwrap_or(index);
+                let at_swap = displaced.get(&swap_index).copied().unwrap_or(swap_index);
+                batch.push(at_swap);
+                // Position `index` is never read again: later swaps draw from
+                // later positions only.
+                displaced.insert(swap_index, at_index);
             }
             batch
         })

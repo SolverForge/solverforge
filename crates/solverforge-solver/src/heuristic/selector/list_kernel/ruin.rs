@@ -74,6 +74,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn choose_ruin_count(&mut self, eligible_len: usize) -> usize {
         let min = self.min_ruin_count.min(eligible_len);
         let max = self.max_ruin_count.min(eligible_len);

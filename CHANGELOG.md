@@ -1,6 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.26.1](https://github.com/SolverForge/solverforge/compare/v0.26.0...v0.26.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **bench:** report hardware branch misses instead of grading them ([4539f3e](https://github.com/SolverForge/solverforge/commit/4539f3e720e821ffbcac9c51ae6f53ae4ce3eb0c)), closes #250
+* **bench:** rotate the timed gate trials through the code layouts ([a06e9db](https://github.com/SolverForge/solverforge/commit/a06e9dbc444162b3d95cab43dda8c56aeab123a7)), closes #245
+* **solver:** late acceptance re-anchors only on a dominating level change ([e1b41b4](https://github.com/SolverForge/solverforge/commit/e1b41b4117f573e8a6345cc1807edd0f273694f6))
+* **solver:** late acceptance re-anchors only on hard and medium levels ([80c675e](https://github.com/SolverForge/solverforge/commit/80c675e3a503d5aa6e271e30639f081469a5f943))
+
+
+### Performance Improvements
+
+* **solver:** keep the list ruin count choice inlined ([0773934](https://github.com/SolverForge/solverforge/commit/07739344f0501dc384895a447fb9fb0dd8f5aee5)), closes #248
+* **solver:** restore only the touched ruin permutation positions ([84e50f3](https://github.com/SolverForge/solverforge/commit/84e50f3b9ede3d795d3fc55dcba182f23e215f29)), closes #244
+* **solver:** simulate the ruin shuffle without a permutation ([178a125](https://github.com/SolverForge/solverforge/commit/178a1258d6ce37baa461aa2831bbdaf92addc0fc))
+
+
 ## [0.26.0](https://github.com/SolverForge/solverforge/compare/v0.25.1...v0.26.0) (2026-11-10)
 
 

@@ -17,6 +17,7 @@ use solverforge_scoring::ScoreDirector;
 use crate::heuristic::selector::MoveSelector;
 
 mod coverage;
+mod swap_legality;
 
 // Per-thread probes: the test harness runs tests concurrently, and every test
 // here drives the same nearby-source callbacks on its own thread.

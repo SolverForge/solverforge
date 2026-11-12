@@ -16,9 +16,13 @@ const ENTITY_STRIDE_MIX: u64 = 0xD1B5_4A32_D192_ED03;
 
 /// Complete scalar exchange enumeration for one frozen slot.
 ///
-/// Native slots eagerly snapshot their values and legal rows, matching the
-/// historic selector's source timing. Dynamic slots retain their existing
-/// direct legality calls while traversing the same candidate ordering.
+/// Native slots snapshot every entity's current value at open and test value
+/// legality against the slot's value source without materializing it: a
+/// counted or ranged source is a bounds check against the range read at open,
+/// and an entity-slice source is looked up in the borrowed slice. Opening the
+/// cursor is therefore linear in the entity count, independent of the value
+/// range. Dynamic slots retain their existing direct legality calls while
+/// traversing the same candidate ordering.
 pub(super) struct SwapCursor<S> {
     slot: RuntimeScalarSlot<S>,
     snapshot: SwapSnapshot,
@@ -31,10 +35,37 @@ pub(super) struct SwapCursor<S> {
 enum SwapSnapshot {
     Static {
         current_values: Vec<Option<usize>>,
-        legal_values: Vec<Vec<usize>>,
-        empty_value_source: bool,
+        legality: StaticSwapLegality,
     },
     Dynamic,
+}
+
+/// Value legality of a native slot, resolved once at cursor open.
+#[derive(Clone, Copy)]
+enum StaticSwapLegality {
+    /// An empty value source: any assigned value may be exchanged.
+    AnyAssigned,
+    /// A counted or ranged source: values `from..to`, read at open.
+    Range { from: usize, to: usize },
+    /// A per-entity slice source, looked up in the borrowed slice.
+    EntitySlice,
+}
+
+impl StaticSwapLegality {
+    fn of<S>(value_source: &ValueSource<S>, solution: &S) -> Self {
+        match *value_source {
+            ValueSource::Empty => Self::AnyAssigned,
+            ValueSource::CountableRange { from, to } => Self::Range { from, to },
+            ValueSource::SolutionCount {
+                count_fn,
+                provider_index,
+            } => Self::Range {
+                from: 0,
+                to: count_fn(solution, provider_index),
+            },
+            ValueSource::EntitySlice { .. } => Self::EntitySlice,
+        }
+    }
 }
 
 impl<S> SwapCursor<S>
@@ -52,13 +83,9 @@ where
                 let current_values = (0..entity_count)
                     .map(|entity_index| slot.current_value(solution, entity_index))
                     .collect();
-                let legal_values = (0..entity_count)
-                    .map(|entity_index| static_slot.values_for_entity(solution, entity_index))
-                    .collect();
                 SwapSnapshot::Static {
                     current_values,
-                    legal_values,
-                    empty_value_source: matches!(static_slot.value_source, ValueSource::Empty),
+                    legality: StaticSwapLegality::of(&static_slot.value_source, solution),
                 }
             }
             RuntimeScalarSlot::Dynamic(_) => SwapSnapshot::Dynamic,
@@ -145,20 +172,17 @@ where
         value: Option<usize>,
     ) -> bool {
         match &self.snapshot {
-            SwapSnapshot::Static {
-                legal_values,
-                empty_value_source,
-                ..
-            } => {
-                if *empty_value_source {
-                    value.is_some()
-                } else {
-                    match value {
-                        Some(value) => legal_values[entity_index].contains(&value),
-                        None => self.slot.allows_unassigned(),
-                    }
+            SwapSnapshot::Static { legality, .. } => match (*legality, value) {
+                (StaticSwapLegality::AnyAssigned, value) => value.is_some(),
+                (StaticSwapLegality::Range { from, to }, Some(value)) => {
+                    from <= value && value < to
                 }
-            }
+                (StaticSwapLegality::Range { .. }, None) => self.slot.allows_unassigned(),
+                (StaticSwapLegality::EntitySlice, value) => {
+                    self.slot
+                        .swap_destination_is_legal(solution, entity_index, value)
+                }
+            },
             SwapSnapshot::Dynamic => {
                 self.slot
                     .swap_destination_is_legal(solution, entity_index, value)

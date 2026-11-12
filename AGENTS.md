@@ -50,7 +50,7 @@ Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `sol
 
 Current workspace release version: `0.26.1`.
 
-Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
+Use `README.md`, the user guides under `docs/`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
 Canonical generated domains use `solverforge::planning_model!` in
 `src/domain/mod.rs` as the model-owned metadata manifest. Entity, fact, and
@@ -67,16 +67,27 @@ topology in a scalar field.
 
 Treat the repository documentation as a coordinated surface, not as isolated files.
 
-- `README.md` is the user-facing entry point. Keep the first screen oriented
-  to a first-time human user: what SolverForge is, when to use it, how to try
-  it with `solverforge-cli`, and where to go next. Do not turn the README into
-  a long release-history dump; use `CHANGELOG.md` for release history and
-  `RELEASE.md` for maintainer release operations.
-  Every ```rust block in the README is compiled:
-  `crates/solverforge/tests/readme_examples.rs` fails unless each block is
-  checked in verbatim between `// readme:begin` and `// readme:end` under
-  `crates/solverforge/tests/readme_examples/`, so add or edit a block there
-  in the same change.
+- `README.md` is the user-facing entry point and stays short. Keep the first
+  screen oriented to a first-time human user: what SolverForge is, when to use
+  it, how to try it with `solverforge-cli`, and where to go next. Below that it
+  carries one constraint example, a feature summary, the documentation map
+  (including the coding-agent pointers), examples, and the Architecture
+  section with the `assets/solverforge-architecture.svg` diagram, the crate
+  table and the SERIO image. Feature reference belongs in the user guides, not
+  the README. Do not turn the README into a long release-history dump; use
+  `CHANGELOG.md` for release history and `RELEASE.md` for maintainer release
+  operations.
+- The user guides `docs/modeling.md`, `docs/constraints.md`,
+  `docs/configuration.md`, `docs/running-solves.md` and `docs/performance.md`
+  hold the feature reference the README links to, one topic each. Put a new
+  user-facing feature in the guide for its topic and keep the README
+  documentation map in step when a guide is added or renamed.
+- Every ```rust block in the README and in those user guides is compiled:
+  `crates/solverforge/tests/readme_examples.rs` lists the documents and fails
+  unless each block is checked in verbatim between `// readme:begin` and
+  `// readme:end` under `crates/solverforge/tests/readme_examples/`, so add or
+  edit a block there in the same change. A new user guide is added to that
+  list.
 - `crates/*/README.md` is each published crate's crates.io page: one
   paragraph on what the crate is, pointing applications at the `solverforge`
   facade. The facade's page is the root `README.md`. Every published crate
@@ -86,11 +97,12 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
   guidance, agent instructions, and pull request templates consistent with it;
   do not introduce separate AI acceptance rules on those surfaces.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
-- `docs/*.md` files capture focused extension guidance for APIs that are meant
-  to be extended, plus narrowly scoped agent notes that do not belong in this
-  file or in crate wireframes. Do not add standalone contract, charter, audit,
-  or historical plan documents under `docs/`; current public APIs belong in the
-  README and matching wireframes, while durable repository rules belong here.
+- The other `docs/*.md` files (`extend-*.md`) capture focused extension
+  guidance for APIs that are meant to be extended, plus narrowly scoped agent
+  notes that do not belong in this file or in crate wireframes. Do not add
+  standalone contract, charter, audit, or historical plan documents under
+  `docs/`; current public APIs belong in the user guides and matching
+  wireframes, while durable repository rules belong here.
 - `docs/architecture.html` is the generated system wiring map (crates,
   configuration, solve pipeline, runtime anatomy, consumers). Edit its vector
   source at `assets/solverforge-architecture.svg` and page layout at
@@ -142,13 +154,15 @@ sees the surface change. Inside those crates, `pub` means supported surface:
 
 When a public API change also affects how users discover or reason about the
 feature, update the corresponding top-level docs in the same change. Extension
-point changes should leave a clear trail in `README.md`, the relevant extension
-guide under `docs/`, and the affected wireframes.
+point changes should leave a clear trail in the relevant user guide, the
+relevant extension guide under `docs/`, and the affected wireframes, plus
+`README.md` when the feature summary or documentation map changes.
 
 Version bumps are documentation changes too. When the published version changes, update the manifest version plus the coordinated public docs surface in the same change:
 
 - `Cargo.toml` workspace version and the exact (`=x.y.z`) inter-crate dependency versions in every crate manifest, which csemver's postbump moves together
-- `README.md`
+- `README.md` (status line and install snippet)
+- `docs/running-solves.md` (console banner)
 - `AGENTS.md`
 - affected `crates/*/WIREFRAME.md` files
 

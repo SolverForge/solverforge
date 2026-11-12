@@ -1,10 +1,11 @@
-//! Every ```rust block in README.md is compiled. Each block is checked in
-//! verbatim between `// readme:begin` and `// readme:end` lines in a file
-//! under `readme_examples/`, inside whatever context it needs to compile, and
-//! `every_readme_rust_block_is_compiled` fails as soon as README.md and
-//! those files disagree in either direction.
+//! Every ```rust block in README.md and in the user guides under docs/ is
+//! compiled. Each block is checked in verbatim between `// readme:begin` and
+//! `// readme:end` lines in a file under `readme_examples/`, inside whatever
+//! context it needs to compile, and `every_documented_rust_block_is_compiled`
+//! fails as soon as the documents and those files disagree in either
+//! direction.
 
-// README code is shown as written: shadowed `let`s, ignored results.
+// Documented code is shown as written: shadowed `let`s, ignored results.
 #![allow(dead_code, unused_variables, unused_must_use, unused_mut)]
 
 #[path = "readme_examples/nurses/mod.rs"]
@@ -38,7 +39,30 @@ mod weights;
 use solverforge::prelude::*;
 use staffing::{Assignment, Employee, Schedule, Shift};
 
-const README: &str = include_str!("../../../README.md");
+/// The documents whose ```rust blocks must compile.
+const DOCUMENTS: &[(&str, &str)] = &[
+    ("README.md", include_str!("../../../README.md")),
+    (
+        "docs/modeling.md",
+        include_str!("../../../docs/modeling.md"),
+    ),
+    (
+        "docs/constraints.md",
+        include_str!("../../../docs/constraints.md"),
+    ),
+    (
+        "docs/configuration.md",
+        include_str!("../../../docs/configuration.md"),
+    ),
+    (
+        "docs/running-solves.md",
+        include_str!("../../../docs/running-solves.md"),
+    ),
+    (
+        "docs/performance.md",
+        include_str!("../../../docs/performance.md"),
+    ),
+];
 
 const SOURCES: &[(&str, &str)] = &[
     (
@@ -67,25 +91,27 @@ const SOURCES: &[(&str, &str)] = &[
     ("weights.rs", include_str!("readme_examples/weights.rs")),
 ];
 
-/// The README's ```rust blocks, with the line each starts on.
-fn readme_blocks() -> Vec<(usize, String)> {
+/// Every document's ```rust blocks, with the document and line each starts on.
+fn documented_blocks() -> Vec<(&'static str, usize, String)> {
     let mut blocks = Vec::new();
-    let mut open: Option<(usize, Vec<&str>)> = None;
-    for (index, line) in README.lines().enumerate() {
-        match open.as_mut() {
-            None if line == "```rust" => open = Some((index + 2, Vec::new())),
-            Some(_) if line == "```" => {
-                let (start, lines) = open.take().unwrap();
-                blocks.push((start, lines.join("\n")));
+    for (document, text) in DOCUMENTS {
+        let mut open: Option<(usize, Vec<&str>)> = None;
+        for (index, line) in text.lines().enumerate() {
+            match open.as_mut() {
+                None if line == "```rust" => open = Some((index + 2, Vec::new())),
+                Some(_) if line == "```" => {
+                    let (start, lines) = open.take().unwrap();
+                    blocks.push((*document, start, lines.join("\n")));
+                }
+                Some((_, lines)) => lines.push(line),
+                None => {}
             }
-            Some((_, lines)) => lines.push(line),
-            None => {}
         }
+        assert!(
+            open.is_none(),
+            "{document} has an unterminated ```rust block"
+        );
     }
-    assert!(
-        open.is_none(),
-        "README.md has an unterminated ```rust block"
-    );
     blocks
 }
 
@@ -110,19 +136,19 @@ fn compiled_regions() -> Vec<(&'static str, String)> {
 }
 
 #[test]
-fn every_readme_rust_block_is_compiled() {
-    let blocks = readme_blocks();
+fn every_documented_rust_block_is_compiled() {
+    let blocks = documented_blocks();
     let regions = compiled_regions();
-    for (line, block) in &blocks {
+    for (document, line, block) in &blocks {
         assert!(
             regions.iter().any(|(_, region)| region == block),
-            "the ```rust block at README.md:{line} is not checked in under tests/readme_examples/"
+            "the ```rust block at {document}:{line} is not checked in under tests/readme_examples/"
         );
     }
     for (file, region) in &regions {
         assert!(
-            blocks.iter().any(|(_, block)| block == region),
-            "a readme region in readme_examples/{file} is no longer in README.md:\n{region}"
+            blocks.iter().any(|(_, _, block)| block == region),
+            "a readme region in readme_examples/{file} is in no compiled document:\n{region}"
         );
     }
 }

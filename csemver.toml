@@ -50,12 +50,13 @@ bumpFiles = [
   # lines. The script reads the already-bumped workspace version out of
   # Cargo.toml, rewrites every internal path-dep line to it, then regenerates
   # Cargo.lock and docs/architecture.html.
-  # Centrally documented version surfaces in AGENTS.md and README.md; README
-  # carries three surfaces (status line, install snippet, console banner).
+  # Centrally documented version surfaces in AGENTS.md, README.md and
+  # docs/running-solves.md; README carries two (status line, install snippet)
+  # and the running-solves guide carries the console banner.
   { filename = "AGENTS.md", type = 'regex', pattern = '(Current workspace release version: `)([^`]*)(`)', versionGroup = 2 },
   { filename = "README.md", type = 'regex', pattern = '(Current workspace version:\*\* )([0-9]+\.[0-9]+\.[0-9]+)', versionGroup = 2 },
   { filename = "README.md", type = 'regex', pattern = '(solverforge = \{ version = ")([0-9]+\.[0-9]+\.[0-9]+)(", features = \["console"\])', versionGroup = 2 },
-  { filename = "README.md", type = 'regex', pattern = '(\bv)([0-9]+\.[0-9]+\.[0-9]+)( - Zero-Erasure Constraint Solver)', versionGroup = 2 },
+  { filename = "docs/running-solves.md", type = 'regex', pattern = '(\bv)([0-9]+\.[0-9]+\.[0-9]+)( - Zero-Erasure Constraint Solver)', versionGroup = 2 },
   # Per-crate wireframe release line.
   { filename = "crates/solverforge/WIREFRAME.md", type = 'regex', pattern = '(\*\*Workspace Release:\*\* `)([^`]*)(`)', versionGroup = 2 },
   { filename = "crates/solverforge-core/WIREFRAME.md", type = 'regex', pattern = '(\*\*Workspace Release:\*\* `)([^`]*)(`)', versionGroup = 2 },

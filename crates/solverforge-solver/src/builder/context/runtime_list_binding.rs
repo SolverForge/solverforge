@@ -45,6 +45,17 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
         }
     }
 
+    /// Whether savings feasibility is declared shared by every owner of one
+    /// savings metric class. Host-language metadata never declares it.
+    pub(crate) fn savings_feasible_shared_by_metric_class(&self) -> bool {
+        match self {
+            Self::Static { route_bindings, .. } => {
+                route_bindings.savings_feasible_shared_by_metric_class
+            }
+            Self::Dynamic(_) => false,
+        }
+    }
+
     pub(crate) fn route_read_policy(&self) -> RouteReadPolicy {
         match self {
             Self::Static { route_bindings, .. } => route_bindings.read_policy,

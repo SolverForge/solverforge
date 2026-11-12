@@ -46,11 +46,71 @@ pub(crate) fn representative_owner_slots(owner_slots: &[OwnerSlot]) -> Vec<Owner
         .collect()
 }
 
+/// Answers `savings_feasible` for owner slots, one route at a time.
+///
+/// When the access declares savings feasibility shared by metric class, the
+/// first owner of a class answers for every owner of that class; otherwise each
+/// owner is asked. Either way the answers equal asking every owner.
+pub(crate) struct SavingsFeasibility {
+    shared_by_metric_class: bool,
+    class_position: Vec<usize>,
+    answers: Vec<Option<bool>>,
+}
+
+impl SavingsFeasibility {
+    pub(crate) fn new<S, A>(access: &A, owner_slots: &[OwnerSlot]) -> Self
+    where
+        A: ClarkeWrightAccess<S>,
+    {
+        let mut positions = BTreeMap::new();
+        let class_position = owner_slots
+            .iter()
+            .map(|slot| {
+                let next = positions.len();
+                *positions.entry(slot.metric_class).or_insert(next)
+            })
+            .collect();
+        Self {
+            shared_by_metric_class: access.savings_feasible_shared_by_metric_class(),
+            class_position,
+            answers: vec![None; positions.len()],
+        }
+    }
+
+    /// Starts answering for a new route.
+    pub(crate) fn begin_route(&mut self) {
+        if self.shared_by_metric_class {
+            self.answers.fill(None);
+        }
+    }
+
+    /// Whether the owner at `slot_position` admits the current route.
+    pub(crate) fn feasible<S, A>(
+        &mut self,
+        access: &A,
+        solution: &S,
+        owner_slots: &[OwnerSlot],
+        slot_position: usize,
+        route: &[usize],
+    ) -> bool
+    where
+        A: ClarkeWrightAccess<S>,
+    {
+        let owner_idx = owner_slots[slot_position].owner_idx;
+        if !self.shared_by_metric_class {
+            return access.savings_feasible(solution, owner_idx, route);
+        }
+        let answer = &mut self.answers[self.class_position[slot_position]];
+        *answer.get_or_insert_with(|| access.savings_feasible(solution, owner_idx, route))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn feasible_owners_for_scored_elements<S, A>(
     access: &A,
     solution: &S,
     owner_slots: &[OwnerSlot],
+    feasibility: &mut SavingsFeasibility,
     route_values: &[usize],
     route_elements: &[&A::Element],
     scored_metric_class: Option<usize>,
@@ -60,22 +120,67 @@ where
     S: PlanningSolution,
     A: ClarkeWrightAccess<S>,
 {
-    owner_slots
-        .iter()
-        .filter(|slot| scored_metric_class.is_none_or(|class| slot.metric_class == class))
-        .map(|slot| slot.owner_idx)
-        .filter(|&entity_idx| {
-            if !access.savings_feasible(solution, entity_idx, route_values) {
-                return false;
-            }
-            route_owner_allows(access, solution, entity_count, entity_idx, route_elements)
-        })
-        .collect()
+    feasibility.begin_route();
+    let mut owners = Vec::new();
+    for (slot_position, slot) in owner_slots.iter().enumerate() {
+        if scored_metric_class.is_some_and(|class| slot.metric_class != class) {
+            continue;
+        }
+        if feasibility.feasible(access, solution, owner_slots, slot_position, route_values)
+            && route_owner_allows(
+                access,
+                solution,
+                entity_count,
+                slot.owner_idx,
+                route_elements,
+            )
+        {
+            owners.push(slot.owner_idx);
+        }
+    }
+    owners
 }
 
-pub(crate) fn match_route_owners(feasible_sets: &[Vec<usize>]) -> Vec<Option<usize>> {
+/// Whether any owner admits the route; the early-exit form of
+/// [`feasible_owners_for_scored_elements`]`(..).is_empty()`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn has_feasible_owner<S, A>(
+    access: &A,
+    solution: &S,
+    owner_slots: &[OwnerSlot],
+    feasibility: &mut SavingsFeasibility,
+    route_values: &[usize],
+    route_elements: &[&A::Element],
+    scored_metric_class: Option<usize>,
+    entity_count: usize,
+) -> bool
+where
+    S: PlanningSolution,
+    A: ClarkeWrightAccess<S>,
+{
+    feasibility.begin_route();
+    owner_slots
+        .iter()
+        .enumerate()
+        .filter(|(_, slot)| scored_metric_class.is_none_or(|class| slot.metric_class == class))
+        .any(|(slot_position, slot)| {
+            feasibility.feasible(access, solution, owner_slots, slot_position, route_values)
+                && route_owner_allows(
+                    access,
+                    solution,
+                    entity_count,
+                    slot.owner_idx,
+                    route_elements,
+                )
+        })
+}
+
+pub(crate) fn match_route_owners<T>(feasible_sets: &[T]) -> Vec<Option<usize>>
+where
+    T: AsRef<[usize]>,
+{
     let mut route_order: Vec<usize> = (0..feasible_sets.len()).collect();
-    route_order.sort_by_key(|&route_idx| (feasible_sets[route_idx].len(), route_idx));
+    route_order.sort_by_key(|&route_idx| (feasible_sets[route_idx].as_ref().len(), route_idx));
 
     let mut owner_to_route: BTreeMap<usize, usize> = BTreeMap::new();
     for route_idx in route_order {
@@ -162,13 +267,16 @@ where
     Some(completed_routes)
 }
 
-fn assign_route(
+fn assign_route<T>(
     route_idx: usize,
-    feasible_sets: &[Vec<usize>],
+    feasible_sets: &[T],
     owner_to_route: &mut BTreeMap<usize, usize>,
     seen: &mut BTreeSet<usize>,
-) -> bool {
-    for &owner_idx in &feasible_sets[route_idx] {
+) -> bool
+where
+    T: AsRef<[usize]>,
+{
+    for &owner_idx in feasible_sets[route_idx].as_ref() {
         if !seen.insert(owner_idx) {
             continue;
         }

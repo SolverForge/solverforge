@@ -352,6 +352,7 @@ fn interrupted_clarke_wright_completion_discards_local_assignments() {
                 &access,
                 &source_index,
                 &owner_slots,
+                &mut super::super::owner_assignment::SavingsFeasibility::new(&access, &owner_slots),
                 &routes,
                 1,
                 super::super::completion::CompletionSelection::Cheapest,

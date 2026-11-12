@@ -26,6 +26,7 @@ pub(super) fn complete_routes_by_insertion<S, A, D, BestCb>(
     access: &A,
     source_index: &RuntimeListSourceIndex<A::Element>,
     owner_slots: &[super::owner_assignment::OwnerSlot],
+    feasibility: &mut super::owner_assignment::SavingsFeasibility,
     routes: &[ConstructedRoute],
     entity_count: usize,
     selection: CompletionSelection,
@@ -58,11 +59,16 @@ where
             let solution = phase_scope.score_director().working_solution();
             let element = source_index.element(element_idx);
             let value = [route_values_by_source_index[element_idx]];
-            let feasible_owner_count = owner_slots
-                .iter()
-                .filter(|slot| {
-                    owner_allows(access, solution, entity_count, slot.owner_idx, element)
-                        && access.savings_feasible(solution, slot.owner_idx, &value)
+            feasibility.begin_route();
+            let feasible_owner_count = (0..owner_slots.len())
+                .filter(|&slot_position| {
+                    owner_allows(
+                        access,
+                        solution,
+                        entity_count,
+                        owner_slots[slot_position].owner_idx,
+                        element,
+                    ) && feasibility.feasible(access, solution, owner_slots, slot_position, &value)
                 })
                 .count();
             if feasible_owner_count == 0 {

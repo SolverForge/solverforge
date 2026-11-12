@@ -78,7 +78,10 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   `distance`, and `feasible`; the savings module must export `depot`,
   `distance`, and `feasible`. Add
   `savings_metric_class_fn = "path::metric_class"` only when owners share
-  construction depot and distance behavior.
+  construction depot and distance behavior. Clarke-Wright then computes
+  savings once per class but still asks every owner whether a merged route is
+  feasible; only the `domain = "cvrp"` profile, whose feasibility depends on
+  the class's shared data alone, asks one owner per class.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 

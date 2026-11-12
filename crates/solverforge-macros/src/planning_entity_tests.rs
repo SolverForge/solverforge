@@ -115,6 +115,39 @@ fn list_metadata_forwards_element_owner_fn() {
 }
 
 #[test]
+fn list_metadata_declares_shared_savings_feasibility_only_for_the_cvrp_profile() {
+    let expand = |input| {
+        expand_derive(input)
+            .expect("entity expansion should succeed")
+            .to_string()
+            .replace(' ', "")
+    };
+    let cvrp = expand(parse_quote! {
+        struct Route {
+            #[planning_id]
+            id: String,
+            #[planning_list_variable(element_collection = "visits", domain = "cvrp")]
+            visits: Vec<usize>,
+        }
+    });
+    let custom = expand(parse_quote! {
+        struct Route {
+            #[planning_id]
+            id: String,
+            #[planning_list_variable(
+                element_collection = "visits",
+                savings_hooks = "crate::hooks",
+                savings_metric_class_fn = "crate::hooks::metric_class"
+            )]
+            visits: Vec<usize>,
+        }
+    });
+
+    assert!(cvrp.contains(".with_savings_feasible_shared_by_metric_class(true)"));
+    assert!(custom.contains(".with_savings_feasible_shared_by_metric_class(false)"));
+}
+
+#[test]
 fn entity_descriptor_includes_index_shadow_metadata() {
     let input = parse_quote! {
         struct Visit {

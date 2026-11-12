@@ -33,6 +33,7 @@ where
     distance_fn: fn(&S, usize, usize, usize) -> i64,
     feasible_fn: fn(&S, usize, &[usize]) -> bool,
     element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    savings_feasible_shared_by_metric_class: bool,
     descriptor_index: usize,
 }
 
@@ -78,12 +79,18 @@ where
             distance_fn,
             feasible_fn,
             element_owner_fn: None,
+            savings_feasible_shared_by_metric_class: false,
             descriptor_index,
         }
     }
 
     pub(crate) fn with_metric_class_fn(mut self, metric_class_fn: fn(&S, usize) -> usize) -> Self {
         self.metric_class_fn = metric_class_fn;
+        self
+    }
+
+    pub(crate) fn with_savings_feasible_shared_by_metric_class(mut self, shared: bool) -> Self {
+        self.savings_feasible_shared_by_metric_class = shared;
         self
     }
 
@@ -161,6 +168,10 @@ where
 
     fn savings_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool {
         (self.feasible_fn)(solution, entity_index, route)
+    }
+
+    fn savings_feasible_shared_by_metric_class(&self) -> bool {
+        self.savings_feasible_shared_by_metric_class
     }
 
     fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {

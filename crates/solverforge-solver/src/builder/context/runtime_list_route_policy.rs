@@ -68,11 +68,9 @@ pub(crate) struct StaticRouteBindings<S> {
     pub(super) savings_metric_class: fn(&S, usize) -> usize,
     pub(super) savings_distance: fn(&S, usize, usize, usize) -> i64,
     pub(super) savings_feasible: fn(&S, usize, &[usize]) -> bool,
-    route_depot_declared: bool,
-    route_distance_declared: bool,
-    savings_depot_declared: bool,
-    savings_distance_declared: bool,
-    savings_feasible_declared: bool,
+    pub(super) savings_feasible_shared_by_metric_class: bool,
+    route_hooks_declared: bool,
+    savings_hooks_declared: bool,
 }
 
 impl<S> fmt::Debug for StaticRouteBindings<S> {
@@ -85,11 +83,12 @@ impl<S> fmt::Debug for StaticRouteBindings<S> {
                 "metric_class_policy",
                 &self.metric_class_policy.trace_label(),
             )
-            .field("route_depot_declared", &self.route_depot_declared)
-            .field("route_distance_declared", &self.route_distance_declared)
-            .field("savings_depot_declared", &self.savings_depot_declared)
-            .field("savings_distance_declared", &self.savings_distance_declared)
-            .field("savings_feasible_declared", &self.savings_feasible_declared)
+            .field("route_hooks_declared", &self.route_hooks_declared)
+            .field("savings_hooks_declared", &self.savings_hooks_declared)
+            .field(
+                "savings_feasible_shared_by_metric_class",
+                &self.savings_feasible_shared_by_metric_class,
+            )
             .finish()
     }
 }
@@ -157,11 +156,11 @@ impl<S> StaticRouteBindings<S> {
             savings_feasible: slot
                 .savings_feasible_fn
                 .unwrap_or(unavailable_savings_feasible::<S>),
-            route_depot_declared: slot.route_depot_fn.is_some(),
-            route_distance_declared: slot.route_distance_fn.is_some(),
-            savings_depot_declared: slot.savings_depot_fn.is_some(),
-            savings_distance_declared: slot.savings_distance_fn.is_some(),
-            savings_feasible_declared: slot.savings_feasible_fn.is_some(),
+            savings_feasible_shared_by_metric_class: slot.savings_feasible_shared_by_metric_class,
+            route_hooks_declared: slot.route_depot_fn.is_some() && slot.route_distance_fn.is_some(),
+            savings_hooks_declared: slot.savings_depot_fn.is_some()
+                && slot.savings_distance_fn.is_some()
+                && slot.savings_feasible_fn.is_some(),
         }
     }
 
@@ -172,16 +171,13 @@ impl<S> StaticRouteBindings<S> {
     pub(super) const fn supports_route(&self) -> bool {
         self.read_policy.is_available()
             && self.replace_policy.is_available()
-            && self.route_depot_declared
-            && self.route_distance_declared
+            && self.route_hooks_declared
             && self.feasibility_policy.is_available()
     }
 
     pub(super) const fn supports_savings(&self) -> bool {
         self.replace_policy.is_available()
-            && self.savings_depot_declared
-            && self.savings_distance_declared
-            && self.savings_feasible_declared
+            && self.savings_hooks_declared
             && self.metric_class_policy.is_available()
     }
 }

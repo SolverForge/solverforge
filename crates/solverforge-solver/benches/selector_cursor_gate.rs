@@ -21,7 +21,8 @@ use solverforge_config::{
     ConstructionHeuristicType, KOptMoveSelectorConfig, ListChangeMoveConfig, ListSwapMoveConfig,
     LocalSearchConfig, MoveSelectorConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
     PhaseConfig, RuinRecreateMoveSelectorConfig, SelectionOrder, SolverConfig,
-    SublistChangeMoveConfig, SublistSwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
+    SublistChangeMoveConfig, SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig,
+    VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -178,6 +179,7 @@ fn main() {
     run_case!(case, matched, "k_opt", k_opt);
     run_case!(case, matched, "ruin", ruin);
     run_case!(case, matched, "scalar_change", scalar_change);
+    run_case!(case, matched, "scalar_swap", scalar_swap);
     run_case!(case, matched, "construction_full", construction_full);
     run_case!(
         case,

@@ -7,13 +7,12 @@ use solverforge_scoring::Director;
 
 use super::commit::{commit_complete_routes, try_commit_balanced_assignment};
 use super::completion::{complete_routes_by_insertion, CompletionSelection};
+use super::owner_admission::{MergeProposal, OwnerAdmission, OwnerQuery};
 use super::owner_assignment::{
     assign_buffered_routes, feasible_owners_for_scored_elements, match_route_owners, owner_slots,
-    representative_owner_slots,
+    representative_owner_slots, SavingsFeasibility,
 };
-use super::route_state::{
-    route_elements, route_values, routes_match_owners_after_merge, ConstructedRoute,
-};
+use super::route_state::{route_elements_into, route_values, route_values_into, ConstructedRoute};
 use super::savings::{generate_savings, sort_savings};
 use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
 use crate::phase::construction::{
@@ -122,17 +121,26 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
             .or_insert(next_id);
     }
     let n = unassigned.len();
-    let mut routes = unassigned
-        .iter()
-        .map(|entry| {
-            let singleton = [access.route_value(&entry.element)];
-            let feasible_for_all_owners = owner_slots.iter().all(|slot| {
-                access.savings_feasible(solution, slot.owner_idx, &singleton)
-                    && owner_allows(access, solution, n_entities, slot.owner_idx, &entry.element)
-            });
-            ConstructedRoute::singleton(entry.source_index, feasible_for_all_owners)
-        })
-        .collect::<Vec<_>>();
+    let mut feasibility = SavingsFeasibility::new(access, &owner_slots);
+    let mut routes = Vec::with_capacity(n);
+    for entry in &unassigned {
+        let singleton = [access.route_value(&entry.element)];
+        feasibility.begin_route();
+        let feasible_for_all_owners = (0..owner_slots.len()).all(|slot_position| {
+            feasibility.feasible(access, solution, &owner_slots, slot_position, &singleton)
+                && owner_allows(
+                    access,
+                    solution,
+                    n_entities,
+                    owner_slots[slot_position].owner_idx,
+                    &entry.element,
+                )
+        });
+        routes.push(ConstructedRoute::singleton(
+            entry.source_index,
+            feasible_for_all_owners,
+        ));
+    }
 
     let mut route_of = vec![None; n_elements];
     for (route_idx, entry) in unassigned.iter().enumerate() {
@@ -144,6 +152,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         access,
         source_index,
         &owner_slots,
+        &mut feasibility,
         &routes,
         n_entities,
         &available_entity_slots,
@@ -164,6 +173,10 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     );
     sort_savings(&mut savings);
     let mut pending_move_telemetry = PendingConstructionMoveTelemetry::default();
+    let mut admission = OwnerAdmission::new(&routes, &owner_slots);
+    let mut candidate_indices = Vec::new();
+    let mut candidate_route = Vec::new();
+    let mut candidate_elements = Vec::new();
 
     let mut merge_pass = 0usize;
     loop {
@@ -236,22 +249,35 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 continue;
             }
 
-            let mut test_ri = routes[ri].visits.clone();
-            if test_ri.first() == Some(&entry.left_idx) {
-                test_ri.reverse();
+            // The merged route is route ri ending at the left element, then
+            // route rj starting at the right element.
+            candidate_indices.clear();
+            let ri_visits = &routes[ri].visits;
+            if ri_visits.first() == Some(&entry.left_idx) {
+                candidate_indices.extend(ri_visits.iter().rev());
+            } else {
+                candidate_indices.extend_from_slice(ri_visits);
             }
-            let mut test_rj = routes[rj].visits.clone();
-            if test_rj.last() == Some(&entry.right_idx) {
-                test_rj.reverse();
+            let merged_ri_len = candidate_indices.len();
+            let rj_visits = &routes[rj].visits;
+            if rj_visits.last() == Some(&entry.right_idx) {
+                candidate_indices.extend(rj_visits.iter().rev());
+            } else {
+                candidate_indices.extend_from_slice(rj_visits);
             }
-            let candidate_indices = test_ri.iter().chain(&test_rj).copied().collect::<Vec<_>>();
             let solution = phase_scope.score_director().working_solution();
-            let candidate_route = route_values(access, source_index, &candidate_indices);
-            let candidate_elements = route_elements::<S, A>(source_index, &candidate_indices);
+            route_values_into(
+                access,
+                source_index,
+                &candidate_indices,
+                &mut candidate_route,
+            );
+            route_elements_into::<S, A>(source_index, &candidate_indices, &mut candidate_elements);
             let candidate_feasible_owners = feasible_owners_for_scored_elements(
                 access,
                 solution,
                 &owner_slots,
+                &mut feasibility,
                 &candidate_route,
                 &candidate_elements,
                 Some(entry.metric_class),
@@ -266,24 +292,22 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 }
                 continue;
             }
-            let candidate_feasible_for_all_metric_class_owners = candidate_feasible_owners.len()
-                == owner_slots
-                    .iter()
-                    .filter(|slot| slot.metric_class == entry.metric_class)
-                    .count();
-            if !routes_match_owners_after_merge(
+            let proposal = MergeProposal {
+                merged: ri,
+                removed: rj,
+                metric_class: entry.metric_class,
+                feasible_for_all_metric_class_owners: candidate_feasible_owners.len()
+                    == admission.class_owner_count(entry.metric_class),
+                feasible_owners: &candidate_feasible_owners,
+            };
+            let query = OwnerQuery {
                 access,
                 solution,
                 source_index,
-                &routes,
-                ri,
-                rj,
-                &candidate_indices,
-                entry.metric_class,
-                candidate_feasible_for_all_metric_class_owners,
-                &owner_slots,
-                n_entities,
-            ) {
+                owner_slots: &owner_slots,
+                entity_count: n_entities,
+            };
+            if !admission.admits(&query, &routes, &mut feasibility, &proposal) {
                 if let Some(token) = trace_token {
                     phase_scope.record_candidate_trace_disposition(
                         token,
@@ -293,20 +317,22 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 continue;
             }
 
+            admission.commit(&routes, &proposal);
+            let feasible_for_all_metric_class_owners =
+                proposal.feasible_for_all_metric_class_owners;
             pending_move_telemetry.record_accepted(phase_scope, trace_token);
-            routes[ri].visits = test_ri;
+            routes[ri].visits.clear();
+            routes[ri].visits.extend_from_slice(&candidate_indices);
             routes[ri].scored_metric_class = Some(entry.metric_class);
             routes[ri].feasible_for_all_owners = false;
-            routes[ri].feasible_for_all_metric_class_owners =
-                candidate_feasible_for_all_metric_class_owners;
+            routes[ri].feasible_for_all_metric_class_owners = feasible_for_all_metric_class_owners;
             routes[rj].visits.clear();
             routes[rj].scored_metric_class = None;
             routes[rj].feasible_for_all_owners = false;
             routes[rj].feasible_for_all_metric_class_owners = false;
-            for &source_idx in &test_rj {
+            for &source_idx in &candidate_indices[merged_ri_len..] {
                 route_of[source_idx] = Some(ri);
             }
-            routes[ri].visits.extend(test_rj);
             merged_in_pass = true;
         }
         if construction_interrupted || !merged_in_pass {
@@ -315,11 +341,11 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         merge_pass = merge_pass.saturating_add(1);
     }
 
-    let non_empty = routes
-        .into_iter()
-        .filter(|route| !route.visits.is_empty())
-        .collect::<Vec<_>>();
     if construction_interrupted {
+        let non_empty = routes
+            .into_iter()
+            .filter(|route| !route.visits.is_empty())
+            .collect::<Vec<_>>();
         // A merge leaves one buffered route empty, so a survivor count below the
         // element count is exactly "the loop merged something". Every merge it
         // admitted left the whole buffered route set matchable by metric class,
@@ -350,22 +376,23 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         return;
     }
     let solution = phase_scope.score_director().working_solution();
+    let query = OwnerQuery {
+        access,
+        solution,
+        source_index,
+        owner_slots: &owner_slots,
+        entity_count: n_entities,
+    };
+    let route_owner_sets = admission.into_owner_sets(&query, &routes, &mut feasibility);
+    let non_empty = routes
+        .into_iter()
+        .filter(|route| !route.visits.is_empty())
+        .collect::<Vec<_>>();
     let constructed_route_count = non_empty.len();
     let mut assignable_routes = Vec::with_capacity(constructed_route_count);
     let mut feasible_sets = Vec::with_capacity(constructed_route_count);
     let mut owner_ineligible_routes = 0usize;
-    for (route_index, route) in non_empty.iter().enumerate() {
-        let values = route_values(access, source_index, &route.visits);
-        let elements = route_elements::<S, A>(source_index, &route.visits);
-        let feasible_owners = feasible_owners_for_scored_elements(
-            access,
-            solution,
-            &owner_slots,
-            &values,
-            &elements,
-            route.scored_metric_class,
-            n_entities,
-        );
+    for (route_index, feasible_owners) in route_owner_sets.into_iter().enumerate() {
         if feasible_owners.is_empty() {
             owner_ineligible_routes += 1;
             continue;
@@ -385,6 +412,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 access,
                 source_index,
                 &owner_slots,
+                &mut feasibility,
                 &non_empty,
                 n_entities,
                 CompletionSelection::Cheapest,

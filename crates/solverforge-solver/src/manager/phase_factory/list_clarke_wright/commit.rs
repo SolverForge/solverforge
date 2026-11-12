@@ -4,7 +4,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::completion::{complete_routes_by_insertion, CompletionSelection};
-use super::owner_assignment::OwnerSlot;
+use super::owner_assignment::{OwnerSlot, SavingsFeasibility};
 use super::route_state::ConstructedRoute;
 use super::{ClarkeWrightAccess, RuntimeListSourceIndex};
 use crate::phase::construction::PendingConstructionMoveTelemetry;
@@ -16,6 +16,7 @@ pub(super) fn try_commit_balanced_assignment<S, A, D, BestCb>(
     access: &A,
     source_index: &RuntimeListSourceIndex<A::Element>,
     owner_slots: &[OwnerSlot],
+    feasibility: &mut SavingsFeasibility,
     routes: &[ConstructedRoute],
     entity_count: usize,
     available_entity_slots: &[usize],
@@ -32,6 +33,7 @@ pub(super) fn try_commit_balanced_assignment<S, A, D, BestCb>(
         access,
         source_index,
         owner_slots,
+        feasibility,
         routes,
         entity_count,
         CompletionSelection::Balanced,

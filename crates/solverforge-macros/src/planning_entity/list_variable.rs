@@ -61,6 +61,12 @@ pub(super) fn generate_list_metadata(
         field,
     )?;
     let solution_trait_bound = parse_solution_trait_bound(solution_trait, field)?;
+    // The stock CVRP savings feasibility reads only the owner's problem data,
+    // and the stock metric class groups owners by that data.
+    let savings_feasible_shared_by_metric_class = matches!(
+        ListVariableDomain::from_attr(attr, field)?,
+        Some(ListVariableDomain::Cvrp)
+    );
     let element_owner_path = parse_optional_path(
         parse_attribute_string(attr, "element_owner_fn"),
         "element_owner_fn",
@@ -159,6 +165,7 @@ pub(super) fn generate_list_metadata(
                 #savings_feasible,
             )
             .with_element_owner_fn(#element_owner)
+            .with_savings_feasible_shared_by_metric_class(#savings_feasible_shared_by_metric_class)
         }
 
     })

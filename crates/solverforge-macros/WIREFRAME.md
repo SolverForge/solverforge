@@ -258,6 +258,9 @@ coherent stock bundle. Overriding `distance_meter`, `intra_distance_meter`,
 `solution_trait`, `route_hooks`, `savings_hooks`, or `savings_metric_class_fn`
 is rejected unless the override repeats the exact stock path. Custom routing
 semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
+The profile also declares savings feasibility shared by metric class, so
+Clarke-Wright asks one owner per class; explicit hook paths keep asking every
+owner.
 
 **Generated code:**
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, `HAS_CONSTRAINT_WEIGHTS = true` plus `constraint_weights()` returning `Some(&self.field)` when a `#[constraint_weights]` field exists (otherwise both keep their unweighted defaults), plus `update_entity_shadows()` / `update_all_shadows()` / `list_shadow_elements()` / `clear_list_shadows()` / `list_shadow_source()` delegation to the manifest-owned support implementation when `#[shadow_variable_updates(...)]` configures list shadows.

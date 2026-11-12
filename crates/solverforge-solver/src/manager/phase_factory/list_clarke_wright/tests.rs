@@ -8,6 +8,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
+mod admission_oracle;
 mod compiled_parity;
 mod interruption;
 mod metric_class;

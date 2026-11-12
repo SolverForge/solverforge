@@ -47,6 +47,9 @@ pub struct ListVariableMetadata<S, DM, IDM> {
     pub savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
     /// Whether a candidate route is feasible during savings construction.
     pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    /// Whether `savings_feasible_fn` answers the same for every entity of one
+    /// savings metric class.
+    pub savings_feasible_shared_by_metric_class: bool,
     /// The entity whose list must hold an element; `None` means any.
     pub element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>,
     _phantom: PhantomData<fn() -> S>,
@@ -104,9 +107,17 @@ impl<S, DM, IDM> ListVariableMetadata<S, DM, IDM> {
             savings_metric_class_fn,
             savings_distance_fn,
             savings_feasible_fn,
+            savings_feasible_shared_by_metric_class: false,
             element_owner_fn: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Declares whether `savings_feasible_fn` answers the same for every
+    /// entity of one savings metric class, as the stock CVRP hooks do.
+    pub fn with_savings_feasible_shared_by_metric_class(mut self, shared: bool) -> Self {
+        self.savings_feasible_shared_by_metric_class = shared;
+        self
     }
 
     /// Sets the element ownership hook.

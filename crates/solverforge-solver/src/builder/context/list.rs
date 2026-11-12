@@ -83,6 +83,9 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     /// Whether a candidate route for an entity is feasible during savings
     /// construction.
     pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    /// Whether `savings_feasible_fn` answers the same for every entity of one
+    /// savings metric class; Clarke-Wright then asks one entity per class.
+    pub savings_feasible_shared_by_metric_class: bool,
     /// The entity whose list must hold an element, when the model restricts
     /// ownership; `None` from the hook means any entity.
     pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
@@ -127,6 +130,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             savings_metric_class_fn: self.savings_metric_class_fn,
             savings_distance_fn: self.savings_distance_fn,
             savings_feasible_fn: self.savings_feasible_fn,
+            savings_feasible_shared_by_metric_class: self.savings_feasible_shared_by_metric_class,
             element_owner_fn: self.element_owner_fn,
             construction_element_order_key: self.construction_element_order_key,
             precedence_duration_fn: self.precedence_duration_fn,
@@ -202,12 +206,20 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             savings_metric_class_fn,
             savings_distance_fn,
             savings_feasible_fn,
+            savings_feasible_shared_by_metric_class: false,
             element_owner_fn: None,
             construction_element_order_key: None,
             precedence_duration_fn: None,
             precedence_successors_fn: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Declares whether `savings_feasible_fn` answers the same for every
+    /// entity of one savings metric class.
+    pub fn with_savings_feasible_shared_by_metric_class(mut self, shared: bool) -> Self {
+        self.savings_feasible_shared_by_metric_class = shared;
+        self
     }
 
     /// Sets the element ownership hook.

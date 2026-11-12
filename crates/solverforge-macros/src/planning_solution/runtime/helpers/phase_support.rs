@@ -177,6 +177,9 @@ pub(super) fn generate_runtime_phase_support(
                                     metadata.savings_feasible_fn,
                                 )
                                 .with_element_owner_fn(metadata.element_owner_fn)
+                                .with_savings_feasible_shared_by_metric_class(
+                                    metadata.savings_feasible_shared_by_metric_class,
+                                )
                                 )
                             )
                         );

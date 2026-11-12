@@ -18,6 +18,7 @@ mod completion;
 #[cfg(test)]
 mod facade;
 mod kernel;
+mod owner_admission;
 mod owner_assignment;
 mod route_state;
 mod savings;
@@ -43,6 +44,9 @@ pub(crate) trait ClarkeWrightAccess<S>: ListSourceAccess<S> {
     fn savings_metric_class(&self, solution: &S, entity_index: usize) -> usize;
     fn savings_distance(&self, solution: &S, entity_index: usize, from: usize, to: usize) -> i64;
     fn savings_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool;
+    /// Whether `savings_feasible` answers the same for every owner of one
+    /// savings metric class, so one owner per class may answer for it.
+    fn savings_feasible_shared_by_metric_class(&self) -> bool;
     fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>);
 }
 
@@ -95,6 +99,10 @@ where
     fn savings_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool {
         SavingsAccess::savings_feasible(self, solution, entity_index, route)
             .expect("compiled Clarke-Wright savings feasibility must be callable")
+    }
+
+    fn savings_feasible_shared_by_metric_class(&self) -> bool {
+        RuntimeListSlot::savings_feasible_shared_by_metric_class(self)
     }
 
     fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {

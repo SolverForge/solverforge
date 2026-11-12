@@ -293,8 +293,8 @@ runs:
 - The compiled list leaf `RuntimeListNeighborhoodCursor` (list change, swap,
   nearby change and swap, sublist change and swap, and k-opt) over the shared
   `list_kernel` emitters.
-- The scalar neighborhood leaf `RuntimeScalarNeighborhoodCursor` (change and
-  ruin/recreate).
+- The scalar neighborhood leaf `RuntimeScalarNeighborhoodCursor` (change,
+  swap and ruin/recreate).
 - The descriptor-placement scalar construction placer
   (`RuntimeScalarConstructionPlacer`) and the compiled runtime phase runner
   that solves first-fit construction.

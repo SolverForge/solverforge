@@ -85,7 +85,7 @@ RESULTS=${RESULTS:-"/tmp/solverforge-zero-regression-$(date +%Y%m%d-%H%M%S)"}
 # scoring_weights_one scoring_weights_mixed" measures incremental score-director
 # churn through uni, join, shared grouped, and balance constraints; see
 # crates/solverforge-solver/benches/selector_cursor_gate/scoring_cases.rs.
-DEFAULT_CASES=(list_change list_swap nearby_change nearby_swap sublist_change sublist_swap union cartesian k_opt ruin scalar_change construction_full construction_first_fit)
+DEFAULT_CASES=(list_change list_swap nearby_change nearby_swap sublist_change sublist_swap union cartesian k_opt ruin scalar_change scalar_swap construction_full construction_first_fit)
 if [[ -n ${BENCH_CASES:-} ]]; then
     read -r -a CASES <<<"$BENCH_CASES"
 else

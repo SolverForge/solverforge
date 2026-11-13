@@ -5,7 +5,8 @@ use solverforge_scoring::Director;
 
 use super::route_state::{route_values, ConstructedRoute};
 use super::{
-    insertion_delta, owner_allows, ClarkeWrightAccess, CompletionAssignment, RuntimeListSourceIndex,
+    element_restriction, insertion_delta, ClarkeWrightAccess, CompletionAssignment,
+    RuntimeListSourceIndex,
 };
 use crate::phase::construction::{record_construction_candidate, PendingConstructionMoveTelemetry};
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy};
@@ -60,15 +61,17 @@ where
             let element = source_index.element(element_idx);
             let value = [route_values_by_source_index[element_idx]];
             feasibility.begin_route();
+            let restriction = element_restriction(access, solution, entity_count, element);
             let feasible_owner_count = (0..owner_slots.len())
                 .filter(|&slot_position| {
-                    owner_allows(
-                        access,
-                        solution,
-                        entity_count,
-                        owner_slots[slot_position].owner_idx,
-                        element,
-                    ) && feasibility.feasible(access, solution, owner_slots, slot_position, &value)
+                    restriction.allows(owner_slots[slot_position].owner_idx)
+                        && feasibility.feasible(
+                            access,
+                            solution,
+                            owner_slots,
+                            slot_position,
+                            &value,
+                        )
                 })
                 .count();
             if feasible_owner_count == 0 {
@@ -85,16 +88,16 @@ where
             return None;
         }
         let mut best: Option<(i64, usize, usize, Option<CandidateTracePullToken>)> = None;
+        let element = source_index.element(element_idx);
+        let restriction = element_restriction(
+            access,
+            phase_scope.score_director().working_solution(),
+            entity_count,
+            element,
+        );
         for (assignment_idx, assignment) in assignments.iter().enumerate() {
             let owner_idx = assignment.owner_idx;
-            let element = source_index.element(element_idx);
-            if !owner_allows(
-                access,
-                phase_scope.score_director().working_solution(),
-                entity_count,
-                owner_idx,
-                element,
-            ) {
+            if !restriction.allows(owner_idx) {
                 continue;
             }
 

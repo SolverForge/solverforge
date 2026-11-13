@@ -20,6 +20,27 @@ impl OwnerRestriction {
         }
     }
 
+    /// The restriction an owner hook's answer imposes among `entity_count`
+    /// entities: `None` leaves the element unrestricted, an in-range owner
+    /// fixes it, and an out-of-range owner admits no entity.
+    pub(crate) fn from_hook_owner(owner: Option<usize>, entity_count: usize) -> Self {
+        match owner {
+            None => Self::Unrestricted,
+            Some(owner_idx) if owner_idx < entity_count => Self::Fixed(owner_idx),
+            Some(_) => Self::Invalid,
+        }
+    }
+
+    /// The entities both restrictions admit: the restriction of a group of
+    /// elements that must share one entity.
+    pub(crate) fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Unrestricted, restriction) | (restriction, Self::Unrestricted) => restriction,
+            (Self::Fixed(left), Self::Fixed(right)) if left == right => Self::Fixed(left),
+            _ => Self::Invalid,
+        }
+    }
+
     pub(crate) fn candidates(self, entity_count: usize) -> CandidateEntityIter {
         match self {
             Self::Unrestricted => CandidateEntityIter::All(0..entity_count),
@@ -67,11 +88,7 @@ pub(crate) fn owner_restriction<S, V>(
         return OwnerRestriction::Unrestricted;
     };
 
-    match owner_fn(solution, element) {
-        None => OwnerRestriction::Unrestricted,
-        Some(owner_idx) if owner_idx < entity_count => OwnerRestriction::Fixed(owner_idx),
-        Some(_) => OwnerRestriction::Invalid,
-    }
+    OwnerRestriction::from_hook_owner(owner_fn(solution, element), entity_count)
 }
 
 #[cfg(test)]

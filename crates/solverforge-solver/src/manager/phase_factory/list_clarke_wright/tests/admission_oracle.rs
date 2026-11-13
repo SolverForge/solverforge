@@ -203,13 +203,13 @@ fn run_case(seed: u64, shared_by_class: bool) -> (usize, usize) {
             let singleton = [element];
             let all = slots.iter().all(|slot| {
                 feasible(&plan, slot.owner_idx, &singleton)
-                    && super::super::owner_allows(
+                    && super::super::element_restriction(
                         &access,
                         &plan,
                         owner_count,
-                        slot.owner_idx,
                         source_index.element(element),
                     )
+                    .allows(slot.owner_idx)
             });
             ConstructedRoute::singleton(element, all)
         })

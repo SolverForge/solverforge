@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use solverforge_core::domain::PlanningSolution;
 
 use super::route_state::{route_values, ConstructedRoute};
-use super::{route_owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex};
+use super::{route_restriction, ClarkeWrightAccess, RuntimeListSourceIndex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnerSlot {
@@ -121,19 +121,14 @@ where
     A: ClarkeWrightAccess<S>,
 {
     feasibility.begin_route();
+    let restriction = route_restriction(access, solution, entity_count, route_elements);
     let mut owners = Vec::new();
     for (slot_position, slot) in owner_slots.iter().enumerate() {
         if scored_metric_class.is_some_and(|class| slot.metric_class != class) {
             continue;
         }
         if feasibility.feasible(access, solution, owner_slots, slot_position, route_values)
-            && route_owner_allows(
-                access,
-                solution,
-                entity_count,
-                slot.owner_idx,
-                route_elements,
-            )
+            && restriction.allows(slot.owner_idx)
         {
             owners.push(slot.owner_idx);
         }
@@ -159,19 +154,14 @@ where
     A: ClarkeWrightAccess<S>,
 {
     feasibility.begin_route();
+    let restriction = route_restriction(access, solution, entity_count, route_elements);
     owner_slots
         .iter()
         .enumerate()
         .filter(|(_, slot)| scored_metric_class.is_none_or(|class| slot.metric_class == class))
         .any(|(slot_position, slot)| {
             feasibility.feasible(access, solution, owner_slots, slot_position, route_values)
-                && route_owner_allows(
-                    access,
-                    solution,
-                    entity_count,
-                    slot.owner_idx,
-                    route_elements,
-                )
+                && restriction.allows(slot.owner_idx)
         })
 }
 

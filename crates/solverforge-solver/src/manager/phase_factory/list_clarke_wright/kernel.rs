@@ -14,7 +14,7 @@ use super::owner_assignment::{
 };
 use super::route_state::{route_elements_into, route_values, route_values_into, ConstructedRoute};
 use super::savings::{generate_savings, sort_savings};
-use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
+use super::{element_restriction, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
 use crate::phase::construction::{
     record_construction_candidate, run_construction_phase, PendingConstructionMoveTelemetry,
 };
@@ -126,15 +126,10 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     for entry in &unassigned {
         let singleton = [access.route_value(&entry.element)];
         feasibility.begin_route();
+        let restriction = element_restriction(access, solution, n_entities, &entry.element);
         let feasible_for_all_owners = (0..owner_slots.len()).all(|slot_position| {
             feasibility.feasible(access, solution, &owner_slots, slot_position, &singleton)
-                && owner_allows(
-                    access,
-                    solution,
-                    n_entities,
-                    owner_slots[slot_position].owner_idx,
-                    &entry.element,
-                )
+                && restriction.allows(owner_slots[slot_position].owner_idx)
         });
         routes.push(ConstructedRoute::singleton(
             entry.source_index,

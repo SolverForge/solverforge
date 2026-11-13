@@ -1,10 +1,10 @@
-use crate::{ProblemData, VrpSolution};
+use crate::{ProblemData, RouteMetric, VrpSolution};
 
 #[inline]
 pub(crate) fn problem_data_for_entity<S: VrpSolution>(
     plan: &S,
     entity_idx: usize,
-) -> Option<&ProblemData> {
+) -> Option<&ProblemData<S::Metric>> {
     if entity_idx >= plan.vehicle_count() {
         return None;
     }
@@ -20,7 +20,7 @@ pub(crate) fn problem_data_for_entity<S: VrpSolution>(
 fn optional_problem_data_for_entity<S: VrpSolution>(
     plan: &S,
     entity_idx: usize,
-) -> Option<&ProblemData> {
+) -> Option<&ProblemData<S::Metric>> {
     if entity_idx >= plan.vehicle_count() {
         return None;
     }
@@ -124,7 +124,7 @@ pub mod savings_hooks {
     pub use super::savings_feasible as feasible;
 }
 
-fn route_is_structurally_valid(route: &[usize], data: &ProblemData) -> bool {
+fn route_is_structurally_valid<M: RouteMetric>(route: &[usize], data: &ProblemData<M>) -> bool {
     let Some(max_visit) = route.iter().copied().max() else {
         return true;
     };
@@ -133,27 +133,14 @@ fn route_is_structurally_valid(route: &[usize], data: &ProblemData) -> bool {
     if max_visit >= data.demands.len()
         || max_visit >= data.time_windows.len()
         || max_visit >= data.service_durations.len()
-        || max_node >= data.distance_matrix.len()
-        || max_node >= data.travel_times.len()
     {
         return false;
     }
 
-    route
-        .iter()
-        .chain(std::iter::once(&data.depot))
-        .all(|&node| {
-            data.distance_matrix
-                .get(node)
-                .is_some_and(|row| row.len() > max_node)
-                && data
-                    .travel_times
-                    .get(node)
-                    .is_some_and(|row| row.len() > max_node)
-        })
+    data.metric.covers(route, data.depot, max_node)
 }
 
-fn route_is_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {
+fn route_is_capacity_feasible<M>(route: &[usize], data: &ProblemData<M>) -> bool {
     let mut total = 0_i64;
     for &visit in route {
         let demand = i64::from(data.demands[visit]);
@@ -165,7 +152,7 @@ fn route_is_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {
     total <= data.capacity
 }
 
-fn route_is_time_feasible(route: &[usize], data: &ProblemData) -> bool {
+fn route_is_time_feasible<M: RouteMetric>(route: &[usize], data: &ProblemData<M>) -> bool {
     let mut current_time = data.vehicle_departure_time;
     let mut previous = data.depot;
 

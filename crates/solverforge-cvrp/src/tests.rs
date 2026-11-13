@@ -32,25 +32,29 @@ fn base_problem_data() -> ProblemData {
         capacity: 10,
         depot: 0,
         demands: vec![0, 2, 3, 4],
-        distance_matrix: vec![
-            vec![0, 5, 7, 9],
-            vec![5, 0, 4, 6],
-            vec![7, 4, 0, 3],
-            vec![9, 6, 3, 0],
-        ],
+        metric: DenseMatrix::new(
+            vec![
+                vec![0, 5, 7, 9],
+                vec![5, 0, 4, 6],
+                vec![7, 4, 0, 3],
+                vec![9, 6, 3, 0],
+            ],
+            vec![
+                vec![0, 5, 7, 9],
+                vec![5, 0, 4, 6],
+                vec![7, 4, 0, 3],
+                vec![9, 6, 3, 0],
+            ],
+        ),
         time_windows: vec![(0, 100), (0, 10), (7, 14), (0, 12)],
         service_durations: vec![0, 2, 2, 3],
-        travel_times: vec![
-            vec![0, 5, 7, 9],
-            vec![5, 0, 4, 6],
-            vec![7, 4, 0, 3],
-            vec![9, 6, 3, 0],
-        ],
         vehicle_departure_time: 0,
     }
 }
 
 impl VrpSolution for TestSolution {
+    type Metric = DenseMatrix;
+
     fn vehicle_data(&self, entity_idx: usize) -> Option<&ProblemData> {
         self.data.get(entity_idx)
     }
@@ -69,6 +73,8 @@ impl VrpSolution for TestSolution {
 }
 
 impl VrpSolution for SharedDataSolution {
+    type Metric = DenseMatrix;
+
     fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
         Some(&self.data)
     }
@@ -91,6 +97,8 @@ struct NullDataSolution {
 }
 
 impl VrpSolution for NullDataSolution {
+    type Metric = DenseMatrix;
+
     fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
         None
     }
@@ -112,7 +120,7 @@ impl VrpSolution for NullDataSolution {
 fn helpers_use_problem_data_for_route_owner() {
     let mut owner_one_data = base_problem_data();
     owner_one_data.depot = 3;
-    owner_one_data.distance_matrix[1][3] = 42;
+    owner_one_data.metric.distances[1][3] = 42;
     let solution = TestSolution::with_data(
         vec![vec![1, 2], vec![3]],
         vec![base_problem_data(), owner_one_data],
@@ -183,8 +191,8 @@ fn clarke_wright_adapters_share_exact_cvrp_data_when_requested() {
 #[test]
 fn route_feasibility_rejects_unreachable_depot_leg_without_panic() {
     let mut data = base_problem_data();
-    data.distance_matrix[0][1] = UNREACHABLE;
-    data.travel_times[0][1] = UNREACHABLE;
+    data.metric.distances[0][1] = UNREACHABLE;
+    data.metric.travel_times[0][1] = UNREACHABLE;
     let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
 
     let outcome = std::panic::catch_unwind(|| route_feasible(&solution, 0, &[1]));
@@ -195,8 +203,8 @@ fn route_feasibility_rejects_unreachable_depot_leg_without_panic() {
 #[test]
 fn route_feasibility_rejects_unreachable_inter_visit_leg_without_panic() {
     let mut data = base_problem_data();
-    data.distance_matrix[1][2] = UNREACHABLE;
-    data.travel_times[1][2] = UNREACHABLE;
+    data.metric.distances[1][2] = UNREACHABLE;
+    data.metric.travel_times[1][2] = UNREACHABLE;
     let solution = TestSolution::with_data(vec![vec![1, 2]], vec![data]);
 
     let outcome = std::panic::catch_unwind(|| route_feasible(&solution, 0, &[1, 2]));
@@ -207,8 +215,8 @@ fn route_feasibility_rejects_unreachable_inter_visit_leg_without_panic() {
 #[test]
 fn route_feasibility_rejects_unreachable_return_depot_leg_without_panic() {
     let mut data = base_problem_data();
-    data.distance_matrix[1][0] = UNREACHABLE;
-    data.travel_times[1][0] = UNREACHABLE;
+    data.metric.distances[1][0] = UNREACHABLE;
+    data.metric.travel_times[1][0] = UNREACHABLE;
     let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
 
     let outcome = std::panic::catch_unwind(|| route_feasible(&solution, 0, &[1]));
@@ -220,7 +228,7 @@ fn route_feasibility_rejects_unreachable_return_depot_leg_without_panic() {
 fn route_feasibility_rejects_time_overflow_without_wrapping() {
     let mut data = base_problem_data();
     data.vehicle_departure_time = 20;
-    data.travel_times[0][1] = i64::MAX - 10;
+    data.metric.travel_times[0][1] = i64::MAX - 10;
     let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
 
     assert!(
@@ -245,8 +253,8 @@ fn route_feasibility_rejects_service_overflow_without_wrapping() {
 #[test]
 fn stock_savings_feasibility_stays_structural_for_unreachable_routes() {
     let mut data = base_problem_data();
-    data.distance_matrix[0][1] = UNREACHABLE;
-    data.travel_times[0][1] = UNREACHABLE;
+    data.metric.distances[0][1] = UNREACHABLE;
+    data.metric.travel_times[0][1] = UNREACHABLE;
     let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
 
     assert!(savings_feasible(&solution, 0, &[1]));
@@ -256,7 +264,7 @@ fn stock_savings_feasibility_stays_structural_for_unreachable_routes() {
 #[test]
 fn stock_distances_convert_unreachable_or_malformed_legs_to_finite_costs() {
     let mut data = base_problem_data();
-    data.distance_matrix[0][1] = UNREACHABLE;
+    data.metric.distances[0][1] = UNREACHABLE;
     let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
 
     let unreachable_cost = route_distance(&solution, 0, 0, 1);
@@ -398,7 +406,7 @@ fn distance_meters_cover_invalid_positions() {
 #[test]
 fn distance_meters_treat_unreachable_legs_as_infinite() {
     let mut data = base_problem_data();
-    data.distance_matrix[1][2] = UNREACHABLE;
+    data.metric.distances[1][2] = UNREACHABLE;
     let solution = TestSolution::with_data(vec![vec![1, 2], vec![2]], vec![data.clone(), data]);
 
     assert!(MatrixDistanceMeter

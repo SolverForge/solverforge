@@ -1,4 +1,4 @@
-use solverforge::cvrp::{ProblemData, VrpSolution};
+use solverforge::cvrp::{DenseMatrix, ProblemData, VrpSolution};
 use solverforge::prelude::*;
 
 #[planning_entity]
@@ -30,6 +30,8 @@ impl solverforge::__internal::PlanningSolution for Plan {
 }
 
 impl VrpSolution for Plan {
+    type Metric = DenseMatrix;
+
     fn vehicle_data(&self, entity_idx: usize) -> Option<&ProblemData> {
         (entity_idx < self.vehicles.len()).then_some(&self.data)
     }

@@ -159,7 +159,18 @@ meters and two separate hook bundles:
   stay scoreable, so assignment remains score-comparable.
 
 The `solverforge-cvrp` crate holds `VrpSolution`, `ProblemData`, the distance
-meters and those hook bundles. Custom routing domains omit `domain = "cvrp"`
+meters and those hook bundles. `ProblemData` reads leg distances and travel
+times from its `metric`, named by `VrpSolution::Metric`:
+
+- `DenseMatrix::new(distances, travel_times)` holds supplied `[from][to]`
+  tables, such as road-network matrices; memory grows with the square of the
+  location count.
+- `EuclideanMetric::new(coordinates, speed)` computes straight-line legs on
+  demand (TSPLIB `EUC_2D`: `sqrt(dx² + dy²)` rounded half away from zero,
+  travel time = length / speed, rounded the same way); memory
+  grows linearly, for models too large for a matrix.
+
+`UNREACHABLE` or a negative leg value marks a leg that cannot be traversed. Custom routing domains omit `domain = "cvrp"`
 and supply their own `route_hooks` and `savings_hooks`; see
 [Extend the domain](extend-domain.md).
 

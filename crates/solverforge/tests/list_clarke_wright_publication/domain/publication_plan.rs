@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use solverforge::cvrp::ProblemData;
+use solverforge::cvrp::{DenseMatrix, ProblemData};
 use solverforge::prelude::*;
 use solverforge::stream::joiner::equal_bi;
 use solverforge::stream::ConstraintFactory;
@@ -31,6 +31,8 @@ pub struct PublicationPlan {
 }
 
 impl solverforge::cvrp::VrpSolution for PublicationPlan {
+    type Metric = DenseMatrix;
+
     fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
         Some(&self.shared)
     }
@@ -85,10 +87,9 @@ pub fn build_plan(customer_count: usize, time_limit_secs: u64) -> PublicationPla
         demands: std::iter::once(0)
             .chain(std::iter::repeat_n(1, customer_count))
             .collect(),
-        distance_matrix,
+        metric: DenseMatrix::new(distance_matrix, travel_times),
         time_windows: vec![(0, i64::MAX); dimension],
         service_durations: vec![0; dimension],
-        travel_times,
         vehicle_departure_time: 0,
     });
     let data_addr = Arc::as_ptr(&shared) as usize;

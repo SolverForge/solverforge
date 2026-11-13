@@ -17,6 +17,8 @@ src/
 ├── helpers.rs       — Public CVRP free functions, hook bundles, and private pointer helpers
 ├── lib.rs           — Module exports and public re-exports
 ├── meters.rs        — Distance meter implementations
+├── metric.rs        — `RouteMetric`, `DenseMatrix`, `EuclideanMetric`
+├── metric_tests.rs  — Metric semantics and on-demand vs tabulated equivalence tests
 ├── problem_data.rs  — `ProblemData`
 ├── solution.rs      — `VrpSolution`
 └── tests.rs         — CVRP helper and route-feasibility tests
@@ -24,9 +26,10 @@ src/
 
 ## Types
 
-### `ProblemData`
+### `ProblemData<M = DenseMatrix>`
 
-Immutable problem data shared by all vehicles. Derives: `Clone, Debug`.
+Immutable problem data shared by all vehicles, generic over the source of leg
+distances and travel times. Derives: `Clone, Debug`.
 
 Fields:
 
@@ -35,25 +38,56 @@ Fields:
 | `capacity` | `i64` | Vehicle capacity |
 | `depot` | `usize` | Depot node index |
 | `demands` | `Vec<i32>` | Demand per node |
-| `distance_matrix` | `Vec<Vec<i64>>` | Distance matrix |
+| `metric` | `M` | Leg distances and travel times (`RouteMetric`) |
 | `time_windows` | `Vec<(i64, i64)>` | `(min_start, max_end)` per node |
 | `service_durations` | `Vec<i64>` | Service duration per node |
-| `travel_times` | `Vec<Vec<i64>>` | Travel time matrix |
 | `vehicle_departure_time` | `i64` | Departure time from depot |
 
-`UNREACHABLE` is exported as `i64::MAX` for non-traversable matrix entries.
+`UNREACHABLE` is exported as `i64::MAX` for non-traversable legs; a negative
+leg value is treated the same way.
 `route_feasible` rejects routes that contain unreachable travel-time legs or
 overflowing time arithmetic. Distance hooks convert unreachable or malformed
 distance entries into a large finite cost so construction and local-search
 distance arithmetic stays panic-free.
 
+### `RouteMetric` (trait)
+
+Source of leg values, bounded `Clone + Debug + Send + Sync + 'static`. The
+stock helpers, meters and route checks read legs only through it, monomorphized
+per metric type.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `distance` | `fn(&self, from: usize, to: usize) -> Option<i64>` | Leg distance; `None` outside the metric |
+| `travel_time` | `fn(&self, from: usize, to: usize) -> Option<i64>` | Leg travel time; `None` outside the metric |
+| `covers` | `fn(&self, route: &[usize], depot: usize, max_node: usize) -> bool` | Whether every leg among the route's visits and the depot is defined |
+
+### `DenseMatrix`
+
+Dense tables indexed `[from][to]`, holding exactly the supplied values (rows
+may differ in length; a leg outside a row is undefined). `DenseMatrix::new(distances, travel_times)`.
+Public fields `distances: Vec<Vec<i64>>` and `travel_times: Vec<Vec<i64>>`.
+Implements `RouteMetric`. Derives: `Clone, Debug`. Memory is quadratic in the
+location count.
+
+### `EuclideanMetric`
+
+Straight-line legs between planar coordinates, computed on demand: distance is
+`sqrt(dx² + dy²)` rounded half away from zero (TSPLIB `EUC_2D`), travel time
+is that length divided by the speed, rounded the same way. `EuclideanMetric::new(coordinates, speed)`
+panics on a non-finite or non-positive speed or a non-finite coordinate;
+`coordinates()` and `speed()` read them back. Implements `RouteMetric`.
+Derives: `Clone, Debug`. Memory is linear in the location count.
+
 ### `VrpSolution` (trait)
 
 Trait implemented by a planning solution that holds a fleet of vehicles.
 
+Associated type `Metric: RouteMetric` names the vehicles' leg source.
+
 | Method | Signature |
 |--------|-----------|
-| `vehicle_data` | `fn(&self, entity_idx: usize) -> Option<&ProblemData>` |
+| `vehicle_data` | `fn(&self, entity_idx: usize) -> Option<&ProblemData<Self::Metric>>` |
 | `vehicle_visits` | `fn(&self, entity_idx: usize) -> &[usize]` |
 | `vehicle_visits_mut` | `fn(&mut self, entity_idx: usize) -> &mut Vec<usize>` |
 | `vehicle_count` | `fn(&self) -> usize` |
@@ -62,11 +96,11 @@ Vehicles that share one `ProblemData` return the same reference, so `savings_met
 
 ### `MatrixDistanceMeter`
 
-Cross-entity distance meter backed by the solution's distance matrix. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Debug, Default)]`.
+Cross-entity distance meter backed by the vehicles' `RouteMetric` distances. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Debug, Default)]`.
 
 ### `MatrixIntraDistanceMeter`
 
-Intra-entity distance meter backed by the solution's distance matrix. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Debug, Default)]`.
+Intra-entity distance meter backed by the vehicle's `RouteMetric` distances. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Debug, Default)]`.
 
 ## Free Functions
 

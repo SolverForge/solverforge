@@ -28,18 +28,23 @@ impl SolverStats {
             .map(CandidateTraceTelemetry::begin_phase)
     }
 
-    /// Finalizes the exact phase plan for an enabled candidate trace.
+    /// Records the exact resolved phase plan once, for the final telemetry
+    /// and, when enabled, for the candidate trace.
     ///
-    /// A trace-free solve intentionally has no recorder to update. The
-    /// one-way invariant itself is enforced by `CandidateTraceTelemetry` when
-    /// a trace exists.
-    pub(crate) fn finalize_candidate_trace_resolved_phase_plan(
+    /// The one-way invariant is enforced here for every solve and again by
+    /// `CandidateTraceTelemetry` when a trace exists.
+    pub(crate) fn finalize_resolved_phase_plan(
         &mut self,
         resolved_phase_plan: CandidateTracePhasePlan,
     ) {
+        assert!(
+            self.resolved_phase_plan.is_none(),
+            "the resolved phase plan may be finalized only once per solve"
+        );
         if let Some(trace) = self.candidate_trace.as_mut() {
-            trace.finalize_resolved_phase_plan(resolved_phase_plan);
+            trace.finalize_resolved_phase_plan(resolved_phase_plan.clone());
         }
+        self.resolved_phase_plan = Some(Box::new(resolved_phase_plan));
     }
 
     pub(crate) fn record_prepared_candidate_trace_pull(

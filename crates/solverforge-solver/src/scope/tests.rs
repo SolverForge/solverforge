@@ -426,7 +426,7 @@ fn solver_scope_forwards_candidate_trace_plan_finalization() {
 
     let terminal_plan =
         CandidateTracePhasePlan::known("test.terminal", [("outcome", "completed")], Vec::new());
-    scope.finalize_candidate_trace_resolved_phase_plan(terminal_plan.clone());
+    scope.finalize_resolved_phase_plan(terminal_plan.clone());
 
     let trace = scope
         .stats()

@@ -16,15 +16,16 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.stats.begin_candidate_trace_phase()
     }
 
-    /// Publishes the executor-supplied terminal phase plan into the enabled
-    /// candidate trace. This is intentionally a direct forwarding boundary:
-    /// the scope never infers a plan from progress, snapshots, or callbacks.
-    pub(crate) fn finalize_candidate_trace_resolved_phase_plan(
+    /// Publishes the executor-supplied terminal phase plan into the final
+    /// telemetry and, when enabled, the candidate trace. This is
+    /// intentionally a direct forwarding boundary: the scope never infers a
+    /// plan from progress, snapshots, or callbacks.
+    pub(crate) fn finalize_resolved_phase_plan(
         &mut self,
         resolved_phase_plan: crate::stats::CandidateTracePhasePlan,
     ) {
         self.stats
-            .finalize_candidate_trace_resolved_phase_plan(resolved_phase_plan);
+            .finalize_resolved_phase_plan(resolved_phase_plan);
     }
 
     /// Records one engine-consumed cursor candidate when tracing is enabled.

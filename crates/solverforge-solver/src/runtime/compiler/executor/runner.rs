@@ -436,7 +436,7 @@ where
                 phase.on_solver_terminal(solver_scope);
             }
         }
-        solver_scope.finalize_candidate_trace_resolved_phase_plan(self.final_phase_plan());
+        solver_scope.finalize_resolved_phase_plan(self.final_phase_plan());
         let phase_index = self
             .phases
             .last()

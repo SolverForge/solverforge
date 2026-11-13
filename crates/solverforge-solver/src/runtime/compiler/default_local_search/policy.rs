@@ -12,6 +12,7 @@ use super::{
     DefaultLocalSearchForagerPolicy, DefaultLocalSearchPlan,
 };
 
+mod exclusions;
 mod list;
 mod scalar;
 
@@ -101,6 +102,9 @@ where
     IDM: Clone,
 {
     let mut declarations = Vec::new();
+    let mut excluded = Vec::new();
+    exclusions::list_exclusions(list_slots, &mut excluded);
+    exclusions::scalar_exclusions(scalar_slots, &mut excluded);
 
     list::append_list_policy(list_slots, &mut declarations);
     scalar::append_nearby_scalar_policy(scalar_slots, &mut declarations);
@@ -134,6 +138,7 @@ where
             components,
             selection_order,
             selectors: declarations,
+            excluded,
         },
         nodes,
     )))

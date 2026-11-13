@@ -21,6 +21,9 @@ impl DefaultLocalSearchPlan {
                 selection_order_label(self.selection_order).to_string(),
             ),
             ("selector_count", self.selectors.len().to_string()),
+            // Every default union weighs its families equally.
+            ("weighting", "equal".to_string()),
+            ("excluded_families", self.excluded_families_signature()),
         ];
         match self.components.acceptor {
             super::DefaultLocalSearchAcceptorPolicy::LateAcceptance { history_size }
@@ -63,6 +66,24 @@ impl DefaultLocalSearchPlan {
                 .map(DefaultLocalSearchSelectorDeclaration::candidate_trace_plan)
                 .collect(),
         )
+    }
+
+    fn excluded_families_signature(&self) -> String {
+        if self.excluded.is_empty() {
+            return "none".to_string();
+        }
+        self.excluded
+            .iter()
+            .map(|excluded| {
+                format!(
+                    "{}@{}:{}",
+                    excluded.family,
+                    slot_signature(&excluded.slot),
+                    excluded.reason
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(";")
     }
 
     /// Returns only the selector subtree for an explicit local-search phase

@@ -7,7 +7,8 @@
 
 use crate::builder::RuntimeScalarSlotId;
 use crate::runtime::compiler::{
-    DefaultConstructionStage, DefaultConstructionStepKind, DefaultListPolicyProvenance,
+    DefaultConstructionReason, DefaultConstructionStage, DefaultConstructionStepKind,
+    DefaultListPolicyProvenance,
 };
 
 /// What happened to one resolved construction child.
@@ -65,6 +66,7 @@ impl ConstructionExecution {
 #[derive(Clone, Debug)]
 pub(crate) struct ResolvedConstructionExecutionStep {
     pub(crate) kind: DefaultConstructionStepKind,
+    pub(crate) reason: DefaultConstructionReason,
     pub(crate) required_only: bool,
     pub(crate) target: Option<RuntimeScalarSlotId>,
     pub(crate) list_policies: Option<DefaultListPolicyProvenance>,

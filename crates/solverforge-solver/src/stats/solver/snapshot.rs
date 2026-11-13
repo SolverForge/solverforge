@@ -79,6 +79,7 @@ impl SolverStats {
             } else {
                 None
             },
+            resolved_phase_plan: self.resolved_phase_plan.as_deref().cloned(),
         }
     }
 }

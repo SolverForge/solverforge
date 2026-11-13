@@ -111,6 +111,18 @@ Construction always runs first and is state-aware:
 - remaining scalar variables that no assignment group owns use
   descriptor-backed single-slot construction.
 
+Each list slot gets the first construction whose declarations it has:
+
+| Slot declares | Construction | Reported `reason` |
+|---|---|---|
+| savings hooks (`domain = "cvrp"` or `savings_hooks`) | `ListClarkeWright` | `savings_hooks_declared` |
+| precedence, construction order and ownership | `ListRegretInsertion` | `precedence_construction_order_and_ownership_declared` |
+| precedence and construction order | `ListRoundRobin` | `precedence_and_construction_order_declared` |
+| none of these | `ListCheapestInsertion` | `no_specialized_list_policy_declared` |
+
+After list construction, a slot with route hooks and a non-empty route runs
+`ListKOpt` (`route_hooks_declared_and_route_non_empty`).
+
 The dense required batch collects independent assignments directly. Bounded
 augmenting rematches stay with the following required cursor rather than being
 explored inside a batch that cannot retain multi-entity edits. Keeping an
@@ -154,9 +166,42 @@ neighborhoods:
   scalar, compound conflict-repair and ordinary scalar families.
 
 Leaf order is seeded `Random`. A single family uses `Sequential`; a
-multi-family union uses `StratifiedRandom`. The stock forager applies finite
-accepted-count horizons where they apply, and `limited_neighborhood` remains
-the explicit cap for configured exhaustive selectors.
+multi-family union uses `StratifiedRandom` with equal family weights.
+`limited_neighborhood` remains the explicit cap for configured exhaustive
+selectors.
+
+The acceptor and forager follow the model's shape:
+
+| Model | Acceptor | Forager |
+|---|---|---|
+| list variables, precedence moves available | Late Acceptance, history 400 | first last-step-score improving, accepted-count ceiling 256 |
+| list variables | Late Acceptance, history 400 | accepted count 256 |
+| scalar groups, no list variables | Diversified Late Acceptance, history 400 | accepted count 256 |
+| scalar variables with nearby hooks or conflict repairs | Simulated Annealing, auto-calibrated | accepted count 256 |
+| other scalar variables | Simulated Annealing, auto-calibrated | accepted count 1 |
+
+### Omitted and explicit components
+
+An omitted value takes the documented default; an explicit value is used as
+written:
+
+- **No `phases`:** construction as above, then the default local search when
+  termination has an effective limit.
+- **An explicit phase list** replaces the defaults. It does not add a
+  construction phase in front.
+- **An explicit `local_search` phase without `move_selector`** gets the
+  default families above.
+- **Without `acceptor` or `forager`**, that phase takes the default acceptor
+  and forager for the model. An omitted forager after a Tabu Search acceptor
+  is the best-score forager.
+- **An explicit forager with omitted fields** uses that forager's own field
+  defaults, not the default policy's: `type = "accepted_count"` without
+  `limit` collects 1 accepted move per step, while an omitted forager on a list
+  model collects 256.
+
+`telemetry.resolved_phase_plan` reports the resolved choice for every phase,
+including the families a slot did not receive and the capability each was
+missing; see [Running solves](running-solves.md#telemetry).
 
 [Extend the solver](extend-solver.md#canonical-selector-defaults) explains how
 these defaults interact with explicit selector configuration.

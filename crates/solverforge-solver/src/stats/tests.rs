@@ -396,7 +396,7 @@ fn candidate_trace_plan_stays_provisional_across_pause_and_resume_until_finaliza
         )],
     );
     let expected_digest = CandidateTraceDigest::of_bytes(&terminal_plan.canonical_bytes());
-    stats.finalize_candidate_trace_resolved_phase_plan(terminal_plan.clone());
+    stats.finalize_resolved_phase_plan(terminal_plan.clone());
 
     let terminal = stats
         .snapshot()

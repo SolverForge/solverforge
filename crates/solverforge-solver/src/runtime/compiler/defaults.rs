@@ -25,8 +25,8 @@ pub(crate) use stages::{
     resolve_default_postconstruction_kopt, resolve_default_preconstruction_stage,
 };
 pub(crate) use stages::{
-    DefaultConstructionStage, DefaultConstructionStepKind, DefaultListPolicyProvenance,
-    DefaultPreconstructionStage, ResolvedDefaultConstructionPlan,
+    DefaultConstructionReason, DefaultConstructionStage, DefaultConstructionStepKind,
+    DefaultListPolicyProvenance, DefaultPreconstructionStage, ResolvedDefaultConstructionPlan,
 };
 
 /// One scalar slot frozen for default construction/local-search expansion.

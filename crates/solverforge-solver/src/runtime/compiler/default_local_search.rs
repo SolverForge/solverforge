@@ -150,6 +150,16 @@ pub(crate) struct DefaultLocalSearchSelectorDeclaration {
     pub slots: Vec<RuntimeScalarSlotId>,
 }
 
+/// One default move family withheld from one slot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DefaultExcludedFamily {
+    pub family: &'static str,
+    pub slot: RuntimeScalarSlotId,
+    /// `missing=<capability>[+<capability>...]`, or why the slot is not
+    /// eligible at all.
+    pub reason: String,
+}
+
 /// The immutable omitted-local-search policy. The executor will instantiate
 /// its leaves from the exact declaration-order runtime bindings; this type
 /// intentionally owns no cloned slot carriers.
@@ -158,6 +168,8 @@ pub(crate) struct DefaultLocalSearchPlan {
     pub components: DefaultLocalSearchComponents,
     pub selection_order: UnionSelectionOrder,
     pub selectors: Vec<DefaultLocalSearchSelectorDeclaration>,
+    /// Default families a slot does not receive, with the reason.
+    pub excluded: Vec<DefaultExcludedFamily>,
 }
 
 pub(super) fn target_for(slot: &RuntimeScalarSlotId) -> VariableTargetConfig {

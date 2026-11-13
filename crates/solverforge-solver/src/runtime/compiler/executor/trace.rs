@@ -139,6 +139,7 @@ fn default_step_plan(step: &ResolvedConstructionExecutionStep) -> CandidateTrace
             default_step_kind_label(step.kind).to_string(),
         ),
         ("outcome".to_string(), step.outcome.as_str().to_string()),
+        ("reason".to_string(), step.reason.trace_label().to_string()),
         ("required_only".to_string(), step.required_only.to_string()),
         (
             "target".to_string(),
@@ -229,6 +230,35 @@ fn local_search_attributes(
         ),
         ("selector_count".to_string(), selector_count.to_string()),
     ]
+}
+
+/// The accepted-count horizon an acceptor/forager phase runs with: an
+/// omitted forager takes the default policy's, an explicit `accepted_count`
+/// with no `limit` takes 1, and foragers without an accepted-count horizon
+/// report `none`.
+///
+/// Resolved from the lowered phase when the solve publishes its plan, not
+/// at compile time: compiling a runner allocates nothing for diagnostics.
+pub(super) fn effective_accepted_count_limit(
+    tabu_acceptor: bool,
+    forager: Option<&solverforge_config::ForagerConfig>,
+    components: DefaultLocalSearchComponents,
+) -> String {
+    use crate::runtime::compiler::DefaultLocalSearchForagerPolicy;
+    use solverforge_config::ForagerConfig;
+
+    let limit = match forager {
+        Some(ForagerConfig::AcceptedCount(accepted)) => Some(accepted.limit.unwrap_or(1)),
+        Some(_) => None,
+        None if tabu_acceptor => None,
+        None => match components.forager {
+            DefaultLocalSearchForagerPolicy::AcceptedCount { limit } => Some(limit),
+            DefaultLocalSearchForagerPolicy::FirstLastStepScoreImproving {
+                accepted_count_limit,
+            } => accepted_count_limit,
+        },
+    };
+    limit.map_or_else(|| "none".to_string(), |limit| limit.to_string())
 }
 
 fn construction_config_signature(config: &ConstructionHeuristicConfig) -> String {

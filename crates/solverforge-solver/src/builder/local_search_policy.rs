@@ -117,6 +117,11 @@ impl CompiledForager {
         })
     }
 
+    /// The validated configuration this forager builds from.
+    pub(crate) fn config(&self) -> &ForagerConfig {
+        &self.config
+    }
+
     pub(crate) fn build<S>(&self, score_tie_break: ScoreTieBreak) -> AnyForager<S>
     where
         S: PlanningSolution,

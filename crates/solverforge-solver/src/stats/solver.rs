@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 
 use smallvec::SmallVec;
 
-use super::{AppliedMoveTelemetry, CandidateTraceTelemetry, PhaseStats, Throughput};
+use super::{
+    AppliedMoveTelemetry, CandidateTracePhasePlan, CandidateTraceTelemetry, PhaseStats, Throughput,
+};
 
 mod candidate_trace;
 mod snapshot;
@@ -52,6 +54,9 @@ pub struct SolverStats {
     scalar_assignment_required_remaining_by_group: BTreeMap<&'static str, u64>,
     problem_changes_applied: u64,
     candidate_trace: Option<CandidateTraceTelemetry>,
+    // Boxed so a solve that never resolves a plan keeps the stats one word
+    // wider, not one plan wider.
+    resolved_phase_plan: Option<Box<CandidateTracePhasePlan>>,
 }
 
 /// Phases a solve keeps without allocating: construction, local search, and
@@ -82,6 +87,7 @@ impl Default for SolverStats {
             scalar_assignment_required_remaining_by_group: BTreeMap::new(),
             problem_changes_applied: 0,
             candidate_trace: None,
+            resolved_phase_plan: None,
         }
     }
 }

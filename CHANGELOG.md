@@ -1,6 +1,26 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.27.0](https://github.com/SolverForge/solverforge/compare/v0.26.1...v0.27.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cvrp:** ProblemData's distance_matrix and travel_times fields are replaced by `metric`, and VrpSolution gains `type Metric: RouteMetric`. Migrate with `metric: DenseMatrix::new(distance_matrix, travel_times)` and `type Metric = DenseMatrix;`.
+
+### Features
+
+* **cvrp:** read leg distances through a pluggable route metric ([73d1aba](https://github.com/SolverForge/solverforge/commit/73d1abacefe6346a6528a2a2d31625a2794e2059)), references #252
+* **solver:** bound Clarke-Wright savings to nearest neighbours ([f3fd5b2](https://github.com/SolverForge/solverforge/commit/f3fd5b20a6e5bb08e32ae0035110a2a5ffc2cffe)), closes #252
+
+
+### Performance Improvements
+
+* **solver:** keep Clarke-Wright owner admission incremental ([07c883d](https://github.com/SolverForge/solverforge/commit/07c883da5d34166d1fa6185ab9cb1cd309320974)), closes #254
+* **solver:** open the scalar swap cursor in linear time ([4910340](https://github.com/SolverForge/solverforge/commit/4910340a2d0f96386af4a22e5d4c069d830509ba)), closes #255
+* **solver:** resolve Clarke-Wright owner restrictions once per route ([d79cda5](https://github.com/SolverForge/solverforge/commit/d79cda5937fd0e69a9c2bcbe7484eda7187553ba))
+
+
 ## [0.26.1](https://github.com/SolverForge/solverforge/compare/v0.26.0...v0.26.1) (2026-11-11)
 
 

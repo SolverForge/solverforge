@@ -250,6 +250,7 @@ Module: `solverforge::cvrp`
 
 - `VrpSolution` (trait)
 - `ProblemData`
+- `RouteMetric` (trait), `DenseMatrix`, `EuclideanMetric`
 - `UNREACHABLE`
 - `MatrixDistanceMeter`
 - `MatrixIntraDistanceMeter`

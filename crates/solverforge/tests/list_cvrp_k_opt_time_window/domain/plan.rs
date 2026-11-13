@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use solverforge::cvrp::ProblemData;
+use solverforge::cvrp::{DenseMatrix, ProblemData};
 use solverforge::prelude::*;
 use solverforge::SolverConfig;
 use solverforge::stream::ConstraintFactory;
@@ -33,6 +33,8 @@ fn solver_config(solution: &Plan, _base: SolverConfig) -> SolverConfig {
 }
 
 impl solverforge::cvrp::VrpSolution for Plan {
+    type Metric = DenseMatrix;
+
     fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
         Some(&self.shared)
     }
@@ -93,10 +95,9 @@ pub fn build_plan() -> Plan {
         capacity: 100,
         depot: 0,
         demands: vec![0, 1, 1, 1, 1],
-        distance_matrix,
+        metric: DenseMatrix::new(distance_matrix, travel_times),
         time_windows: vec![(0, 100), (0, 100), (0, 100), (0, 5), (0, 100)],
         service_durations: vec![0; 5],
-        travel_times,
         vehicle_departure_time: 0,
     });
 

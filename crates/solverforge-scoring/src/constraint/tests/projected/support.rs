@@ -20,7 +20,7 @@ pub(super) struct Work {
     pub(super) enabled: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct Capacity {
     pub(super) bucket: usize,
     pub(super) capacity: i64,

@@ -220,6 +220,14 @@ Each `ConstraintAnalysis` reports the weighted `score` and the constraint's
 satisfied one. For analysis of a running job, see
 [Running solves](running-solves.md).
 
+`ScoreDirector::constraint_analyses()` also lists each constraint's matches
+with the entities behind them. A grouped or complemented constraint reports one
+match per group whose weight is not zero, justified by the entities in the
+group (a complemented key without a group is justified by its target entity),
+and the match scores add up to the constraint's score. Grouped and complemented
+constraints therefore need entities that implement `Clone` and `Debug`, like
+every other constraint.
+
 ## Runtime constraint weights
 
 Mark one `ConstraintWeights` field with `#[constraint_weights]` to scale named

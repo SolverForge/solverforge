@@ -195,7 +195,7 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Send + Sync + 'static,
+    B: Clone + std::fmt::Debug + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     Src: Source<S, Out> + 'static,
     EB: CollectionExtract<S, Item = B> + 'static,

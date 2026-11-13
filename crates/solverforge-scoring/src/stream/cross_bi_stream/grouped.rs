@@ -233,8 +233,8 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
     GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Clone + std::fmt::Debug + Send + Sync + 'static,
+    B: Clone + std::fmt::Debug + Send + Sync + 'static,
     JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,

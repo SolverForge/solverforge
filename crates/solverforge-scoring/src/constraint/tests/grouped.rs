@@ -10,7 +10,7 @@ use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::{collect_vec, count, CollectedVec};
 use crate::stream::ConstraintFactory;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct GroupedShift {
     employee_id: usize,
 }

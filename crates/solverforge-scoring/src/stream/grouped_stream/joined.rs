@@ -217,8 +217,8 @@ impl<S, A, B, K, E, EB, Fi, KF, C, V, R, Acc, KB, W, Sc>
     GroupedJoinedBuilder<S, A, B, K, E, EB, Fi, KF, C, V, R, Acc, KB, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Clone + std::fmt::Debug + Send + Sync + 'static,
+    B: Clone + std::fmt::Debug + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A> + 'static,
     EB: CollectionExtract<S, Item = B> + 'static,

@@ -42,7 +42,9 @@ pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync 
     fn metadata(&self) -> Vec<ConstraintMetadata<'_>>;
     /// Each terminal's total, in authored order.
     fn evaluate_each<'a>(&'a self, operator: &O, solution: &S) -> Vec<ConstraintResult<'a, Sc>>;
-    /// Each terminal's total with its matches, in authored order.
+    /// Each terminal's total with its matches, in authored order: one match
+    /// per row whose coded weight is not zero, justified by the entities the
+    /// row was built from, so a terminal's match scores sum to its total.
     fn evaluate_detailed<'a>(
         &'a self,
         operator: &O,
@@ -50,12 +52,6 @@ pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync 
     ) -> Vec<ConstraintAnalysis<'a, Sc>>;
     /// Drops every retained row score.
     fn reset(&mut self);
-    /// The retained signed score of row `handle` for a single-terminal set;
-    /// `None` when the set does not score rows on its own.
-    fn score_for(&self, _handle: RowHandle) -> Option<Sc> {
-        None
-    }
-
     /// Appends each terminal's constraint reference, one weight slot each.
     fn weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>);
     /// [`evaluate`](Self::evaluate) with each terminal scaled by its multiplier.

@@ -208,6 +208,7 @@ src/
 │   │   ├── mod.rs                                  — Module declarations and selected re-exports
 │   │   ├── operator_terminal.rs                    — OperatorTerminal<S,O,W,Sc> over one generic operator
 │   │   ├── operator_scorer.rs                      — OperatorScorer, ScorerChain, and RowWeight/AdaptWeight adapters
+│   │   ├── operator_scorer/matches.rs              — per-terminal match listing for shared-terminal analysis
 │   │   ├── operator_scorer/set.rs                  — OperatorScorerSet, the scorer-set contract shared terminals score through
 │   │   ├── shared_terminal.rs                      — SharedOperatorTerminal/Builder and chained terminal sharing
 │   │   └── grouped_weights.rs                      — Group/direct-complement/optional-complement weight adapters
@@ -715,6 +716,18 @@ terminals of one shared node. Weight adapters (`GroupAdapter`/`GroupWeight`,
 `DirectComplementWeight`, `OptionalComplementAdapter`/`OptionalComplementWeight`,
 `RowWeight`, `AdaptWeight`) adapt each family's weight closure to the shared
 row. Sharing is compiler-owned; there are no runtime node caches.
+
+A shared terminal requires its operator's rows to implement `ExplainRow`, so
+every grouped and complemented builder's `named` requires `Clone + Debug`
+entities (projected `Out` rows excepted: they justify nothing themselves).
+Detailed analysis (`get_matches`, `ConstraintSet::evaluate_detailed[_weighted]`)
+reports, for every terminal on the node, one match per row whose coded weight
+is not zero, scored at the terminal's multiplier and justified by the row's
+contributors: a group's contributing entities, a complement row's target plus
+its group's contributors, a defaulted complement key by its target alone. The
+match scores sum to the terminal's score; before initialization they come from
+a full evaluation, afterwards from the retained rows. `match_count` still
+counts every row.
 
 **`SharedNodeId(pub usize)`** — Stable diagnostic identifier for one shared
 compiler node.

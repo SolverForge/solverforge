@@ -12,6 +12,7 @@ use crate::builder::context::{
     ListSourceAccess, RuntimeListElement, RuntimeListSlot, RuntimeListSourceIndex, SourceElement,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::list_placement::OwnerRestriction;
 
 mod commit;
 mod completion;
@@ -111,35 +112,38 @@ where
     }
 }
 
-pub(super) fn owner_allows<S, A>(
+/// The owners an element admits, resolved once so loops over owners test
+/// each against it instead of calling the owner hook per owner.
+pub(super) fn element_restriction<S, A>(
     access: &A,
     solution: &S,
     entity_count: usize,
-    entity_index: usize,
     element: &A::Element,
-) -> bool
+) -> OwnerRestriction
 where
     A: ClarkeWrightAccess<S>,
 {
-    match access.element_owner(solution, element) {
-        None => true,
-        Some(owner_index) => owner_index < entity_count && owner_index == entity_index,
-    }
+    OwnerRestriction::from_hook_owner(access.element_owner(solution, element), entity_count)
 }
 
-pub(super) fn route_owner_allows<S, A>(
+/// The owners every element of a route admits.
+pub(super) fn route_restriction<S, A>(
     access: &A,
     solution: &S,
     entity_count: usize,
-    entity_index: usize,
     route: &[&A::Element],
-) -> bool
+) -> OwnerRestriction
 where
     A: ClarkeWrightAccess<S>,
 {
-    route
-        .iter()
-        .all(|element| owner_allows(access, solution, entity_count, entity_index, element))
+    let mut restriction = OwnerRestriction::Unrestricted;
+    for element in route {
+        restriction = restriction.and(element_restriction(access, solution, entity_count, element));
+        if restriction == OwnerRestriction::Invalid {
+            break;
+        }
+    }
+    restriction
 }
 
 pub(super) struct CompletionAssignment {

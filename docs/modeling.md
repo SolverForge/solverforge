@@ -170,7 +170,14 @@ times from its `metric`, named by `VrpSolution::Metric`:
   travel time = length / speed, rounded the same way); memory
   grows linearly, for models too large for a matrix.
 
-`UNREACHABLE` or a negative leg value marks a leg that cannot be traversed. Custom routing domains omit `domain = "cvrp"`
+`UNREACHABLE` or a negative leg value marks a leg that cannot be traversed.
+
+For models past roughly 10k stops, pair `EuclideanMetric` with bounded
+Clarke-Wright savings (`savings_neighbors`, see
+[Configuration](configuration.md#bounded-clarke-wright-savings)): the profile's
+neighbour hook asks the metric for each stop's nearest stops, which
+`EuclideanMetric` answers from a spatial grid, so construction memory stays
+linear in the stops. Custom routing domains omit `domain = "cvrp"`
 and supply their own `route_hooks` and `savings_hooks`; see
 [Extend the domain](extend-domain.md).
 

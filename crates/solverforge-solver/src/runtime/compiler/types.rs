@@ -49,6 +49,7 @@ pub(crate) enum RuntimeCapability {
     ListIntraPositionDistance,
     ListRoute,
     ListSavings,
+    ListSavingsNeighbors,
 }
 
 impl fmt::Display for RuntimeCapability {
@@ -67,6 +68,7 @@ impl fmt::Display for RuntimeCapability {
             Self::ListIntraPositionDistance => "intra-position list distance",
             Self::ListRoute => "route bundle (read/replace/depot/distance/feasible)",
             Self::ListSavings => "savings bundle (replace/depot/metric_class/distance/feasible)",
+            Self::ListSavingsNeighbors => "savings neighbour source (savings_neighbors_fn)",
         };
         f.write_str(name)
     }

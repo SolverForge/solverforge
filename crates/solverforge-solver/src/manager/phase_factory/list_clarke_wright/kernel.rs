@@ -30,6 +30,7 @@ pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
     access: &A,
     source_index: &RuntimeListSourceIndex<A::Element>,
     bound_unassigned: &[SourceElement<A::Element>],
+    savings_neighbors: Option<usize>,
     control_policy: StepControlPolicy,
     solver_scope: &mut SolverScope<'_, S, D, BestCb>,
 ) where
@@ -47,6 +48,7 @@ pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
                 access,
                 source_index,
                 bound_unassigned,
+                savings_neighbors,
                 control_policy,
                 phase_scope,
             );
@@ -58,6 +60,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     access: &A,
     source_index: &RuntimeListSourceIndex<A::Element>,
     bound_unassigned: &[SourceElement<A::Element>],
+    savings_neighbors: Option<usize>,
     control_policy: StepControlPolicy,
     phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
 ) where
@@ -164,6 +167,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         &unassigned,
         &representative_owner_slots,
         &trace_metric_class_by_value,
+        savings_neighbors,
         control_policy,
     );
     sort_savings(&mut savings);

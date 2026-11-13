@@ -56,6 +56,17 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
         }
     }
 
+    /// The nearest-neighbour hook bounded Clarke-Wright savings use.
+    /// Host-language metadata never declares one.
+    pub(crate) fn savings_neighbors_fn(
+        &self,
+    ) -> Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)> {
+        match self {
+            Self::Static { slot, .. } => slot.savings_neighbors_fn,
+            Self::Dynamic(_) => None,
+        }
+    }
+
     pub(crate) fn route_read_policy(&self) -> RouteReadPolicy {
         match self {
             Self::Static { route_bindings, .. } => route_bindings.read_policy,
@@ -154,6 +165,7 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
                 }
                 ListAccessCapability::Route => route_bindings.supports_route(),
                 ListAccessCapability::Savings => route_bindings.supports_savings(),
+                ListAccessCapability::SavingsNeighbors => self.savings_neighbors_fn().is_some(),
             },
             Self::Dynamic(slot) => {
                 let access = slot.access_capabilities();
@@ -181,6 +193,7 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
                             && metadata.savings
                             && slot.savings_metric_class_policy().is_dynamic_explicit()
                     }
+                    ListAccessCapability::SavingsNeighbors => false,
                 }
             }
         }

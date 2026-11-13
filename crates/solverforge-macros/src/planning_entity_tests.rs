@@ -148,21 +148,47 @@ fn list_metadata_declares_shared_savings_feasibility_only_for_the_cvrp_profile()
 }
 
 #[test]
-fn entity_descriptor_includes_index_shadow_metadata() {
-    let input = parse_quote! {
-        struct Visit {
-            #[planning_id]
-            id: usize,
-            #[index_shadow_variable(source_variable_name = "visits")]
-            index: Option<usize>,
-        }
+fn list_metadata_takes_the_savings_neighbour_hook_from_the_profile_or_the_attribute() {
+    let expand = |input| {
+        expand_derive(input)
+            .expect("entity expansion should succeed")
+            .to_string()
+            .replace(' ', "")
     };
+    let cvrp = expand(parse_quote! {
+        struct Route {
+            #[planning_id]
+            id: String,
+            #[planning_list_variable(element_collection = "visits", domain = "cvrp")]
+            visits: Vec<usize>,
+        }
+    });
+    let custom = expand(parse_quote! {
+        struct Route {
+            #[planning_id]
+            id: String,
+            #[planning_list_variable(
+                element_collection = "visits",
+                savings_hooks = "crate::hooks",
+                savings_neighbors_fn = "crate::hooks::neighbors"
+            )]
+            visits: Vec<usize>,
+        }
+    });
+    let absent = expand(parse_quote! {
+        struct Route {
+            #[planning_id]
+            id: String,
+            #[planning_list_variable(element_collection = "visits", savings_hooks = "crate::hooks")]
+            visits: Vec<usize>,
+        }
+    });
 
-    let expanded = expand_derive(input)
-        .expect("index shadow expansion should succeed")
-        .to_string();
-
-    assert!(expanded.contains("VariableDescriptor :: shadow"));
-    assert!(expanded.contains("ShadowVariableKind :: Index"));
-    assert!(expanded.contains("with_source (\"Visit\" , \"visits\")"));
+    assert!(cvrp.contains(
+        ".with_savings_neighbors_fn(::core::option::Option::Some(::solverforge::cvrp::savings_neighbors))"
+    ));
+    assert!(custom.contains(
+        ".with_savings_neighbors_fn(::core::option::Option::Some(crate::hooks::neighbors))"
+    ));
+    assert!(absent.contains(".with_savings_neighbors_fn(::core::option::Option::None)"));
 }

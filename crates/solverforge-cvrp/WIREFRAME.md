@@ -14,6 +14,7 @@ stock `domain = "cvrp"` list-variable profile internals.
 
 ```
 src/
+├── euclidean_grid.rs — Grid-backed exact nearest-location queries for `EuclideanMetric`
 ├── helpers.rs       — Public CVRP free functions, hook bundles, and private pointer helpers
 ├── lib.rs           — Module exports and public re-exports
 ├── meters.rs        — Distance meter implementations
@@ -61,6 +62,7 @@ per metric type.
 | `distance` | `fn(&self, from: usize, to: usize) -> Option<i64>` | Leg distance; `None` outside the metric |
 | `travel_time` | `fn(&self, from: usize, to: usize) -> Option<i64>` | Leg travel time; `None` outside the metric |
 | `covers` | `fn(&self, route: &[usize], depot: usize, max_node: usize) -> bool` | Whether every leg among the route's visits and the depot is defined |
+| `nearest` | `fn(&self, locations: &[usize], k: usize, out: &mut Vec<usize>)` | Appends for each location the indexes into `locations` of its `min(k, len - 1)` nearest others by leg distance (untraversable legs rank as the savings distance's large finite cost), nearest first, ties by lower index. Provided: ranks every pair, quadratic time, linear memory |
 
 ### `DenseMatrix`
 
@@ -76,7 +78,9 @@ Straight-line legs between planar coordinates, computed on demand: distance is
 `sqrt(dx² + dy²)` rounded half away from zero (TSPLIB `EUC_2D`), travel time
 is that length divided by the speed, rounded the same way. `EuclideanMetric::new(coordinates, speed)`
 panics on a non-finite or non-positive speed or a non-finite coordinate;
-`coordinates()` and `speed()` read them back. Implements `RouteMetric`.
+`coordinates()` and `speed()` read them back. Implements `RouteMetric`;
+its `nearest` answers from a uniform grid over the locations with exactly the
+provided method's result, in time about linear in `locations.len() * k`.
 Derives: `Clone, Debug`. Memory is linear in the location count.
 
 ### `VrpSolution` (trait)
@@ -117,6 +121,7 @@ All functions are generic over `S: VrpSolution`.
 | `savings_metric_class` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Clarke-Wright metric class for owners that share backing `ProblemData` |
 | `savings_distance` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64` | Construction distance adapter for models that share exact CVRP route data |
 | `savings_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | Construction admissibility adapter that rejects only non-evaluable stock CVRP routes |
+| `savings_neighbors` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, values: &[usize], k: usize, out: &mut Vec<usize>)` | Bounded Clarke-Wright neighbour hook: the vehicle's `RouteMetric::nearest` over the values; nothing for an out-of-range vehicle |
 
 ### Usage as a macro domain profile
 
@@ -128,7 +133,7 @@ All functions are generic over `S: VrpSolution`.
 ```
 
 The profile expands to the stock meters, `VrpSolution` bound, route hooks,
-savings hooks, and savings metric class. Route-local phases use strict stock
+savings hooks, savings metric class, and savings neighbour hook. Route-local phases use strict stock
 CVRP route feasibility. Clarke-Wright construction uses relaxed savings
 feasibility so assignment can stay broad while the score model compares
 capacity, lateness, and unreachable-leg violations against leaving work

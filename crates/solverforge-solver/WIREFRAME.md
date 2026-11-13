@@ -350,8 +350,9 @@ src/
 │   │   ├── list_clarke_wright/owner_admission.rs — Incremental merge admission: metric-class counts, per-route ownership and owner sets updated for the merged route only
 │   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment, class-shared savings feasibility, buffered-merge publication on interruption, and preservation helpers
 │   │   ├── list_clarke_wright/route_state.rs — Route state and reusable route-buffer helpers
-│   │   ├── list_clarke_wright/savings.rs — Metric-class savings computation
+│   │   ├── list_clarke_wright/savings.rs — Metric-class savings computation, all pairs or bounded to nearest neighbours
 │   │   ├── list_clarke_wright/tests/admission_oracle.rs — Incremental admission against whole-set recomputation on seeded instances
+│   │   ├── list_clarke_wright/tests/bounded_savings.rs — Bounded savings: full-bound equivalence, scored pairs, hook row-length check
 │   │   ├── list_clarke_wright/tests/metric_class.rs — Shared metric-class and owner-feasibility tests
 │   │   ├── list_clarke_wright/tests/owner_binding.rs — Owner-specific hook binding tests
 │   │   ├── list_k_opt.rs               — ListKOptPhase
@@ -1029,7 +1030,11 @@ Runtime helpers:
   feasibility and reuses the answer for the class; the `domain = "cvrp"`
   profile declares it because the stock hook reads only the owner's
   `ProblemData`, which is what the stock metric class groups by.
-  `ListVariableSlot` carries the same field and builder.
+  `savings_neighbors_fn`, `Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)>`,
+  starts absent and is attached with `with_savings_neighbors_fn(...)`; it is
+  the nearest-neighbour source bounded Clarke-Wright (`savings_neighbors`)
+  requires, and the compiler rejects a bounded `ListClarkeWright` on a slot
+  without it. `ListVariableSlot` carries the same fields and builders.
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `runtime/compiler/` — compiles one value-owned `RuntimeModel` into an immutable graph, prepares solve-owned sources, and runs every configured or default phase through `CompiledRuntimePhaseRunner`
 - `PlanningModelSupport` — `#[doc(hidden)]` support trait (and `#[doc(hidden)]`

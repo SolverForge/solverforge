@@ -30,7 +30,8 @@ pub(super) fn dynamic_access_has(
         | ListAccessCapability::CrossPositionDistance
         | ListAccessCapability::IntraPositionDistance
         | ListAccessCapability::Route
-        | ListAccessCapability::Savings => false,
+        | ListAccessCapability::Savings
+        | ListAccessCapability::SavingsNeighbors => false,
     }
 }
 
@@ -51,7 +52,9 @@ pub(super) fn dynamic_metadata_has(
         ListAccessCapability::IntraPositionDistance => capabilities.intra_position_distance,
         ListAccessCapability::Route => capabilities.route,
         ListAccessCapability::Savings => capabilities.savings,
-        ListAccessCapability::Set
+        // Host-language metadata declares no savings neighbour source.
+        ListAccessCapability::SavingsNeighbors
+        | ListAccessCapability::Set
         | ListAccessCapability::Replace
         | ListAccessCapability::Reverse
         | ListAccessCapability::Sublist => false,

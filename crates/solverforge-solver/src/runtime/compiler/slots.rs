@@ -266,6 +266,7 @@ pub(super) fn require_list_capability<S, V, DM, IDM>(
         RuntimeCapability::ListIntraPositionDistance => ListAccessCapability::IntraPositionDistance,
         RuntimeCapability::ListRoute => ListAccessCapability::Route,
         RuntimeCapability::ListSavings => ListAccessCapability::Savings,
+        RuntimeCapability::ListSavingsNeighbors => ListAccessCapability::SavingsNeighbors,
         _ => unreachable!("list capability validation received a scalar capability"),
     };
     if let Some(slot) = slots.iter().find(|slot| !slot.supports(access_capability)) {

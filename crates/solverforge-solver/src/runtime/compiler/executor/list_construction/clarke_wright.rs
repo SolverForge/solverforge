@@ -24,6 +24,7 @@ pub(crate) fn execute_runtime_list_clarke_wright<S, V, DM, IDM, D, ProgressCb>(
     slot: &RuntimeListSlot<S, V, DM, IDM>,
     source_index: &RuntimeListSourceIndex<RuntimeListElement<V>>,
     unassigned: &[SourceElement<RuntimeListElement<V>>],
+    savings_neighbors: Option<usize>,
     control_policy: StepControlPolicy,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) -> Result<(), ListConstructionKernelError>
@@ -35,6 +36,13 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    run_clarke_wright(slot, source_index, unassigned, control_policy, solver_scope);
+    run_clarke_wright(
+        slot,
+        source_index,
+        unassigned,
+        savings_neighbors,
+        control_policy,
+        solver_scope,
+    );
     Ok(())
 }

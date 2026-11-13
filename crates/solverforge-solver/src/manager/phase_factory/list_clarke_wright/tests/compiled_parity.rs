@@ -363,6 +363,7 @@ fn run(slot: Slot) -> (Vec<Vec<usize>>, CandidateTraceTelemetry) {
         &slot,
         &source_index,
         &unassigned,
+        None,
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )

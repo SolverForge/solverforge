@@ -35,10 +35,6 @@ fn unavailable_savings_depot<S>(_: &S, _: usize) -> usize {
     panic!("compiled savings depot was invoked without an available savings bundle")
 }
 
-fn declared_entity_identity<S>(_: &S, entity: usize) -> usize {
-    entity
-}
-
 fn unavailable_savings_distance<S>(_: &S, _: usize, _: usize, _: usize) -> i64 {
     panic!("compiled savings distance was invoked without an available savings bundle")
 }
@@ -65,7 +61,6 @@ pub(crate) struct StaticRouteBindings<S> {
     pub(super) route_distance: fn(&S, usize, usize, usize) -> i64,
     pub(super) route_feasible: fn(&S, usize, &[usize]) -> bool,
     pub(super) savings_depot: fn(&S, usize) -> usize,
-    pub(super) savings_metric_class: fn(&S, usize) -> usize,
     pub(super) savings_distance: fn(&S, usize, usize, usize) -> i64,
     pub(super) savings_feasible: fn(&S, usize, &[usize]) -> bool,
     pub(super) savings_feasible_shared_by_metric_class: bool,
@@ -121,18 +116,9 @@ impl<S> StaticRouteBindings<S> {
                 declared_always_feasible::<S>,
             ),
         };
-        let (metric_class_policy, savings_metric_class): (
-            SavingsMetricClassPolicy,
-            fn(&S, usize) -> usize,
-        ) = match slot.savings_metric_class_fn {
-            Some(metric_class) => (
-                SavingsMetricClassPolicy::ExplicitStaticProvider,
-                metric_class,
-            ),
-            None => (
-                SavingsMetricClassPolicy::DeclaredEntityIdentity,
-                declared_entity_identity::<S>,
-            ),
+        let metric_class_policy = match slot.savings_metric_class_fn {
+            Some(_) => SavingsMetricClassPolicy::ExplicitStaticProvider,
+            None => SavingsMetricClassPolicy::DeclaredEntityIdentity,
         };
         Self {
             read_policy,
@@ -149,7 +135,6 @@ impl<S> StaticRouteBindings<S> {
             savings_depot: slot
                 .savings_depot_fn
                 .unwrap_or(unavailable_savings_depot::<S>),
-            savings_metric_class,
             savings_distance: slot
                 .savings_distance_fn
                 .unwrap_or(unavailable_savings_distance::<S>),

@@ -18,6 +18,7 @@ fn compiled_clarke_wright_refreshes_current_assignment_before_a_second_execution
         &slot,
         &source_index,
         &unassigned,
+        None,
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )
@@ -30,6 +31,7 @@ fn compiled_clarke_wright_refreshes_current_assignment_before_a_second_execution
         &slot,
         &source_index,
         &unassigned,
+        None,
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )

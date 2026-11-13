@@ -143,6 +143,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set; scalar heuristics only, list heuristics reject it |
 | `group_name` | `Option<String>` | `None` |
 | `group_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set; requires `group_name`; list heuristics reject it |
+| `savings_neighbors` | `Option<NonZeroU32>` | `None` (every pair scored); `0` does not parse; `ListClarkeWright` only, which then scores a pair only when one element is among the other's `savings_neighbors` nearest; other heuristics reject it |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 `target` is flattened in serde, so configuration files still use top-level

@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use serde::{Deserialize, Serialize};
 
 use crate::acceptor::AcceptorConfig;
@@ -61,6 +63,13 @@ pub struct ConstructionHeuristicConfig {
     /// Requires `group_name`; a list heuristic rejects it.
     pub group_candidate_limit: Option<usize>,
 
+    /// Bounds `list_clarke_wright` savings to each element's nearest
+    /// neighbours: a pair is scored only when one element is among the other's
+    /// `savings_neighbors` nearest, so the savings list holds about
+    /// `savings_neighbors` entries per element instead of one per pair. Absent,
+    /// every pair is scored. Zero does not parse; other heuristics reject it.
+    pub savings_neighbors: Option<NonZeroU32>,
+
     /// Phase termination configuration.
     pub termination: Option<TerminationConfig>,
 }
@@ -75,6 +84,7 @@ impl Default for ConstructionHeuristicConfig {
             value_candidate_limit: None,
             group_name: None,
             group_candidate_limit: None,
+            savings_neighbors: None,
             termination: None,
         }
     }

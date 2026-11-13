@@ -187,6 +187,29 @@ type = "change_move_selector"
 | List selectors | `list_change_move_selector`, `nearby_list_change_move_selector`, `list_swap_move_selector`, `nearby_list_swap_move_selector`, `list_permute_move_selector`, `list_precedence_move_selector`, `sublist_change_move_selector`, `sublist_swap_move_selector`, `list_reverse_move_selector`, `k_opt_move_selector`, `list_ruin_move_selector` |
 | Composition | `union_move_selector`, `cartesian_product_move_selector`, `limited_neighborhood`; native and host-backed compound scalar moves; nearby selection for scalar and list neighborhoods |
 
+### Bounded Clarke-Wright savings
+
+`list_clarke_wright` scores every pair of unassigned elements by default, so
+its savings list grows with the square of the element count (32 bytes per
+pair; 1.6 GB at 10k stops). `savings_neighbors` scores a pair only when one
+element is among the other's nearest:
+
+```toml
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "list_clarke_wright"
+savings_neighbors = 40
+```
+
+The list then holds about `savings_neighbors` entries per element. The
+variable must declare a savings neighbour hook (`savings_neighbors_fn`); the
+`domain = "cvrp"` profile supplies one that asks the vehicles' `RouteMetric`.
+With `EuclideanMetric` the neighbours come from a spatial grid, so memory
+stays linear in the stops; see [Modeling](modeling.md#vehicle-routing-cvrp-profile).
+Without the setting, savings, their order and the merges are unchanged, and a
+bound of at least the element count minus one gives the same routes as no
+bound.
+
 The configuration surface also covers bounded candidate tracing, per-selector
 ordering and host metrics, weighted union scheduling, score tie-breaking, and
 grouped scalar and conflict-repair selectors.

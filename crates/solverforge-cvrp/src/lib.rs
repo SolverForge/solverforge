@@ -5,6 +5,7 @@
 //! `MatrixIntraDistanceMeter`, the `VrpSolution` trait, and the stock helpers
 //! behind `#[planning_list_variable(domain = "cvrp")]`.
 
+mod euclidean_grid;
 mod helpers;
 mod meters;
 mod metric;
@@ -14,7 +15,7 @@ mod solution;
 pub use helpers::{
     depot_for_entity, get_route, replace_route, route_distance, route_feasible, route_hooks,
     savings_depot_for_entity, savings_distance, savings_feasible, savings_hooks,
-    savings_metric_class,
+    savings_metric_class, savings_neighbors,
 };
 pub use meters::{MatrixDistanceMeter, MatrixIntraDistanceMeter};
 pub use metric::{DenseMatrix, EuclideanMetric, RouteMetric};

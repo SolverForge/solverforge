@@ -86,6 +86,11 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     /// Whether `savings_feasible_fn` answers the same for every entity of one
     /// savings metric class; Clarke-Wright then asks one entity per class.
     pub savings_feasible_shared_by_metric_class: bool,
+    /// Nearest neighbours for bounded Clarke-Wright savings: given an entity,
+    /// element values and `k`, appends for each value, in order, the indexes
+    /// (into the values) of its `min(k, len - 1)` nearest other values by
+    /// savings distance, nearest first, ties by lower index.
+    pub savings_neighbors_fn: Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)>,
     /// The entity whose list must hold an element, when the model restricts
     /// ownership; `None` from the hook means any entity.
     pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
@@ -131,6 +136,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             savings_distance_fn: self.savings_distance_fn,
             savings_feasible_fn: self.savings_feasible_fn,
             savings_feasible_shared_by_metric_class: self.savings_feasible_shared_by_metric_class,
+            savings_neighbors_fn: self.savings_neighbors_fn,
             element_owner_fn: self.element_owner_fn,
             construction_element_order_key: self.construction_element_order_key,
             precedence_duration_fn: self.precedence_duration_fn,
@@ -207,6 +213,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             savings_distance_fn,
             savings_feasible_fn,
             savings_feasible_shared_by_metric_class: false,
+            savings_neighbors_fn: None,
             element_owner_fn: None,
             construction_element_order_key: None,
             precedence_duration_fn: None,
@@ -219,6 +226,15 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
     /// entity of one savings metric class.
     pub fn with_savings_feasible_shared_by_metric_class(mut self, shared: bool) -> Self {
         self.savings_feasible_shared_by_metric_class = shared;
+        self
+    }
+
+    /// Sets the nearest-neighbour hook bounded Clarke-Wright savings use.
+    pub fn with_savings_neighbors_fn(
+        mut self,
+        savings_neighbors_fn: Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)>,
+    ) -> Self {
+        self.savings_neighbors_fn = savings_neighbors_fn;
         self
     }
 

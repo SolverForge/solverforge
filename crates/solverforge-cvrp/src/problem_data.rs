@@ -43,16 +43,17 @@ impl<M: RouteMetric> ProblemData<M> {
 
     #[inline]
     pub(crate) fn finite_distance(&self, from: usize, to: usize) -> Option<i64> {
-        finite(self.metric.distance(from, to)?)
+        finite_leg(self.metric.distance(from, to)?)
     }
 
     #[inline]
     pub(crate) fn travel_time(&self, from: usize, to: usize) -> Option<i64> {
-        finite(self.metric.travel_time(from, to)?)
+        finite_leg(self.metric.travel_time(from, to)?)
     }
 }
 
+/// A leg value, or `None` when it marks a leg that cannot be traversed.
 #[inline]
-fn finite(value: i64) -> Option<i64> {
+pub(crate) fn finite_leg(value: i64) -> Option<i64> {
     (value >= 0 && value != UNREACHABLE).then_some(value)
 }

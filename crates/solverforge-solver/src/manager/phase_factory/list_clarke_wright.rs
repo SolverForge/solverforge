@@ -48,6 +48,19 @@ pub(crate) trait ClarkeWrightAccess<S>: ListSourceAccess<S> {
     /// Whether `savings_feasible` answers the same for every owner of one
     /// savings metric class, so one owner per class may answer for it.
     fn savings_feasible_shared_by_metric_class(&self) -> bool;
+    /// Appends, for each of `values` in order, the indexes into `values` of
+    /// its `min(k, values.len() - 1)` nearest other values for
+    /// `entity_index`'s savings, nearest first, ties by lower index. Called
+    /// only when bounded savings are configured, which the compiler admits
+    /// only for slots that declare the hook.
+    fn savings_neighbors(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        values: &[usize],
+        k: usize,
+        out: &mut Vec<usize>,
+    );
     fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>);
 }
 
@@ -104,6 +117,20 @@ where
 
     fn savings_feasible_shared_by_metric_class(&self) -> bool {
         RuntimeListSlot::savings_feasible_shared_by_metric_class(self)
+    }
+
+    fn savings_neighbors(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        values: &[usize],
+        k: usize,
+        out: &mut Vec<usize>,
+    ) {
+        let neighbors = self
+            .savings_neighbors_fn()
+            .expect("compiled bounded Clarke-Wright requires a savings neighbour hook");
+        neighbors(solution, entity_index, values, k, out);
     }
 
     fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {

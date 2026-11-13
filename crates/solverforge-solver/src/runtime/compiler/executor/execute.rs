@@ -184,7 +184,18 @@ where
                         slots,
                         control_policy,
                         solver_scope,
-                        execute_runtime_list_clarke_wright,
+                        |slot, source_index, unassigned, control_policy, solver_scope| {
+                            execute_runtime_list_clarke_wright(
+                                slot,
+                                source_index,
+                                unassigned,
+                                config
+                                    .savings_neighbors
+                                    .map(|k| usize::try_from(k.get()).unwrap_or(usize::MAX)),
+                                control_policy,
+                                solver_scope,
+                            )
+                        },
                     )
                 },
             )
@@ -381,7 +392,7 @@ fn execute_list_slots<S, V, DM, IDM, Extension, D, ProgressCb>(
     slots: &[PreparedListSlot],
     control_policy: StepControlPolicy,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-    execute: fn(
+    execute: impl Fn(
         &crate::builder::context::RuntimeListSlot<S, V, DM, IDM>,
         &crate::builder::context::RuntimeListSourceIndex<
             crate::builder::context::RuntimeListElement<V>,

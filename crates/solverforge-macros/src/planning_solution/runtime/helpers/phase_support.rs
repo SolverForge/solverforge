@@ -180,6 +180,7 @@ pub(super) fn generate_runtime_phase_support(
                                 .with_savings_feasible_shared_by_metric_class(
                                     metadata.savings_feasible_shared_by_metric_class,
                                 )
+                                .with_savings_neighbors_fn(metadata.savings_neighbors_fn)
                                 )
                             )
                         );

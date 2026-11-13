@@ -9,6 +9,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 mod admission_oracle;
+mod bounded_savings;
 mod compiled_parity;
 mod interruption;
 mod metric_class;

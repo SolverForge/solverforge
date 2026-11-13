@@ -169,3 +169,116 @@ fn euclidean_metric_answers_every_stock_helper_like_its_tabulated_matrix() {
         );
     }
 }
+
+struct Lcg(u64);
+
+impl Lcg {
+    fn next(&mut self, bound: u64) -> u64 {
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (self.0 >> 33) % bound
+    }
+}
+
+/// Coordinates spread, clustered, duplicated, on a line, and on a fine
+/// lattice where many legs round to the same distance.
+fn shapes(seed: u64, count: usize) -> Vec<Vec<(f64, f64)>> {
+    let mut rng = Lcg(seed);
+    let spread = (0..count)
+        .map(|_| (rng.next(10_000) as f64 / 7.0, rng.next(10_000) as f64 / 3.0))
+        .collect();
+    let clustered = (0..count)
+        .map(|i| {
+            let centre = (i % 3) as f64 * 5_000.0;
+            (centre + rng.next(20) as f64, centre + rng.next(20) as f64)
+        })
+        .collect();
+    let duplicated = (0..count)
+        .map(|_| (rng.next(4) as f64, rng.next(4) as f64))
+        .collect();
+    let line = (0..count)
+        .map(|_| (rng.next(1_000) as f64 * 0.5, 7.0))
+        .collect();
+    vec![spread, clustered, duplicated, line]
+}
+
+#[test]
+fn euclidean_grid_neighbours_match_the_ranked_scan_exactly() {
+    for seed in 0..12 {
+        for count in [1, 2, 3, 17, 160, 300] {
+            for coordinates in shapes(seed, count) {
+                let metric = EuclideanMetric::new(coordinates, 1.0);
+                let mut locations: Vec<usize> = (0..count).collect();
+                // Permute so location order differs from index order.
+                locations.rotate_left(seed as usize % count);
+                for k in [1, 2, 5, 40, count + 2] {
+                    let mut grid = Vec::new();
+                    metric.nearest(&locations, k, &mut grid);
+                    let mut scan = Vec::new();
+                    crate::metric::nearest_by_rank(&metric, &locations, k, &mut scan);
+                    assert_eq!(grid, scan, "seed {seed}, {count} locations, k = {k}");
+                    assert_eq!(grid.len(), count * k.min(count.saturating_sub(1)));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn euclidean_grid_neighbours_match_where_many_legs_round_alike() {
+    for seed in 0..40 {
+        let mut rng = Lcg(seed);
+        let count = 50 + (seed as usize * 7) % 300;
+        let coordinates = (0..count)
+            .map(|_| {
+                (
+                    rng.next(1_000) as f64 * 0.0137,
+                    rng.next(1_000) as f64 * 0.0113,
+                )
+            })
+            .collect();
+        let metric = EuclideanMetric::new(coordinates, 1.0);
+        let locations: Vec<usize> = (0..count).collect();
+        for k in [3, 10, 40] {
+            let (mut grid, mut scan) = (Vec::new(), Vec::new());
+            metric.nearest(&locations, k, &mut grid);
+            crate::metric::nearest_by_rank(&metric, &locations, k, &mut scan);
+            assert_eq!(grid, scan, "seed {seed}, {count} locations, k = {k}");
+        }
+    }
+}
+
+#[test]
+fn ranked_neighbours_order_by_savings_distance_then_index() {
+    let metric = DenseMatrix::new(
+        vec![
+            vec![0, 4, 4, UNREACHABLE],
+            vec![4, 0, -1, 2],
+            vec![4, 1, 0, 9],
+            vec![1, 2, 3, 0],
+        ],
+        vec![vec![0; 4]; 4],
+    );
+    let mut out = Vec::new();
+    metric.nearest(&[0, 1, 2, 3], 3, &mut out);
+    assert_eq!(out, vec![1, 2, 3, 3, 0, 2, 1, 0, 3, 0, 1, 2]);
+    out.clear();
+    metric.nearest(&[3, 0], 5, &mut out);
+    assert_eq!(out, vec![1, 0]);
+}
+
+#[test]
+fn savings_neighbors_reads_the_vehicles_metric() {
+    let fleet = Fleet {
+        data: problem_data(EuclideanMetric::new(coordinates(), 1.0)),
+        routes: vec![Vec::new(), Vec::new()],
+    };
+    let mut out = Vec::new();
+    savings_neighbors(&fleet, 1, &[1, 2, 3], 1, &mut out);
+    assert_eq!(out, vec![1, 0, 0]);
+    out.clear();
+    savings_neighbors(&fleet, 2, &[1, 2, 3], 1, &mut out);
+    assert!(out.is_empty());
+}

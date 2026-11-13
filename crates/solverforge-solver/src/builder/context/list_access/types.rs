@@ -14,6 +14,7 @@ pub(crate) enum ListAccessCapability {
     IntraPositionDistance,
     Route,
     Savings,
+    SavingsNeighbors,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

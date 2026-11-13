@@ -91,6 +91,7 @@ const PLANNING_LIST_VARIABLE_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("route_hooks"),
     AttributeArgSpec::string("savings_hooks"),
     AttributeArgSpec::string("savings_metric_class_fn"),
+    AttributeArgSpec::string("savings_neighbors_fn"),
     AttributeArgSpec::string("element_owner_fn"),
     AttributeArgSpec::string("construction_element_order_key"),
     AttributeArgSpec::string("precedence_duration_fn"),

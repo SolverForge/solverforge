@@ -103,6 +103,9 @@ where
         match kind {
             ListConstructionKind::ClarkeWright => {
                 require_list_capability(&slots, RuntimeCapability::ListSavings, path)?;
+                if config.savings_neighbors.is_some() {
+                    require_list_capability(&slots, RuntimeCapability::ListSavingsNeighbors, path)?;
+                }
             }
             ListConstructionKind::KOpt => {
                 require_list_capability(&slots, RuntimeCapability::ListRoute, path)?;

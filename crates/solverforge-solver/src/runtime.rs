@@ -50,6 +50,8 @@ pub struct ListVariableMetadata<S, DM, IDM> {
     /// Whether `savings_feasible_fn` answers the same for every entity of one
     /// savings metric class.
     pub savings_feasible_shared_by_metric_class: bool,
+    /// Nearest neighbours for bounded Clarke-Wright savings.
+    pub savings_neighbors_fn: Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)>,
     /// The entity whose list must hold an element; `None` means any.
     pub element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>,
     _phantom: PhantomData<fn() -> S>,
@@ -108,6 +110,7 @@ impl<S, DM, IDM> ListVariableMetadata<S, DM, IDM> {
             savings_distance_fn,
             savings_feasible_fn,
             savings_feasible_shared_by_metric_class: false,
+            savings_neighbors_fn: None,
             element_owner_fn: None,
             _phantom: PhantomData,
         }
@@ -117,6 +120,15 @@ impl<S, DM, IDM> ListVariableMetadata<S, DM, IDM> {
     /// entity of one savings metric class, as the stock CVRP hooks do.
     pub fn with_savings_feasible_shared_by_metric_class(mut self, shared: bool) -> Self {
         self.savings_feasible_shared_by_metric_class = shared;
+        self
+    }
+
+    /// Sets the nearest-neighbour hook bounded Clarke-Wright savings use.
+    pub fn with_savings_neighbors_fn(
+        mut self,
+        savings_neighbors_fn: Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)>,
+    ) -> Self {
+        self.savings_neighbors_fn = savings_neighbors_fn;
         self
     }
 

@@ -241,12 +241,13 @@ arguments are compile errors.
 
 **`#[planning_list_variable]` parameters:**
 - `element_collection = "field"` — solution field with all list elements
-- `domain = "cvrp"` — stock CVRP list-variable profile; supplies the CVRP solution trait, distance meters, strict route hooks with safe unreachable-leg rejection, relaxed Clarke-Wright savings hooks, and savings metric class
+- `domain = "cvrp"` — stock CVRP list-variable profile; supplies the CVRP solution trait, distance meters, strict route hooks with safe unreachable-leg rejection, relaxed Clarke-Wright savings hooks, savings metric class, and savings neighbour hook
 - `distance_meter = "path"` — optional cross-entity distance meter type
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type
 - `route_hooks = "path"` — optional route-local hook module with `get`, `set`, `depot`, `distance`, and `feasible`; k-opt uses these hooks and Clarke-Wright uses only `set` for assignment
 - `savings_hooks = "path"` — optional Clarke-Wright construction hook module with `depot`, `distance`, and `feasible`
 - `savings_metric_class_fn = "path"` — optional Clarke-Wright metric-class hook, `fn(&Solution, entity_idx) -> usize`; owners in the same class must share construction depot and distance behavior
+- `savings_neighbors_fn = "path"` — optional nearest-neighbour hook for bounded Clarke-Wright savings (`savings_neighbors`), `fn(&Solution, entity_idx, values: &[usize], k, out: &mut Vec<usize>)`; appends for each value the indexes into `values` of its `min(k, len - 1)` nearest others by savings distance, nearest first, ties by lower index; `domain = "cvrp"` supplies `::solverforge::cvrp::savings_neighbors`
 - `solution_trait = "path"` — optional solution trait bound required by custom list helper hooks; `domain = "cvrp"` supplies `::solverforge::cvrp::VrpSolution`
 - `element_owner_fn = "path"` — optional partial fixed-owner hook, `fn(&Solution, element) -> Option<usize>`; `None` leaves that element unrestricted
 - `construction_element_order_key = "path"` — optional list-construction ordering hook, `fn(&Solution, element) -> i64`; it flows through existing generated list metadata and runtime list slots
@@ -255,8 +256,8 @@ arguments are compile errors.
 
 When `domain = "cvrp"` is present, the profiled defaults above must be used as a
 coherent stock bundle. Overriding `distance_meter`, `intra_distance_meter`,
-`solution_trait`, `route_hooks`, `savings_hooks`, or `savings_metric_class_fn`
-is rejected unless the override repeats the exact stock path. Custom routing
+`solution_trait`, `route_hooks`, `savings_hooks`, `savings_metric_class_fn`, or
+`savings_neighbors_fn` is rejected unless the override repeats the exact stock path. Custom routing
 semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 The profile also declares savings feasibility shared by metric class, so
 Clarke-Wright asks one owner per class; explicit hook paths keep asking every

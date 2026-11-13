@@ -85,6 +85,15 @@ fn validate_construction(
             "caps grouped scalar candidates and needs `group_name`".to_string(),
         ));
     }
+    if config.savings_neighbors.is_some()
+        && config.construction_heuristic_type != ConstructionHeuristicType::ListClarkeWright
+    {
+        return Err(invalid(
+            path,
+            "savings_neighbors",
+            "applies only to `list_clarke_wright` construction".to_string(),
+        ));
+    }
     positive_limit(path, "value_candidate_limit", config.value_candidate_limit)?;
     positive_limit(path, "group_candidate_limit", config.group_candidate_limit)
 }

@@ -35,6 +35,7 @@ pub(super) fn generate_list_metadata(
     let savings_hooks_attr = parse_profiled_attribute(attr, "savings_hooks", field)?;
     let savings_metric_class_attr =
         parse_profiled_attribute(attr, "savings_metric_class_fn", field)?;
+    let savings_neighbors_attr = parse_profiled_attribute(attr, "savings_neighbors_fn", field)?;
 
     let cross_dm_ty = parse_type_or_default(
         distance_meter.clone(),
@@ -87,6 +88,8 @@ pub(super) fn generate_list_metadata(
     let savings_hooks = parse_optional_path(savings_hooks_attr, "savings_hooks", field)?;
     let savings_metric_class_path =
         parse_optional_path(savings_metric_class_attr, "savings_metric_class_fn", field)?;
+    let savings_neighbors_path =
+        parse_optional_path(savings_neighbors_attr, "savings_neighbors_fn", field)?;
     let route_get = hook_fn_expr(route_hooks.as_ref(), "get");
     let route_set = hook_fn_expr(route_hooks.as_ref(), "set");
     let route_depot = hook_fn_expr(route_hooks.as_ref(), "depot");
@@ -94,6 +97,7 @@ pub(super) fn generate_list_metadata(
     let route_feasible = hook_fn_expr(route_hooks.as_ref(), "feasible");
     let savings_depot = hook_fn_expr(savings_hooks.as_ref(), "depot");
     let savings_metric_class = optional_hook_fn_expr(savings_metric_class_path.as_ref());
+    let savings_neighbors = optional_hook_fn_expr(savings_neighbors_path.as_ref());
     let savings_distance = hook_fn_expr(savings_hooks.as_ref(), "distance");
     let savings_feasible = hook_fn_expr(savings_hooks.as_ref(), "feasible");
     let (element_owner_adapter, element_owner) = if element_owner_path.is_some() {
@@ -166,6 +170,7 @@ pub(super) fn generate_list_metadata(
             )
             .with_element_owner_fn(#element_owner)
             .with_savings_feasible_shared_by_metric_class(#savings_feasible_shared_by_metric_class)
+            .with_savings_neighbors_fn(#savings_neighbors)
         }
 
     })
@@ -435,6 +440,7 @@ impl ListVariableDomain {
                 "route_hooks" => Some("::solverforge::cvrp::route_hooks"),
                 "savings_hooks" => Some("::solverforge::cvrp::savings_hooks"),
                 "savings_metric_class_fn" => Some("::solverforge::cvrp::savings_metric_class"),
+                "savings_neighbors_fn" => Some("::solverforge::cvrp::savings_neighbors"),
                 _ => None,
             },
         }

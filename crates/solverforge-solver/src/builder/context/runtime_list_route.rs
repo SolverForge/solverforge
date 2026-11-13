@@ -202,9 +202,13 @@ where
 
     fn savings_metric_class(&self, solution: &S, entity: usize) -> Result<usize, ListAccessError> {
         match self {
-            Self::Static { route_bindings, .. } => {
+            // The policy frozen in the route bindings mirrors this hook:
+            // absent, the owner index is its own metric class.
+            Self::Static { slot, .. } => {
                 self.validate_savings()?;
-                Ok((route_bindings.savings_metric_class)(solution, entity))
+                Ok(slot
+                    .savings_metric_class_fn
+                    .map_or(entity, |metric_class| metric_class(solution, entity)))
             }
             Self::Dynamic(slot) => {
                 <DynamicListVariableSlot<S> as SavingsAccess<S>>::savings_metric_class(

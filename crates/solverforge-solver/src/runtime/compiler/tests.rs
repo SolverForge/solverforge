@@ -25,6 +25,7 @@ use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMe
 
 mod invalid_config;
 mod invalid_selector_values;
+mod savings_neighbors;
 
 type Meter = DefaultCrossEntityDistanceMeter;
 
@@ -178,7 +179,11 @@ fn model(shape: PrecedenceShape) -> RuntimeModel<Plan, usize, Meter, Meter> {
 }
 
 fn savings_model() -> RuntimeModel<Plan, usize, Meter, Meter> {
-    RuntimeModel::new(vec![VariableSlot::List(ListVariableSlot::new(
+    RuntimeModel::new(vec![VariableSlot::List(savings_slot())])
+}
+
+fn savings_slot() -> ListVariableSlot<Plan, usize, Meter, Meter> {
+    ListVariableSlot::new(
         "Vehicle",
         element_count,
         assigned_elements,
@@ -208,7 +213,7 @@ fn savings_model() -> RuntimeModel<Plan, usize, Meter, Meter> {
         None,
         Some(savings_distance),
         Some(route_feasible),
-    ))])
+    )
 }
 
 fn compile(

@@ -59,6 +59,23 @@ pub fn savings_distance<S: VrpSolution>(
     route_distance(plan, entity_idx, from, to)
 }
 
+/// Nearest neighbours for bounded Clarke-Wright savings: for each of
+/// `values` (locations) in order, the indexes into `values` of its
+/// `min(k, values.len() - 1)` nearest other values by the vehicle's
+/// `RouteMetric::nearest`, nearest first, ties by lower index. Nothing is
+/// appended for an out-of-range vehicle.
+pub fn savings_neighbors<S: VrpSolution>(
+    plan: &S,
+    entity_idx: usize,
+    values: &[usize],
+    k: usize,
+    out: &mut Vec<usize>,
+) {
+    if let Some(data) = problem_data_for_entity(plan, entity_idx) {
+        data.metric.nearest(values, k, out);
+    }
+}
+
 /// Construction admissibility used by Clarke-Wright for stock CVRP route data.
 ///
 /// This intentionally rejects only routes that cannot be evaluated safely.

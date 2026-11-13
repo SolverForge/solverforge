@@ -257,7 +257,7 @@ Module: `solverforge::cvrp`
 - `replace_route`, `get_route`
 - hook modules: `route_hooks`, `savings_hooks`
 - route-local helpers: `depot_for_entity`, `route_distance`, `route_feasible`
-- Clarke-Wright construction adapters: `savings_depot_for_entity`, `savings_metric_class`, `savings_distance`, `savings_feasible`
+- Clarke-Wright construction adapters: `savings_depot_for_entity`, `savings_metric_class`, `savings_distance`, `savings_feasible`, `savings_neighbors`
 
 Stock CVRP route lists should normally use
 `#[planning_list_variable(element_collection = "...", domain = "cvrp")]`. The

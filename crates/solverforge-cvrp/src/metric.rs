@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::problem_data::{finite_leg, MAX_SAFE_LEG_COST};
+
 /// Source of leg distances and travel times between locations.
 ///
 /// The stock CVRP helpers, meters and route checks read legs only through
@@ -18,6 +20,51 @@ pub trait RouteMetric: Clone + fmt::Debug + Send + Sync + 'static {
     /// Whether every leg among `route`'s visits and `depot` is defined, given
     /// that `max_node` is the largest of them.
     fn covers(&self, route: &[usize], depot: usize, max_node: usize) -> bool;
+
+    /// Appends, for each of `locations` in order, the indexes into
+    /// `locations` of its `min(k, locations.len() - 1)` nearest other
+    /// locations by leg distance, nearest first, ties by lower index. A leg
+    /// that is undefined or cannot be traversed ranks as the large finite cost
+    /// the stock savings distance gives it.
+    ///
+    /// The provided method ranks every other location for each one, in time
+    /// quadratic and memory linear in `locations.len()`.
+    fn nearest(&self, locations: &[usize], k: usize, out: &mut Vec<usize>) {
+        nearest_by_rank(self, locations, k, out);
+    }
+}
+
+/// `RouteMetric::nearest` by ranking every other location for each one.
+pub(crate) fn nearest_by_rank<M: RouteMetric>(
+    metric: &M,
+    locations: &[usize],
+    k: usize,
+    out: &mut Vec<usize>,
+) {
+    let stride = k.min(locations.len().saturating_sub(1));
+    if stride == 0 {
+        return;
+    }
+    let mut ranked = Vec::with_capacity(locations.len());
+    for (index, &from) in locations.iter().enumerate() {
+        ranked.clear();
+        ranked.extend(
+            locations
+                .iter()
+                .enumerate()
+                .filter(|&(other, _)| other != index)
+                .map(|(other, &to)| (leg_rank(metric.distance(from, to)), other)),
+        );
+        ranked.select_nth_unstable(stride - 1);
+        ranked[..stride].sort_unstable();
+        out.extend(ranked[..stride].iter().map(|&(_, other)| other));
+    }
+}
+
+/// The savings-distance rank of a metric leg.
+#[inline]
+pub(crate) fn leg_rank(distance: Option<i64>) -> i64 {
+    distance.and_then(finite_leg).unwrap_or(MAX_SAFE_LEG_COST)
 }
 
 /// Dense distance and travel-time tables, indexed `[from][to]`.
@@ -131,5 +178,12 @@ impl RouteMetric for EuclideanMetric {
 
     fn covers(&self, _route: &[usize], _depot: usize, max_node: usize) -> bool {
         max_node < self.coordinates.len()
+    }
+
+    /// Answers from a uniform grid over the locations, visiting cells in rings
+    /// around each location until no closer location can remain, in time
+    /// about linear in `locations.len() * k` for spread-out coordinates.
+    fn nearest(&self, locations: &[usize], k: usize, out: &mut Vec<usize>) {
+        crate::euclidean_grid::nearest(self, locations, k, out);
     }
 }

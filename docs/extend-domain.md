@@ -81,7 +81,11 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   construction depot and distance behavior. Clarke-Wright then computes
   savings once per class but still asks every owner whether a merged route is
   feasible; only the `domain = "cvrp"` profile, whose feasibility depends on
-  the class's shared data alone, asks one owner per class.
+  the class's shared data alone, asks one owner per class. Add
+  `savings_neighbors_fn = "path::neighbors"` to allow bounded savings
+  (`savings_neighbors` in `solver.toml`): for an owner, element values and
+  `k`, it appends each value's `min(k, len - 1)` nearest other values as
+  indexes into the values, nearest first, ties by lower index.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 

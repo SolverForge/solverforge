@@ -34,6 +34,8 @@ where
     feasible_fn: fn(&S, usize, &[usize]) -> bool,
     element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     savings_feasible_shared_by_metric_class: bool,
+    savings_neighbors_fn: Option<fn(&S, usize, &[usize], usize, &mut Vec<usize>)>,
+    savings_neighbors: Option<usize>,
     descriptor_index: usize,
 }
 
@@ -80,6 +82,8 @@ where
             feasible_fn,
             element_owner_fn: None,
             savings_feasible_shared_by_metric_class: false,
+            savings_neighbors_fn: None,
+            savings_neighbors: None,
             descriptor_index,
         }
     }
@@ -91,6 +95,18 @@ where
 
     pub(crate) fn with_savings_feasible_shared_by_metric_class(mut self, shared: bool) -> Self {
         self.savings_feasible_shared_by_metric_class = shared;
+        self
+    }
+
+    /// Bounds savings to each element's `k` nearest neighbours as answered by
+    /// `neighbors_fn`.
+    pub(crate) fn with_savings_neighbors(
+        mut self,
+        neighbors_fn: fn(&S, usize, &[usize], usize, &mut Vec<usize>),
+        k: usize,
+    ) -> Self {
+        self.savings_neighbors_fn = Some(neighbors_fn);
+        self.savings_neighbors = Some(k);
         self
     }
 
@@ -174,6 +190,20 @@ where
         self.savings_feasible_shared_by_metric_class
     }
 
+    fn savings_neighbors(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        values: &[usize],
+        k: usize,
+        out: &mut Vec<usize>,
+    ) {
+        let neighbors = self
+            .savings_neighbors_fn
+            .expect("bounded savings are configured only with a neighbour hook");
+        neighbors(solution, entity_index, values, k, out);
+    }
+
     fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {
         (self.assign_route)(solution, entity_index, route);
     }
@@ -204,6 +234,7 @@ where
             self,
             &source_index,
             &unassigned,
+            self.savings_neighbors,
             StepControlPolicy::ObserveConfigLimits,
             solver_scope,
         );

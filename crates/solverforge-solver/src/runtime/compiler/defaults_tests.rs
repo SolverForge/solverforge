@@ -14,8 +14,8 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 
 use super::{
-    compile_runtime_graph, DefaultConstructionStage, DefaultConstructionStepKind,
-    DefaultLocalSearchAcceptorPolicy, DefaultLocalSearchEligibility,
+    compile_runtime_graph, DefaultConstructionReason, DefaultConstructionStage,
+    DefaultConstructionStepKind, DefaultLocalSearchAcceptorPolicy, DefaultLocalSearchEligibility,
     DefaultLocalSearchForagerPolicy, DefaultLocalSearchPlan, DefaultLocalSearchSelectorFamily,
     DefaultPreconstructionStage, DefaultSelectorCapabilityPolicy, RuntimeGraphInput,
 };
@@ -247,6 +247,19 @@ fn resolved_preconstruction_kinds(
     stage: DefaultPreconstructionStage,
     plan: &Plan,
 ) -> (DefaultConstructionStage, Vec<DefaultConstructionStepKind>) {
+    let (stage, steps) = resolved_preconstruction_steps(model, config, stage, plan);
+    (stage, steps.into_iter().map(|(kind, _)| kind).collect())
+}
+
+fn resolved_preconstruction_steps(
+    model: Model,
+    config: SolverConfig,
+    stage: DefaultPreconstructionStage,
+    plan: &Plan,
+) -> (
+    DefaultConstructionStage,
+    Vec<(DefaultConstructionStepKind, DefaultConstructionReason)>,
+) {
     let context = SearchContext::new(descriptor(), model, config.resolved_random_seed())
         .expect("search context should bind");
     let graph = compile_runtime_graph(
@@ -261,7 +274,11 @@ fn resolved_preconstruction_kinds(
     );
     (
         resolved.stage,
-        resolved.steps.into_iter().map(|step| step.kind).collect(),
+        resolved
+            .steps
+            .into_iter()
+            .map(|step| (step.kind, step.reason))
+            .collect(),
     )
 }
 

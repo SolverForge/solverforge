@@ -6,18 +6,21 @@ use super::execution_record::{
 };
 use super::trace::default_construction_plan;
 use crate::runtime::compiler::{
-    DefaultConstructionStage, DefaultConstructionStepKind, DefaultPreconstructionStage,
+    DefaultConstructionReason, DefaultConstructionStage, DefaultConstructionStepKind,
+    DefaultPreconstructionStage,
 };
 
 fn executed_stage(
     stage: DefaultConstructionStage,
     kind: DefaultConstructionStepKind,
+    reason: DefaultConstructionReason,
 ) -> DefaultConstructionStageExecutionRecord {
     DefaultConstructionStageExecutionRecord {
         stage,
         outcome: ResolvedConstructionExecutionOutcome::Executed,
         steps: vec![ResolvedConstructionExecutionStep {
             kind,
+            reason,
             required_only: false,
             target: None,
             list_policies: None,
@@ -38,10 +41,12 @@ fn default_terminal_trace_keeps_clarke_wright_then_k_opt_exactly() {
                 DefaultConstructionStepKind::ListConstruction(
                     ConstructionHeuristicType::ListClarkeWright,
                 ),
+                DefaultConstructionReason::SavingsDeclared,
             ),
             executed_stage(
                 DefaultConstructionStage::PostConstructionKOpt,
                 DefaultConstructionStepKind::ListKOpt,
+                DefaultConstructionReason::RouteWithContent,
             ),
         ],
     };
@@ -59,6 +64,24 @@ fn default_terminal_trace_keeps_clarke_wright_then_k_opt_exactly() {
         [
             "solverforge.runtime.construction.clarke_wright",
             "solverforge.runtime.construction.k_opt",
+        ]
+    );
+    let reasons = plan
+        .children
+        .iter()
+        .flat_map(|stage| stage.children.iter())
+        .map(|step| {
+            step.attributes
+                .iter()
+                .find(|attribute| attribute.key == "reason")
+                .map(|attribute| attribute.value.as_str())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        reasons,
+        [
+            Some("savings_hooks_declared"),
+            Some("route_hooks_declared_and_route_non_empty"),
         ]
     );
     assert!(

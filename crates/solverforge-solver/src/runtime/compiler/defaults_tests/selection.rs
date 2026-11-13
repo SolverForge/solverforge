@@ -42,6 +42,49 @@ fn dynamic_and_native_default_construction_have_equal_cvrp_and_jssp_profiles() {
 }
 
 #[test]
+fn default_list_construction_records_the_declaration_that_chose_it() {
+    for (scenario, expected) in [
+        (
+            Scenario::Cvrp,
+            (
+                ConstructionHeuristicType::ListClarkeWright,
+                DefaultConstructionReason::SavingsDeclared,
+            ),
+        ),
+        (
+            Scenario::Jssp,
+            (
+                ConstructionHeuristicType::ListRegretInsertion,
+                DefaultConstructionReason::PrecedenceOrderAndOwnership,
+            ),
+        ),
+        (
+            Scenario::Cheapest,
+            (
+                ConstructionHeuristicType::ListCheapestInsertion,
+                DefaultConstructionReason::NoSpecializedListPolicy,
+            ),
+        ),
+    ] {
+        for model in [static_model(scenario), dynamic_model(scenario)] {
+            let (_, steps) = resolved_preconstruction_steps(
+                model,
+                SolverConfig::default(),
+                DefaultPreconstructionStage::ListConstruction,
+                &initial_plan(),
+            );
+            assert_eq!(
+                steps,
+                vec![(
+                    DefaultConstructionStepKind::ListConstruction(expected.0),
+                    expected.1
+                )]
+            );
+        }
+    }
+}
+
+#[test]
 fn empty_savings_routes_stage_clarke_wright_before_postconstruction_kopt() {
     let empty = initial_plan();
     let expected_pre = (
@@ -176,6 +219,13 @@ fn equivalent_typed_and_dynamic_cvrp_capabilities_freeze_the_same_default_local_
         typed.components.forager,
         DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 256 }
     );
+    let typed_excluded = typed
+        .excluded
+        .iter()
+        .map(|excluded| excluded.family)
+        .collect::<Vec<_>>();
+    assert_eq!(typed_excluded, ["list_precedence_and_permute"]);
+    assert_eq!(typed.excluded[0].reason, "missing=precedence");
     assert!(typed.candidate_trace_plan().is_complete());
     assert!(dynamic.candidate_trace_plan().is_complete());
 }
@@ -219,7 +269,29 @@ fn reduced_dynamic_list_capabilities_select_named_policy_rows() {
         ],
     );
 
+    let excluded = cvrp_without_position_metrics
+        .excluded
+        .iter()
+        .map(|excluded| excluded.family)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        excluded,
+        [
+            "list_precedence_and_permute",
+            "nearby_list_change",
+            "list_swap",
+            "sublist_change_and_swap",
+            "list_reverse",
+            "k_opt",
+        ]
+    );
+    let nearby = &cvrp_without_position_metrics.excluded[1];
+    assert_eq!(nearby.reason, "missing=cross_position_distance");
+
     let plan = cvrp_without_position_metrics.candidate_trace_plan();
+    assert!(plan.attributes.iter().any(|attribute| {
+        attribute.key == "excluded_families" && attribute.value.contains("nearby_list_change@")
+    }));
     assert!(plan.children.iter().any(|child| {
         child.attributes.iter().any(|attribute| {
             attribute.key == "capability_policy"

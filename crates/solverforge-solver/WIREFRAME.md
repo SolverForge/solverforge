@@ -962,6 +962,22 @@ record: step/candidate indexes, per-step generated/evaluated/accepted/ignored
 counts, before/after/delta scores, and hard-feasibility transition. They appear
 as `SolverTelemetry::move_telemetry` and `applied_move_trace`.
 
+`SolverTelemetry::resolved_phase_plan` is the `CandidateTracePhasePlan` the
+compiled runtime actually ran, set when the solve ends whether or not
+candidate tracing is enabled and `None` before that. Default construction steps
+carry a `reason` attribute naming the model declaration that selected them
+(`savings_hooks_declared`, `precedence_construction_order_and_ownership_declared`,
+`precedence_and_construction_order_declared`, `no_specialized_list_policy_declared`,
+`required_assignments_remain`, `only_optional_assignments_remain`,
+`scalar_slot_outside_assignment_groups`, `route_hooks_declared_and_route_non_empty`).
+The default local-search node carries acceptor, forager,
+`forager_accepted_count_limit`, `selection_order`, `weighting` and
+`excluded_families` (`family@slot:missing=capability+...`, or `none`); an
+explicit local-search node carries the configured or inherited acceptor and
+forager plus the effective `forager_accepted_count_limit` (`none` for variable
+neighborhood descent). The explicit node's limit is resolved from the lowered
+phase when the plan is published, so compiling a runner allocates nothing for it.
+
 ### Candidate Trace Diagnostics — `stats`
 
 Candidate tracing is opt-in through `SolverConfig::candidate_trace` and is

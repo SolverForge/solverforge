@@ -356,6 +356,7 @@ where
         )?;
         steps.push(ResolvedConstructionExecutionStep {
             kind: step.kind,
+            reason: step.reason,
             required_only: step.required_only,
             target: step.target.clone(),
             list_policies: step.list_policies.clone(),

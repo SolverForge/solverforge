@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use super::CandidateTraceTelemetry;
+use super::{CandidateTracePhasePlan, CandidateTraceTelemetry};
 
 /// Counters for one move selector of a phase, keyed by its index.
 ///
@@ -245,6 +245,12 @@ pub struct SolverTelemetry {
     /// Present only when `SolverConfig.candidate_trace` enabled bounded
     /// core-owned candidate-pull diagnostics for this run.
     pub candidate_trace: Option<CandidateTraceTelemetry>,
+    /// The policy the solve actually ran, once the compiled runtime has
+    /// resolved it: every phase, the construction chosen for each default
+    /// stage and why, the move families and their limits, family ordering,
+    /// acceptor and forager. Set when the solve ends, whether or not
+    /// `candidate_trace` is enabled; `None` before that.
+    pub resolved_phase_plan: Option<CandidateTracePhasePlan>,
 }
 
 impl SolverTelemetry {
@@ -286,6 +292,7 @@ impl SolverTelemetry {
             move_telemetry: Vec::new(),
             applied_move_trace: Vec::new(),
             candidate_trace: None,
+            resolved_phase_plan: None,
         }
     }
 

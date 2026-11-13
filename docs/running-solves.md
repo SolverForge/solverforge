@@ -103,6 +103,16 @@ Retained status and events expose generated, evaluated and accepted move counts
 together with generation and evaluation durations. The `moves/s` figure you see
 in the console is derived for display only.
 
+When a solve on the compiled runtime ends, `telemetry.resolved_phase_plan`
+holds the policy it actually ran: each phase, the construction each default
+stage chose and the `reason` for it, the move families with their limits, the
+families left out and the capability they were missing, the family ordering
+and weighting, and the acceptor, forager and effective
+`forager_accepted_count_limit`. It is set whether or not `candidate_trace` is
+enabled. Together with the per-phase `step_count`, `moves_evaluated`,
+`moves_accepted` and elapsed time in `telemetry.phases`, it separates a
+costly step selection from a lack of useful moves.
+
 Generic and specialized construction phases publish the same lifecycle and
 progress telemetry as local search. With verbose logging, the first phase work
 is reported promptly and long phases continue at roughly one-second intervals.

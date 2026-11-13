@@ -63,6 +63,44 @@ pub(crate) enum DefaultConstructionStepKind {
     ListKOpt,
 }
 
+/// The model fact that selected a default construction step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DefaultConstructionReason {
+    /// The list slot declares savings hooks.
+    SavingsDeclared,
+    /// Precedence, construction order and ownership are all declared.
+    PrecedenceOrderAndOwnership,
+    /// Precedence and construction order are declared, ownership is not.
+    PrecedenceAndOrder,
+    /// The list slot declares none of the specialized construction policies.
+    NoSpecializedListPolicy,
+    /// The assignment group still has required rows unassigned.
+    RequiredAssignmentsRemain,
+    /// Every required row is assigned; optional rows remain.
+    OnlyOptionalAssignmentsRemain,
+    /// The scalar slot is not owned by an assignment group.
+    UngroupedScalarSlot,
+    /// The list slot declares route hooks and some route is non-empty.
+    RouteWithContent,
+}
+
+impl DefaultConstructionReason {
+    pub(crate) fn trace_label(self) -> &'static str {
+        match self {
+            Self::SavingsDeclared => "savings_hooks_declared",
+            Self::PrecedenceOrderAndOwnership => {
+                "precedence_construction_order_and_ownership_declared"
+            }
+            Self::PrecedenceAndOrder => "precedence_and_construction_order_declared",
+            Self::NoSpecializedListPolicy => "no_specialized_list_policy_declared",
+            Self::RequiredAssignmentsRemain => "required_assignments_remain",
+            Self::OnlyOptionalAssignmentsRemain => "only_optional_assignments_remain",
+            Self::UngroupedScalarSlot => "scalar_slot_outside_assignment_groups",
+            Self::RouteWithContent => "route_hooks_declared_and_route_non_empty",
+        }
+    }
+}
+
 /// Frozen list policy labels attached to one resolved default step.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefaultListPolicyProvenance {
@@ -79,6 +117,7 @@ pub(crate) struct DefaultListPolicyProvenance {
 #[derive(Clone, Debug)]
 pub(crate) struct ResolvedDefaultConstructionStep<S, V, DM, IDM> {
     pub kind: DefaultConstructionStepKind,
+    pub reason: DefaultConstructionReason,
     pub construction: CompiledConstruction<S, V, DM, IDM>,
     /// Required-only selection changes which assignment rows are considered;
     /// it never changes the configured termination policy.
@@ -182,10 +221,11 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    let heuristic = default_list_construction_heuristic(slot);
+    let (heuristic, reason) = default_list_construction_heuristic(slot);
     let target = slot.identity();
     ResolvedDefaultConstructionStep {
         kind: DefaultConstructionStepKind::ListConstruction(heuristic),
+        reason,
         construction: CompiledConstruction::List {
             kind: ListConstructionKind::from_heuristic(heuristic)
                 .expect("default list construction must map to a compiled list kind"),
@@ -207,6 +247,7 @@ where
     let target = binding.slot.id();
     ResolvedDefaultConstructionStep {
         kind: DefaultConstructionStepKind::ScalarFirstFit,
+        reason: DefaultConstructionReason::UngroupedScalarSlot,
         construction: CompiledConstruction::ScalarOrMixed {
             config: scalar_first_fit_config(&target),
             schedule: binding.schedule,
@@ -235,6 +276,7 @@ where
     let target = slot.identity();
     ResolvedDefaultConstructionStep {
         kind: DefaultConstructionStepKind::ListKOpt,
+        reason: DefaultConstructionReason::RouteWithContent,
         construction: CompiledConstruction::List {
             kind: ListConstructionKind::KOpt,
             config: list_config(ConstructionHeuristicType::ListKOpt, &target),
@@ -258,22 +300,34 @@ where
 
 fn default_list_construction_heuristic<S, V, DM, IDM>(
     slot: &CompiledListSlot<S, V, DM, IDM>,
-) -> ConstructionHeuristicType {
+) -> (ConstructionHeuristicType, DefaultConstructionReason) {
     use crate::builder::context::list_access::ListAccessCapability;
 
     if slot.supports(ListAccessCapability::Savings) {
-        ConstructionHeuristicType::ListClarkeWright
+        (
+            ConstructionHeuristicType::ListClarkeWright,
+            DefaultConstructionReason::SavingsDeclared,
+        )
     } else if slot.precedence_policy().is_explicit()
         && slot.construction_order_policy().is_explicit()
         && slot.ownership_policy().is_explicit()
     {
-        ConstructionHeuristicType::ListRegretInsertion
+        (
+            ConstructionHeuristicType::ListRegretInsertion,
+            DefaultConstructionReason::PrecedenceOrderAndOwnership,
+        )
     } else if slot.precedence_policy().is_explicit()
         && slot.construction_order_policy().is_explicit()
     {
-        ConstructionHeuristicType::ListRoundRobin
+        (
+            ConstructionHeuristicType::ListRoundRobin,
+            DefaultConstructionReason::PrecedenceAndOrder,
+        )
     } else {
-        ConstructionHeuristicType::ListCheapestInsertion
+        (
+            ConstructionHeuristicType::ListCheapestInsertion,
+            DefaultConstructionReason::NoSpecializedListPolicy,
+        )
     }
 }
 
@@ -294,6 +348,11 @@ fn assignment_step<S, V, DM, IDM>(
             DefaultConstructionStepKind::AssignmentRequired
         } else {
             DefaultConstructionStepKind::AssignmentOptional
+        },
+        reason: if required_only {
+            DefaultConstructionReason::RequiredAssignmentsRemain
+        } else {
+            DefaultConstructionReason::OnlyOptionalAssignmentsRemain
         },
         construction: CompiledConstruction::GroupedScalar {
             config,

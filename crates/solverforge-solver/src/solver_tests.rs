@@ -128,7 +128,7 @@ where
         solver_scope: &mut SolverScope<'_, TestSolution, TestDirector, ProgressCb>,
     ) {
         self.terminal_count.fetch_add(1, Ordering::SeqCst);
-        solver_scope.finalize_candidate_trace_resolved_phase_plan(self.terminal_plan.clone());
+        solver_scope.finalize_resolved_phase_plan(self.terminal_plan.clone());
     }
 }
 

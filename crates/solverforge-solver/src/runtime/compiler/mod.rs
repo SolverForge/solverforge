@@ -38,9 +38,9 @@ pub(crate) use default_local_search::{
     DefaultLocalSearchAcceptorPolicy, DefaultLocalSearchComponents, DefaultLocalSearchForagerPolicy,
 };
 pub(crate) use defaults::{
-    DefaultConstructionStage, DefaultConstructionStepKind, DefaultListPolicyProvenance,
-    DefaultLocalSearchEligibility, DefaultPreconstructionStage, DefaultRuntimeBindings,
-    ResolvedDefaultConstructionPlan,
+    DefaultConstructionReason, DefaultConstructionStage, DefaultConstructionStepKind,
+    DefaultListPolicyProvenance, DefaultLocalSearchEligibility, DefaultPreconstructionStage,
+    DefaultRuntimeBindings, ResolvedDefaultConstructionPlan,
 };
 pub(crate) use executor::CompiledRuntimeExecutor;
 pub(crate) use graph::{

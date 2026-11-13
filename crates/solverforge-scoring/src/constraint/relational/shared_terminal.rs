@@ -6,15 +6,14 @@ use solverforge_core::{score::Score, ConstraintRef, ImpactType};
 use super::operator_scorer::{
     AdaptWeight, OperatorScorer, OperatorScorerSet, RowWeight, ScorerChain,
 };
-use crate::api::analysis::EntityRef;
 use crate::api::{
-    analysis::{ConstraintAnalysis, ConstraintJustification, DetailedConstraintMatch},
+    analysis::{ConstraintAnalysis, DetailedConstraintMatch},
     constraint_set::{
         ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
         SingleConstraint,
     },
 };
-use crate::stream::relational::operator::GroupedOperator;
+use crate::stream::relational::operator::{ExplainRow, GroupedOperator};
 use crate::stream::relational::RowHandle;
 
 /// Scoring terminal that owns one operator tree and scores it for several named
@@ -34,7 +33,6 @@ pub struct SharedOperatorTerminal<S, O, A, Scorers, Sc> {
     inserted: Vec<RowHandle>,
     update_count: usize,
     changed_key_count: usize,
-    explain: Option<fn(&O, &S, RowHandle, &mut Vec<EntityRef>)>,
     marker: PhantomData<fn() -> (S, Sc)>,
 }
 
@@ -62,20 +60,12 @@ impl<S, O, A, W, Sc> SharedOperatorBuilder<S, O, A, (), W, Sc> {
                 inserted: Vec::new(),
                 update_count: 0,
                 changed_key_count: 0,
-                explain: None,
                 marker: PhantomData,
             },
             impact,
             weight,
             hard: None,
         }
-    }
-
-    /// Sets the function that lists the entities behind a row, used by
-    /// `get_matches`. Without it, `get_matches` returns no matches.
-    pub fn with_explainer(mut self, explain: fn(&O, &S, RowHandle, &mut Vec<EntityRef>)) -> Self {
-        self.terminal.explain = Some(explain);
-        self
     }
 
     /// Like [`first`](Self::first), with explicit hardness.
@@ -121,7 +111,6 @@ where
             inserted: self.terminal.inserted,
             update_count: self.terminal.update_count,
             changed_key_count: self.terminal.changed_key_count,
-            explain: self.terminal.explain,
             marker: PhantomData,
         }
     }
@@ -291,7 +280,6 @@ where
             inserted: self.terminal.inserted,
             update_count: self.terminal.update_count,
             changed_key_count: self.terminal.changed_key_count,
-            explain: self.terminal.explain,
             marker: PhantomData,
         }
     }
@@ -434,6 +422,7 @@ impl<S, O, A, W, Sc> IncrementalConstraint<S, Sc>
 where
     S: Send + Sync + 'static,
     O: GroupedOperator<S> + Send + Sync,
+    for<'r> O::View<'r>: ExplainRow,
     A: Send + Sync,
     W: RowWeight<S, O, Sc>,
     Sc: Score,
@@ -472,20 +461,6 @@ where
         self.scorers.hard
     }
     fn get_matches<'a>(&'a self, solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
-        let Some(explain) = self.explain else {
-            return Vec::new();
-        };
-        let mut matches = Vec::new();
-        let handles = self.operator.handles();
-        for handle in handles {
-            let mut entities = Vec::new();
-            explain(&self.operator, solution, handle, &mut entities);
-            matches.push(DetailedConstraintMatch::new(
-                &self.scorers.constraint_ref,
-                self.scorers.score_for(handle).unwrap_or_else(Sc::zero),
-                ConstraintJustification::new(entities),
-            ));
-        }
-        matches
+        self.scorers.matches(&self.operator, solution, 1)
     }
 }

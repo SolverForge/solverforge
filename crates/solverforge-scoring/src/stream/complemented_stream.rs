@@ -52,12 +52,12 @@ use crate::constraint::relational::{
 /// use solverforge_scoring::stream::collector::count;
 /// use solverforge_scoring::stream::ConstraintFactory;
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 /// struct Employee {
 ///     id: usize,
 /// }
 ///
-/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 /// struct Shift {
 ///     employee_id: usize,
 /// }
@@ -303,8 +303,8 @@ impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
     ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Clone + std::fmt::Debug + Send + Sync + 'static,
+    B: Clone + std::fmt::Debug + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + 'static,
     EB: CollectionExtract<S, Item = B> + 'static,

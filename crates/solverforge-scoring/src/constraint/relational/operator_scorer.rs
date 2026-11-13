@@ -13,9 +13,10 @@ use crate::api::{
         scale_contribution, scale_contribution_parts, ConstraintMetadata, ConstraintResult,
     },
 };
-use crate::stream::relational::operator::Operator;
+use crate::stream::relational::operator::{ExplainRow, Operator};
 use crate::stream::relational::{HandleMap, RowHandle};
 
+mod matches;
 mod set;
 
 pub use set::OperatorScorerSet;
@@ -156,6 +157,7 @@ impl<S, O, W, Sc> OperatorScorerSet<S, O, Sc> for OperatorScorer<W, Sc>
 where
     S: Send + Sync + 'static,
     O: Operator<S> + Send + Sync,
+    for<'r> O::View<'r>: ExplainRow,
     W: RowWeight<S, O, Sc>,
     Sc: Score,
 {
@@ -214,10 +216,6 @@ where
         1
     }
 
-    fn score_for(&self, handle: RowHandle) -> Option<Sc> {
-        self.scores.get(handle).map(|weight| self.signed(*weight))
-    }
-
     fn metadata(&self) -> Vec<ConstraintMetadata<'_>> {
         vec![ConstraintMetadata::new(&self.constraint_ref, self.hard)]
     }
@@ -241,7 +239,7 @@ where
             &self.constraint_ref,
             1,
             self.evaluate(operator, solution),
-            Vec::new(),
+            self.matches(operator, solution, 1),
             self.hard,
         )]
     }
@@ -303,7 +301,7 @@ where
             &self.constraint_ref,
             multipliers[0],
             self.evaluate_weighted(operator, solution, multipliers),
-            Vec::new(),
+            self.matches(operator, solution, multipliers[0]),
             self.hard,
         )]
     }

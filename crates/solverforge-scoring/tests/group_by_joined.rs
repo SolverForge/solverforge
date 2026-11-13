@@ -320,3 +320,47 @@ fn joined_group_by_preserves_reject_all_filters_at_every_arity() {
     assert_empty(quad);
     assert_empty(penta);
 }
+
+#[test]
+fn self_join_tri_groups_justify_their_matches_with_every_combination() {
+    let mut constraint = solverforge_scoring::stream::TriConstraintStream::<
+        Model,
+        Item,
+        u32,
+        _,
+        _,
+        _,
+        SoftScore,
+    >::new_self_join(
+        source(a as fn(&Model) -> &[Item], ChangeSource::Descriptor(0)),
+        |_: &Model, i: &Item, _: usize| i.key,
+    )
+    .group_by(|i: &Item, _: &Item, _: &Item| i.key, count())
+    .penalize(|_: &u32, n: &usize| SoftScore::of(*n as i64 - 1))
+    .named("self tri groups beyond one");
+    let model = Model {
+        a: vec![
+            Item { key: 1, value: 1 },
+            Item { key: 1, value: 2 },
+            Item { key: 1, value: 3 },
+            Item { key: 2, value: 4 },
+            Item { key: 2, value: 5 },
+            Item { key: 2, value: 6 },
+        ],
+        b: vec![],
+        c: vec![],
+        d: vec![],
+        e: vec![],
+    };
+    // Each key has exactly one combination of three: weight 0, no match.
+    assert!(constraint.get_matches(&model).is_empty());
+    let mut model = model;
+    model.a.push(Item { key: 1, value: 7 });
+    let total = constraint.initialize(&model);
+    let matches = constraint.get_matches(&model);
+    // Key 1 now has four combinations of three items.
+    assert_eq!(total, SoftScore::of(-3));
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].score, total);
+    assert_eq!(matches[0].justification.entities.len(), 4 * 3);
+}

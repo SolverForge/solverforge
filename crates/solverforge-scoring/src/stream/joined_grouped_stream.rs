@@ -122,12 +122,6 @@ where
             self.weight,
             self.hard,
         )
-        .with_explainer(|operator, solution, handle, entities| {
-            let row = operator
-                .resolve(solution, handle)
-                .expect("live grouped row");
-            row.explain(entities);
-        })
         .first_named(name)
     }
 }

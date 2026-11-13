@@ -7,6 +7,7 @@ mod cross_tri_stream_chain;
 mod exists;
 mod flattened_bi;
 mod grouped;
+mod grouped_analysis;
 mod overflow;
 mod projected;
 mod relational;

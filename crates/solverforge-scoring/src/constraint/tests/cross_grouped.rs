@@ -5,12 +5,12 @@ use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 use solverforge_core::score::SoftScore;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Employee {
     id: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Shift {
     employee_id: Option<usize>,
 }

@@ -1,3 +1,4 @@
+mod analysis;
 mod emit_bound;
 mod joined;
 mod localization;

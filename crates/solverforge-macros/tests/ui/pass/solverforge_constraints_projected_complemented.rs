@@ -5,7 +5,7 @@ struct Entry {
     delta: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Employee {
     id: usize,
 }

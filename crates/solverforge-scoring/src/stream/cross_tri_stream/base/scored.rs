@@ -32,9 +32,9 @@ pub struct TriScored<
 impl<S, A, B, C, EA, EB, EC, P1, P2, F> Operator<S> for TriScored<S, A, B, C, EA, EB, EC, P1, P2, F>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
     P1: CompileCondition<Plan: IndexedPlan> + 'static,
     P2: CompileCondition<Plan: IndexedPlan> + 'static,
     for<'a> JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>:

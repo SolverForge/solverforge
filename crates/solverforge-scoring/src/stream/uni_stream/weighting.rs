@@ -13,7 +13,7 @@ use super::base::UniConstraintStream;
 impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,
@@ -94,7 +94,7 @@ where
 impl<S, A, E, F, W, Sc> UniConstraintBuilder<S, A, E, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     W: Fn(&A) -> Sc + Send + Sync,

@@ -79,9 +79,9 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc>
     ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    T: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    T: Send + Sync + 'static,
     JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
@@ -316,9 +316,9 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
     >
 where
     S: Send + Sync + 'static,
-    A: Clone + std::fmt::Debug + Send + Sync + 'static,
-    B: Clone + std::fmt::Debug + Send + Sync + 'static,
-    T: Clone + std::fmt::Debug + Send + Sync + 'static,
+    A: std::fmt::Debug + Send + Sync + 'static,
+    B: std::fmt::Debug + Send + Sync + 'static,
+    T: std::fmt::Debug + Send + Sync + 'static,
     JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,

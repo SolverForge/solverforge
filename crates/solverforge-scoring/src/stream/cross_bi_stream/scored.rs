@@ -237,8 +237,8 @@ where
 impl<S, A, B, EA, EB, P, F> Operator<S> for BiScored<S, A, B, EA, EB, P, F>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     P: IndexedPlan + 'static,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
@@ -383,8 +383,8 @@ where
 impl<S, A, B, EA, EB, P, F> BiScored<S, A, B, EA, EB, P, F>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     P: IndexedPlan,
     F: BiFilter<S, A, B>,
     JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, P>: Operator<S>,

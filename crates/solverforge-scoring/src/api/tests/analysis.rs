@@ -21,17 +21,20 @@ fn test_entity_ref_creation() {
     assert!(entity_ref.display.contains("1"));
 }
 
+/// Explaining a match needs only `Debug`: the entity type is neither `Clone`
+/// nor `'static`, and the reference keeps no copy of it.
 #[test]
-fn test_entity_ref_downcast() {
-    let entity = TestEntity {
-        id: 42,
-        name: "Answer".to_string(),
-    };
-    let entity_ref = EntityRef::new(&entity);
+fn test_entity_ref_describes_a_borrowed_debug_only_entity() {
+    #[derive(Debug)]
+    struct Borrowed<'a> {
+        #[allow(dead_code)]
+        name: &'a str,
+    }
+    let name = String::from("Answer");
+    let entity_ref = EntityRef::new(&Borrowed { name: &name });
 
-    let recovered: Option<&TestEntity> = entity_ref.as_entity();
-    assert!(recovered.is_some());
-    assert_eq!(recovered.unwrap().id, 42);
+    assert_eq!(entity_ref.short_type_name(), "Borrowed<'_>");
+    assert_eq!(entity_ref.display, r#"Borrowed { name: "Answer" }"#);
 }
 
 #[test]

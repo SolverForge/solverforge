@@ -73,7 +73,7 @@ where
     /// The extractor type is preserved as a concrete generic for full zero-erasure.
     pub fn for_each<A, E>(self, extractor: E) -> UniConstraintStream<S, A, E, TrueFilter, Sc>
     where
-        A: Clone + Send + Sync + 'static,
+        A: Send + Sync + 'static,
         E: CollectionExtract<S, Item = A>,
     {
         UniConstraintStream::new(extractor)

@@ -212,7 +212,7 @@ where
 impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,

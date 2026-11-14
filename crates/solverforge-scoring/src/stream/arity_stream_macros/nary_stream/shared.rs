@@ -75,7 +75,7 @@ macro_rules! impl_nary_arity_stream_common {
         impl<S, A, K, E, KE, Sc> $stream<S, A, K, E, KE, super::filter::TrueFilter, Sc>
         where
             S: Send + Sync + 'static,
-            A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
+            A: std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
@@ -95,7 +95,7 @@ macro_rules! impl_nary_arity_stream_common {
         impl<S, A, K, E, KE, F, Sc> $stream<S, A, K, E, KE, F, Sc>
         where
             S: Send + Sync + 'static,
-            A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
+            A: std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
@@ -358,7 +358,7 @@ macro_rules! impl_nary_arity_stream_common {
         impl<S, A, K, E, KE, F, W, Sc> $builder<S, A, K, E, KE, F, W, Sc>
         where
             S: Send + Sync + 'static,
-            A: Clone + Send + Sync + 'static,
+            A: Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,

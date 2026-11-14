@@ -175,7 +175,11 @@ All hot-path code must stay monomorphized.
 - Do not introduce `Box<dyn Trait>` in hot paths.
 - Do not introduce `Arc<T>` or `Rc<T>`.
 - Do not introduce `dyn Trait` unless it is an existing intentional boundary.
-- Avoid `.clone()` in move evaluation and scoring paths.
+- Avoid `.clone()` in move evaluation and scoring paths. Scoring streams do
+  not require `Clone` on entity types, so generic scoring code cannot clone an
+  entity; do not add a `Clone` bound to make one compile. Constraint analysis
+  describes an entity by its type name and `Debug` rendering (`EntityRef`) and
+  keeps no copy of it.
 - Preserve concrete types through the full solver pipeline.
 
 Intentional type-erasure boundaries that should not be "fixed":
@@ -183,8 +187,6 @@ Intentional type-erasure boundaries that should not be "fixed":
 - `EntityExtractor` in `solverforge-core`: runtime-erased
   `SolutionDescriptor` access only. Canonical generated `RuntimeModel` and
   scoring-stream paths retain concrete collection types.
-- Analysis `EntityRef` payloads in `solverforge-scoring`: explanation and
-  reporting boundary only.
 - `DynamicScalarAccess`, `DynamicListAccess`, `DynamicListMetadata`, and
   `DynamicScalarAssignmentMetadata`: host-language dynamic-model slot
   boundaries only.

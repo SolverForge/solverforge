@@ -26,7 +26,7 @@ impl<S, A, E, F, P, Out> SingleSource<S, A, E, F, P, Out> {
 impl<S, A, E, F, P, Out> Source<S, Out> for SingleSource<S, A, E, F, P, Out>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     P: Projection<A, Out = Out>,

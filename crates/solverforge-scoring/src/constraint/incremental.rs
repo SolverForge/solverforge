@@ -32,7 +32,7 @@ where
 impl<S, A, E, F, W, Sc> IncrementalUniConstraint<S, A, E, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,
@@ -96,7 +96,7 @@ where
 impl<S, A, E, F, W, Sc> IncrementalConstraint<S, Sc> for IncrementalUniConstraint<S, A, E, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Debug + Send + Sync + 'static,
+    A: Debug + Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,

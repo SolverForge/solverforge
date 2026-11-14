@@ -3,6 +3,7 @@ use std::sync::{
     Arc,
 };
 
+use crate::api::analysis::EntityRef;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{source, ChangeSource, CollectionExtract};
 use crate::stream::collector::sum;
@@ -298,22 +299,18 @@ fn test_cross_bi_get_matches_works_without_initialize() {
     assert_eq!(matches[0].score, SoftScore::of(-1));
     assert_eq!(matches[0].justification.entities.len(), 2);
     assert_eq!(
-        matches[0].justification.entities[0]
-            .as_entity::<Shift>()
-            .unwrap(),
-        &Shift {
+        matches[0].justification.entities[0],
+        EntityRef::new(&Shift {
             employee_id: Some(0),
             day: 5,
-        }
+        })
     );
     assert_eq!(
-        matches[0].justification.entities[1]
-            .as_entity::<Employee>()
-            .unwrap(),
-        &Employee {
+        matches[0].justification.entities[1],
+        EntityRef::new(&Employee {
             id: 0,
             unavailable_days: vec![5],
-        }
+        })
     );
 }
 

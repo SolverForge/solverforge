@@ -32,10 +32,10 @@ impl<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F> Operator<S>
     for QuadScored<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
-    D: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
+    D: Send + Sync + 'static,
     P1: CompileCondition<Plan: IndexedPlan> + 'static,
     P2: CompileCondition<Plan: IndexedPlan> + 'static,
     P3: CompileCondition<Plan: IndexedPlan> + 'static,

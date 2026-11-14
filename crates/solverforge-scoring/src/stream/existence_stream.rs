@@ -67,7 +67,7 @@ where
 impl<S, A, K, L, R, LK, RK, Sc> ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
     L: super::relational::operator::Operator<S>,
     for<'a> LK: super::relational::view_plan::ViewKey<L::View<'a>, Key = K>,

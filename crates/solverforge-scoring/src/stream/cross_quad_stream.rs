@@ -94,10 +94,10 @@ impl<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, Sc>
     Quad<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
-    D: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
+    D: Send + Sync + 'static,
     EA: 'static,
     EB: 'static,
     EC: 'static,
@@ -179,7 +179,7 @@ where
         Sc,
     >
     where
-        E: Clone + Send + Sync + 'static,
+        E: Send + Sync + 'static,
         EE: super::collection_extract::CollectionExtract<S, Item = E> + 'static,
         P4: CompileCondition + 'static,
         P4::Plan: IndexedPlan,
@@ -326,10 +326,10 @@ impl<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, W, Sc>
     QuadBuilder<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + std::fmt::Debug + Send + Sync + 'static,
-    B: Clone + std::fmt::Debug + Send + Sync + 'static,
-    C: Clone + std::fmt::Debug + Send + Sync + 'static,
-    D: Clone + std::fmt::Debug + Send + Sync + 'static,
+    A: std::fmt::Debug + Send + Sync + 'static,
+    B: std::fmt::Debug + Send + Sync + 'static,
+    C: std::fmt::Debug + Send + Sync + 'static,
+    D: std::fmt::Debug + Send + Sync + 'static,
     P1: CompileCondition<Plan: IndexedPlan>,
     P2: CompileCondition<Plan: IndexedPlan>,
     P3: CompileCondition<Plan: IndexedPlan>,

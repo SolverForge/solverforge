@@ -58,8 +58,8 @@ impl<S, A, B, EA, FA, EB, FB, K, KA, KB, Mode, Sc> ExistenceTarget<S, A, EA, FA,
     )
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
     FA: UniFilter<S, A> + Send + Sync + 'static,
     EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
@@ -107,9 +107,9 @@ impl<S, A, P, B, EA, FA, EP, FP, K, KA, KB, Mode, Flatten, Sc> ExistenceTarget<S
     )
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     P: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    B: Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
     FA: UniFilter<S, A> + Send + Sync + 'static,
     EP: CollectionExtract<S, Item = P> + Send + Sync + 'static,

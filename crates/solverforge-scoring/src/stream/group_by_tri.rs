@@ -11,9 +11,9 @@ type Row<'a, A, B, C> = Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>;
 impl<S, A, B, C, EA, EB, EC, P1, P2, F, Sc> super::cross::Tri<S, A, B, C, EA, EB, EC, P1, P2, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
     EA: 'static,
     EB: 'static,
     EC: 'static,

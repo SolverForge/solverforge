@@ -11,6 +11,7 @@ pub(super) use merged::MergedSource;
 pub(super) use operator::{ProjectedCollector, ProjectedRow, SourceNode};
 pub(super) use single::SingleSource;
 
+use crate::api::analysis::EntityRef;
 use crate::stream::collection_extract::ChangeSource;
 
 /// Receives the rows a [`Projection`] emits.
@@ -225,4 +226,13 @@ pub trait Source<S, Out>: Send + Sync {
         slot: usize,
         entity_index: usize,
     );
+}
+
+/// A [`Source`] that can name the entity behind each owner of its rows, for
+/// score explanation. Read only while explaining a match, never while
+/// scoring.
+pub trait ExplainSource<S, Out>: Source<S, Out> {
+    /// Appends the entity `owner` names, with its planning id when its
+    /// collection reports one, to `entities`.
+    fn explain_owner(&self, solution: &S, owner: RowOwner, entities: &mut Vec<EntityRef>);
 }

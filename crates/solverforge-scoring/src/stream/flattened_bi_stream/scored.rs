@@ -11,6 +11,8 @@ use std::marker::PhantomData;
 use super::super::filter::BiFilter;
 use super::super::relational::operator::{FlattenView, Operator, Pair};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
+use crate::api::analysis::EntityRef;
+use crate::stream::relational::operator::{ExplainOperator, RowOrigin};
 
 /// Borrowed (A, C) pair plus the A and owning-B source indexes.
 pub(super) trait FlattenedBiEntities<'a, A, B, C> {
@@ -212,5 +214,26 @@ where
 impl<S, A, B, C, O, F> std::fmt::Debug for FlattenedBiScored<S, A, B, C, O, F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FlattenedBiScored").finish()
+    }
+}
+
+impl<S, A, B, C, O, F> ExplainOperator<S> for FlattenedBiScored<S, A, B, C, O, F>
+where
+    S: Send + Sync + 'static,
+    A: 'static,
+    B: 'static,
+    C: 'static,
+    O: ExplainOperator<S>,
+    for<'a> O: Operator<S, View<'a> = Pair<Leaf<'a, A>, FlattenView<'a, Leaf<'a, B>, C>>>,
+    F: BiFilter<S, A, C> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.inner.explain(solution, row, origin, entities);
     }
 }

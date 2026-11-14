@@ -17,7 +17,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::filter::{AndPentaFilter, FnPentaFilter, PentaFilter};
 use super::joiner::plan::{CompileCondition, IndexedPlan};
-use super::relational::operator::{CollectionNode, ExplainRow, JoinNode, Operator, Pair};
+use super::relational::operator::{CollectionNode, ExplainOperator, JoinNode, Operator, Pair};
 use super::relational::{HandleMap, Leaf, RowHandle};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
@@ -393,7 +393,7 @@ where
             Leaf<'a, E>,
         >,
     >,
-    for<'a> PentaRow<'a, S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: ExplainRow,
+    BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: ExplainOperator<S>,
     F: PentaFilter<S, A, B, C, D, E> + 'static,
     W: Fn(&A, &B, &C, &D, &E) -> Sc + Send + Sync,
     Sc: Score + 'static,

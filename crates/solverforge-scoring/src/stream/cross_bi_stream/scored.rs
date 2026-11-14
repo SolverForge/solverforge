@@ -18,6 +18,8 @@ use super::super::joiner::Joiner;
 use super::super::relational::index::HashIndex;
 use super::super::relational::operator::{CollectionNode, JoinNode, Operator, Pair};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
+use crate::api::analysis::EntityRef;
+use crate::stream::relational::operator::{ExplainOperator, RowOrigin};
 
 /// The predicate first-join plan: an explicit opposite-input scan.
 ///
@@ -408,5 +410,29 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BiScored").finish()
+    }
+}
+
+impl<S, A, B, EA, EB, P, F> ExplainOperator<S> for BiScored<S, A, B, EA, EB, P, F>
+where
+    S: Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    P: IndexedPlan + 'static,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
+    for<'a> P: ExecutablePlan<Leaf<'a, A>, Leaf<'a, B>>,
+    for<'a> JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, P>:
+        ExplainOperator<S, View<'a> = Pair<Leaf<'a, A>, Leaf<'a, B>>>,
+    F: BiFilter<S, A, B> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.inner.explain(solution, row, origin, entities);
     }
 }

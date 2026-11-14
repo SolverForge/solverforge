@@ -13,7 +13,7 @@ use crate::api::{
         SingleConstraint,
     },
 };
-use crate::stream::relational::operator::{ExplainRow, GroupedOperator};
+use crate::stream::relational::operator::{ExplainOperator, GroupedOperator};
 use crate::stream::relational::RowHandle;
 
 /// Scoring terminal that owns one operator tree and scores it for several named
@@ -421,8 +421,7 @@ impl<S, O, A, W, Sc> IncrementalConstraint<S, Sc>
     for SharedOperatorTerminal<S, O, A, OperatorScorer<W, Sc>, Sc>
 where
     S: Send + Sync + 'static,
-    O: GroupedOperator<S> + Send + Sync,
-    for<'r> O::View<'r>: ExplainRow,
+    O: GroupedOperator<S> + ExplainOperator<S> + Send + Sync,
     A: Send + Sync,
     W: RowWeight<S, O, Sc>,
     Sc: Score,

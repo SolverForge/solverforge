@@ -10,6 +10,8 @@
 //! each member's own provenance.
 
 use super::Operator;
+use super::{ExplainOperator, RowOrigin};
+use crate::api::analysis::EntityRef;
 use crate::stream::key_extract::KeyExtract;
 use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, Leaf, RowHandle};
 use std::marker::PhantomData;
@@ -324,5 +326,34 @@ where
             inserted.push(output);
         }
         inserted
+    }
+}
+
+impl<S, A, O, K, KE, const N: usize> ExplainOperator<S> for SelfJoinNode<S, A, O, K, KE, N>
+where
+    S: Send + Sync + 'static,
+    A: 'static,
+    O: ExplainOperator<S>,
+    for<'a> O: Operator<S, View<'a> = Leaf<'a, A>>,
+    K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
+    KE: KeyExtract<S, A, K> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        let inputs = match origin {
+            RowOrigin::Retained(handle) => match self.rows.get(handle) {
+                Some(inputs) => inputs.map(RowOrigin::Retained),
+                None => return,
+            },
+            RowOrigin::Evaluation(evaluation) => [RowOrigin::Evaluation(evaluation); N],
+        };
+        for (leaf, input) in row.iter().zip(inputs) {
+            self.input.explain(solution, leaf, input, entities);
+        }
     }
 }

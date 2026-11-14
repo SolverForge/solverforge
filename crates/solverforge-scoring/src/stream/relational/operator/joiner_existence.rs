@@ -1,4 +1,6 @@
 use super::Operator;
+use super::{ExplainOperator, RowOrigin};
+use crate::api::analysis::EntityRef;
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::{FastSet, HandleMap, RowHandle};
 use std::marker::PhantomData;
@@ -358,5 +360,22 @@ where
         let left = self.child_call(solution, descriptor, index, false, 0);
         let right = self.child_call(solution, descriptor, index, false, 1);
         self.apply_changes(solution, left, right, removed, inserted);
+    }
+}
+
+impl<S: 'static, L: ExplainOperator<S>, R: Operator<S>, P: IndexedPlan + 'static> ExplainOperator<S>
+    for JoinerExistenceNode<S, L, R, P>
+where
+    for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.left
+            .explain(solution, row, origin.map(|(left, _)| left), entities);
     }
 }

@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::filter::UniFilter;
 
-use super::{project_bounded, Projection, RowCoordinate, Source};
+use super::{project_bounded, ExplainSource, Projection, RowCoordinate, RowOwner, Source};
+use crate::api::analysis::EntityRef;
 
 pub struct SingleSource<S, A, E, F, P, Out> {
     extractor: E,
@@ -105,5 +106,25 @@ where
         _slot: usize,
         _entity_index: usize,
     ) {
+    }
+}
+
+impl<S, A, E, F, P, Out> ExplainSource<S, Out> for SingleSource<S, A, E, F, P, Out>
+where
+    S: Send + Sync + 'static,
+    A: std::fmt::Debug + Send + Sync + 'static,
+    E: CollectionExtract<S, Item = A>,
+    F: UniFilter<S, A>,
+    P: Projection<A, Out = Out>,
+    Out: Send + Sync + 'static,
+{
+    fn explain_owner(&self, solution: &S, owner: RowOwner, entities: &mut Vec<EntityRef>) {
+        if owner.source_slot != 0 {
+            return;
+        }
+        if let Some(entity) = self.extractor.extract(solution).get(owner.entity_index) {
+            entities
+                .push(EntityRef::new(entity).with_planning_id(self.extractor.planning_id(entity)));
+        }
     }
 }

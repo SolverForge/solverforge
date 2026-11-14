@@ -17,7 +17,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::filter::{AndQuadFilter, FnQuadFilter, QuadAsPentaFilter, QuadFilter};
 use super::joiner::plan::{CompileCondition, IndexedPlan};
-use super::relational::operator::{CollectionNode, ExplainRow, JoinNode, Operator, Pair};
+use super::relational::operator::{CollectionNode, ExplainOperator, JoinNode, Operator, Pair};
 use super::relational::{HandleMap, Leaf, RowHandle};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
@@ -337,7 +337,7 @@ where
         S,
         View<'a> = Pair<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>,
     >,
-    for<'a> QuadRow<'a, S, EA, EB, EC, ED, P1, P2, P3>: ExplainRow,
+    BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3>: ExplainOperator<S>,
     F: QuadFilter<S, A, B, C, D> + 'static,
     W: Fn(&A, &B, &C, &D) -> Sc + Send + Sync,
     Sc: Score + 'static,

@@ -9,24 +9,45 @@ use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
 /// An entity involved in a constraint match, as constraint analysis reports
-/// it: the entity's type name and its `Debug` rendering, taken when the match
-/// is explained. It holds no copy of the entity, so explaining a match
-/// requires only `Debug` on the entity type.
+/// it: the entity's type name, its `Debug` rendering and, when its type has a
+/// `#[planning_id]`, its planning id, all taken when the match is explained.
+/// It holds no copy of the entity, so explaining a match requires only
+/// `Debug` on the entity type.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct EntityRef {
     /// Type name of the entity (e.g., "Shift", "Employee").
     pub type_name: String,
-    /// String representation for display.
+    /// String representation for display. It is a rendering, not an
+    /// identifier: look records up by [`planning_id`](Self::planning_id).
     pub display: String,
+    /// The entity's planning id, rendered as a string: the id's `Display`
+    /// output when its type implements `Display` (`7`, `shift-7`), otherwise
+    /// its `Debug` output (`ShiftId(7)`). Equal ids render equally, so it is
+    /// a lookup key for the record within its type.
+    ///
+    /// Set for entities streamed from a planning model collection whose type
+    /// has a `#[planning_id]` field (`#[planning_entity]`, `#[problem_fact]`);
+    /// `None` for every other entity, including plain values streamed through
+    /// a hand-built source.
+    pub planning_id: Option<String>,
 }
 
 impl EntityRef {
-    /// Describes `entity` by its type name and `Debug` rendering.
+    /// Describes `entity` by its type name and `Debug` rendering, with no
+    /// planning id.
     pub fn new<T: Debug + ?Sized>(entity: &T) -> Self {
         Self {
             type_name: std::any::type_name::<T>().to_string(),
             display: format!("{entity:?}"),
+            planning_id: None,
         }
+    }
+
+    /// Sets the entity's rendered planning id (see
+    /// [`planning_id`](Self::planning_id)).
+    pub fn with_planning_id(mut self, planning_id: Option<String>) -> Self {
+        self.planning_id = planning_id;
+        self
     }
 
     /// Returns the short type name (without module path).
@@ -43,6 +64,7 @@ impl Debug for EntityRef {
         f.debug_struct("EntityRef")
             .field("type", &self.short_type_name())
             .field("display", &self.display)
+            .field("planning_id", &self.planning_id)
             .finish()
     }
 }

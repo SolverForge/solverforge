@@ -227,7 +227,16 @@ group (a complemented key without a group is justified by its target entity),
 and the match scores add up to the constraint's score. Each entity appears as
 its type name and `Debug` rendering, so constraints need entities that
 implement `Debug`; no constraint requires `Clone`, and analysis keeps no copy
-of your entities.
+of your entities. A projected row is justified by the entities it was
+projected from.
+
+An entity streamed from a model collection whose type has a `#[planning_id]`
+field also carries that id in `EntityRef::planning_id`, rendered as a string:
+with `Display` when the id type implements it (`7`, `anna`), otherwise with
+`Debug` (a tuple-struct id renders as ShiftId(7)). Use it to look up the
+record behind a match instead of parsing `display`. Types without a
+`#[planning_id]`, and values streamed from a hand-built source, report
+`None`. Ids are read only when matches are explained, never while scoring.
 
 ## Runtime constraint weights
 

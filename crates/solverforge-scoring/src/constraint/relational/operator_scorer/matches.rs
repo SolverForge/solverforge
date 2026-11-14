@@ -6,17 +6,18 @@ use solverforge_core::score::Score;
 use super::{OperatorScorer, RowWeight};
 use crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch};
 use crate::api::constraint_set::scale_contribution;
-use crate::stream::relational::operator::{ExplainRow, Operator};
+use crate::stream::relational::operator::{ExplainOperator, Operator, RowOrigin};
 
 impl<W, Sc: Score> OperatorScorer<W, Sc> {
-    /// Visits each row of `operator` with its signed score: the retained
-    /// rows and scores once the operator holds rows, a full evaluation of
-    /// `solution` before that, like [`OperatorScorerSet::evaluate`].
+    /// Visits each row of `operator` with its origin and signed score: the
+    /// retained rows and scores once the operator holds rows, a full
+    /// evaluation of `solution` before that, like
+    /// [`OperatorScorerSet::evaluate`].
     fn visit_scored<S, O>(
         &self,
         operator: &O,
         solution: &S,
-        mut visit: impl FnMut(&O::View<'_>, Sc),
+        mut visit: impl FnMut(&O::View<'_>, RowOrigin<'_, O::Evaluation>, Sc),
     ) where
         S: 'static,
         O: Operator<S>,
@@ -24,8 +25,13 @@ impl<W, Sc: Score> OperatorScorer<W, Sc> {
     {
         let handles = operator.handles();
         if handles.is_empty() {
-            operator.visit_all(solution, &mut |row| {
-                visit(&row, self.signed(self.weight.score(solution, &row)));
+            let evaluation = operator.prepare_evaluation(solution);
+            operator.visit_evaluation(solution, &evaluation, &mut |row| {
+                visit(
+                    &row,
+                    RowOrigin::Evaluation(&evaluation),
+                    self.signed(self.weight.score(solution, &row)),
+                );
             });
         } else {
             for handle in handles {
@@ -36,7 +42,7 @@ impl<W, Sc: Score> OperatorScorer<W, Sc> {
                     Some(weight) => *weight,
                     None => self.weight.score(solution, &row),
                 };
-                visit(&row, self.signed(weight));
+                visit(&row, RowOrigin::Retained(handle), self.signed(weight));
             }
         }
     }
@@ -52,18 +58,17 @@ impl<W, Sc: Score> OperatorScorer<W, Sc> {
     ) -> Vec<DetailedConstraintMatch<'a, Sc>>
     where
         S: 'static,
-        O: Operator<S>,
+        O: ExplainOperator<S>,
         W: RowWeight<S, O, Sc>,
-        for<'r> O::View<'r>: ExplainRow,
     {
         let mut matches = Vec::new();
-        self.visit_scored(operator, solution, |row, score| {
+        self.visit_scored(operator, solution, |row, origin, score| {
             if score == Sc::zero() {
                 return;
             }
             let score = scale_contribution(score, multiplier);
             let mut entities = Vec::new();
-            row.explain(&mut entities);
+            operator.explain(solution, row, origin, &mut entities);
             matches.push(DetailedConstraintMatch::new(
                 &self.constraint_ref,
                 score,

@@ -5,7 +5,8 @@ use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::filter::BiFilter;
 use crate::stream::relational::{DenseRowStore, HashIndex};
 
-use super::{RowCoordinate, Source};
+use super::{ExplainSource, RowCoordinate, RowOwner, Source};
+use crate::api::analysis::EntityRef;
 
 /// Projected source over a keyed cross join: each accepted `(A, B)` pair with
 /// equal keys emits one `Out` row. Built by `stream::cross::Bi::project`.
@@ -332,5 +333,43 @@ where
         }
         let coordinate = RowCoordinate::pair(0, a_idx, 1, b_idx, 0);
         visit(coordinate, (self.project)(a, b));
+    }
+}
+
+impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> ExplainSource<S, Out>
+    for JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
+where
+    S: Send + Sync + 'static,
+    A: std::fmt::Debug + Send + Sync + 'static,
+    B: std::fmt::Debug + Send + Sync + 'static,
+    K: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
+    KA: Fn(&A) -> K + Send + Sync,
+    KB: Fn(&B) -> K + Send + Sync,
+    F: BiFilter<S, A, B>,
+    P: Fn(&A, &B) -> Out + Send + Sync,
+    Out: Send + Sync + 'static,
+{
+    fn explain_owner(&self, solution: &S, owner: RowOwner, entities: &mut Vec<EntityRef>) {
+        match owner.source_slot {
+            0 => {
+                if let Some(entity) = self.extractor_a.extract(solution).get(owner.entity_index) {
+                    entities.push(
+                        EntityRef::new(entity)
+                            .with_planning_id(self.extractor_a.planning_id(entity)),
+                    );
+                }
+            }
+            1 => {
+                if let Some(entity) = self.extractor_b.extract(solution).get(owner.entity_index) {
+                    entities.push(
+                        EntityRef::new(entity)
+                            .with_planning_id(self.extractor_b.planning_id(entity)),
+                    );
+                }
+            }
+            _ => {}
+        }
     }
 }

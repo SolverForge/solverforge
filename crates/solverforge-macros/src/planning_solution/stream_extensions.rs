@@ -38,8 +38,11 @@ pub(super) fn generate_collection_source_methods(
 
         source_methods.push(quote! {
             #[doc = concat!("Constraint-stream source over the `", stringify!(#field_name), "` collection.")]
-            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
-                ::solverforge::__internal::source(
+            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<
+                fn(&Self) -> &[#element_type],
+                ::solverforge::__internal::ModelPlanningIds,
+            > {
+                ::solverforge::__internal::model_source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
                     ::solverforge::__internal::ChangeSource::Descriptor(#descriptor_index_lit),
                 )
@@ -60,8 +63,11 @@ pub(super) fn generate_collection_source_methods(
         let change_source = unowned_change_source(&quote! { Self }, field_name);
         source_methods.push(quote! {
             #[doc = concat!("Constraint-stream source over the `", stringify!(#field_name), "` collection.")]
-            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
-                ::solverforge::__internal::source(
+            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<
+                fn(&Self) -> &[#element_type],
+                ::solverforge::__internal::ModelPlanningIds,
+            > {
+                ::solverforge::__internal::model_source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
                     #change_source,
                 )
@@ -139,10 +145,15 @@ pub(super) fn generate_constraint_stream_extensions(
             field_name,
             element_type,
             change_source,
+            true,
         );
     }
 
-    for f in fact_fields.iter().chain(list_element_fields.iter()) {
+    let unowned = fact_fields
+        .iter()
+        .map(|f| (f, true))
+        .chain(list_element_fields.iter().map(|f| (f, false)));
+    for (f, planning_ids) in unowned {
         let field_name = match f.ident.as_ref() {
             Some(n) => n,
             None => continue,
@@ -160,6 +171,7 @@ pub(super) fn generate_constraint_stream_extensions(
             field_name,
             element_type,
             change_source,
+            planning_ids,
         );
     }
 
@@ -184,12 +196,32 @@ fn push_stream_extension_method(
     field_name: &Ident,
     element_type: &syn::Type,
     change_source: TokenStream,
+    planning_ids: bool,
 ) {
+    // Entity and fact collections hold macro-annotated types, so their rows
+    // report their `#[planning_id]` in constraint analysis; list-element
+    // collections hold plain values and report none.
+    let (source_extract, source_fn) = if planning_ids {
+        (
+            quote! {
+                ::solverforge::__internal::SourceExtract<
+                    fn(&#solution_name) -> &[#element_type],
+                    ::solverforge::__internal::ModelPlanningIds,
+                >
+            },
+            quote! { ::solverforge::__internal::model_source },
+        )
+    } else {
+        (
+            quote! { ::solverforge::__internal::SourceExtract<fn(&#solution_name) -> &[#element_type]> },
+            quote! { ::solverforge::__internal::source },
+        )
+    };
     let return_type = quote! {
         ::solverforge::__internal::UniConstraintStream<
             #solution_name,
             #element_type,
-            ::solverforge::__internal::SourceExtract<fn(&#solution_name) -> &[#element_type]>,
+            #source_extract,
             ::solverforge::__internal::TrueFilter,
             Sc,
         >
@@ -204,7 +236,7 @@ fn push_stream_extension_method(
         fn #field_name(self) -> #return_type {
             ::solverforge::stream::ConstraintFactory::for_each(
                 self,
-                ::solverforge::__internal::source(
+                #source_fn(
                     (|s: &#solution_name| s.#field_name.as_slice())
                         as fn(&#solution_name) -> &[#element_type],
                     #change_source,

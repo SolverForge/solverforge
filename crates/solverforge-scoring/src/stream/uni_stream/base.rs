@@ -225,4 +225,8 @@ where
     fn change_source(&self) -> ChangeSource {
         self.extractor.change_source()
     }
+
+    fn planning_id(&self, item: &A) -> Option<String> {
+        self.extractor.planning_id(item)
+    }
 }

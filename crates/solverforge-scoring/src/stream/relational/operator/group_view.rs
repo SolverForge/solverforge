@@ -1,5 +1,4 @@
-use super::{ExplainRow, Operator};
-use crate::api::analysis::EntityRef;
+use super::Operator;
 use crate::stream::collector::Accumulator;
 use crate::stream::relational::RowHandle;
 use std::marker::PhantomData;
@@ -20,8 +19,6 @@ pub struct GroupView<'a, S: 'static, O: Operator<S>, K, A, V, R> {
     /// The group's key.
     pub key: &'a K,
     pub(super) accumulator: &'a A,
-    pub(super) input: &'a O,
-    pub(super) solution: &'a S,
     pub(super) contributors: Contributors<'a, S, O>,
     pub(super) marker: PhantomData<fn() -> (V, R)>,
 }
@@ -35,32 +32,5 @@ impl<S: 'static, O: Operator<S>, K, A: Accumulator<V, R>, V, R> GroupView<'_, S,
     /// Borrows the group's collector result.
     pub fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T {
         self.accumulator.with_result(f)
-    }
-}
-impl<S: 'static, O: Operator<S>, K, A, V, R> ExplainRow for GroupView<'_, S, O, K, A, V, R>
-where
-    for<'a> O::View<'a>: ExplainRow,
-{
-    fn explain(&self, entities: &mut Vec<EntityRef>) {
-        match self.contributors {
-            Contributors::Retained(handles) => {
-                for &h in handles {
-                    self.input
-                        .resolve(self.solution, h)
-                        .expect("live group contributor")
-                        .explain(entities);
-                }
-            }
-            Contributors::Evaluation(evaluation, ordinals) => {
-                let mut ordinal = 0;
-                self.input
-                    .visit_evaluation(self.solution, evaluation, &mut |row| {
-                        if ordinals.contains(&ordinal) {
-                            row.explain(entities);
-                        }
-                        ordinal += 1;
-                    });
-            }
-        }
     }
 }

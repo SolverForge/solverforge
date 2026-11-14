@@ -13,7 +13,7 @@ use crate::api::{
         scale_contribution, scale_contribution_parts, ConstraintMetadata, ConstraintResult,
     },
 };
-use crate::stream::relational::operator::{ExplainRow, Operator};
+use crate::stream::relational::operator::{ExplainOperator, Operator};
 use crate::stream::relational::{HandleMap, RowHandle};
 
 mod matches;
@@ -156,8 +156,7 @@ where
 impl<S, O, W, Sc> OperatorScorerSet<S, O, Sc> for OperatorScorer<W, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
-    for<'r> O::View<'r>: ExplainRow,
+    O: ExplainOperator<S> + Send + Sync,
     W: RowWeight<S, O, Sc>,
     Sc: Score,
 {

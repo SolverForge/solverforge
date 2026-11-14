@@ -1,4 +1,6 @@
 use super::*;
+use crate::api::analysis::EntityRef;
+use crate::stream::relational::operator::{ExplainOperator, RowOrigin};
 
 /// Scored quad operator: the tree plus the authored filter as one row producer.
 pub struct QuadScored<
@@ -201,5 +203,33 @@ where
         let (a, b, c, d) = row.entities();
         let (ai, bi, ci, di) = row.indexes();
         self.filter.test(solution, a, b, c, d, ai, bi, ci, di)
+    }
+}
+
+impl<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F> ExplainOperator<S>
+    for QuadScored<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F>
+where
+    S: Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
+    D: Send + Sync + 'static,
+    P1: CompileCondition<Plan: IndexedPlan> + 'static,
+    P2: CompileCondition<Plan: IndexedPlan> + 'static,
+    P3: CompileCondition<Plan: IndexedPlan> + 'static,
+    for<'a> BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3>: ExplainOperator<
+        S,
+        View<'a> = Pair<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>,
+    >,
+    F: QuadFilter<S, A, B, C, D> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.inner.explain(solution, row, origin, entities);
     }
 }

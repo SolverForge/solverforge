@@ -16,6 +16,8 @@ where
         self(solution, row)
     }
 }
+use super::{ExplainOperator, RowOrigin};
+use crate::api::analysis::EntityRef;
 use crate::stream::relational::{HandleMap, RowHandle};
 
 /// Membership filter retaining input identities, not copied row payloads.
@@ -181,5 +183,21 @@ where
         self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
         self.child_removed = in_removed;
         self.child_inserted = in_inserted;
+    }
+}
+
+impl<S: 'static, O, F> ExplainOperator<S> for FilterNode<O, F>
+where
+    O: ExplainOperator<S>,
+    F: for<'a> FilterPredicate<S, O::View<'a>> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.input.explain(solution, row, origin, entities);
     }
 }

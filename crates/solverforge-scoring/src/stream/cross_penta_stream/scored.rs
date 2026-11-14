@@ -1,4 +1,6 @@
 use super::*;
+use crate::api::analysis::EntityRef;
+use crate::stream::relational::operator::{ExplainOperator, RowOrigin};
 
 /// Scored penta operator: the tree plus the authored filter as one row producer.
 pub struct PentaScored<
@@ -281,5 +283,38 @@ where
         let (ai, bi, ci, di, ei) = row.indexes();
         self.filter
             .test(solution, a, b, c, d, e, ai, bi, ci, di, ei)
+    }
+}
+
+impl<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F> ExplainOperator<S>
+    for PentaScored<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F>
+where
+    S: Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
+    D: Send + Sync + 'static,
+    E: Send + Sync + 'static,
+    P1: CompileCondition<Plan: IndexedPlan> + 'static,
+    P2: CompileCondition<Plan: IndexedPlan> + 'static,
+    P3: CompileCondition<Plan: IndexedPlan> + 'static,
+    P4: CompileCondition<Plan: IndexedPlan> + 'static,
+    for<'a> BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: ExplainOperator<
+        S,
+        View<'a> = Pair<
+            Pair<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>,
+            Leaf<'a, E>,
+        >,
+    >,
+    F: PentaFilter<S, A, B, C, D, E> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.inner.explain(solution, row, origin, entities);
     }
 }

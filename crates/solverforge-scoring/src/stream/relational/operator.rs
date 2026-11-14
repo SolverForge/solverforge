@@ -30,7 +30,7 @@ pub use filter::{FilterNode, FilterPredicate};
 pub use self_join::SelfJoinNode;
 
 #[doc(hidden)]
-pub use analysis::ExplainRow;
+pub use analysis::{ExplainOperator, RowOrigin};
 pub use collection::CollectionNode;
 pub use join::JoinNode;
 

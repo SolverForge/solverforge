@@ -53,6 +53,29 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         TokenStream::new()
     };
 
+    let analysis_planning_id_impl = if let Some(field) = id_field {
+        let field_name = field.ident.as_ref().unwrap();
+        quote! {
+            impl #impl_generics ::solverforge::__internal::AnalysisPlanningId for #name #ty_generics #where_clause {
+                fn analysis_planning_id(&self) -> ::core::option::Option<::std::string::String> {
+                    #[allow(unused_imports)]
+                    use ::solverforge::__internal::{
+                        RenderPlanningIdDebug as _, RenderPlanningIdDisplay as _, RenderPlanningIdNone as _,
+                    };
+                    (&&&::solverforge::__internal::RenderPlanningId(&self.#field_name)).render_planning_id()
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl #impl_generics ::solverforge::__internal::AnalysisPlanningId for #name #ty_generics #where_clause {
+                fn analysis_planning_id(&self) -> ::core::option::Option<::std::string::String> {
+                    ::core::option::Option::None
+                }
+            }
+        }
+    };
+
     let id_field_descriptor = if let Some(field) = id_field {
         let field_name = field.ident.as_ref().unwrap();
         quote! { desc = desc.with_id_field(stringify!(#field_name)); }
@@ -66,6 +89,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         }
 
         #planning_id_impl
+
+        #analysis_planning_id_impl
 
         impl #impl_generics #name #ty_generics #where_clause {
             #[doc(hidden)]

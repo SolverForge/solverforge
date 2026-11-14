@@ -126,7 +126,9 @@ pub mod projected;
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};
 pub use collection_extract::{
-    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract,
+    model_source, source, AnalysisPlanningId, ChangeSource, CollectionExtract, FlattenExtract,
+    ModelPlanningIds, NoPlanningIds, RenderPlanningId, RenderPlanningIdDebug,
+    RenderPlanningIdDisplay, RenderPlanningIdNone, SourceExtract, SourcePlanningIds,
 };
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
 pub use existence_stream::{ExistenceMode, ExistsConstraintBuilder, ExistsConstraintStream};

@@ -103,10 +103,14 @@ migration of the fluent stream families:
 - `constraint::relational::OperatorTerminal<S, O, W, Sc>::new(constraint_ref,
   impact, operator, weight, hard)` scores a generic operator; its weight takes
   `(&S, &O::View<'a>)`. It implements incremental scoring, reset, full counts,
-  and cold explanations. `ExplainRow::explain(&self, entities)` appends the
-  entities a row view was built from; terminals call it only on the cold
-  explanation path, and a custom operator implements it for its `View` to make
-  its matches explainable.
+  and cold explanations. `ExplainOperator::explain(&self, solution, row,
+  origin, entities)` appends the entities a row was built from, each with the
+  planning id its source renders; `origin` (`RowOrigin::Retained(handle)` or
+  `RowOrigin::Evaluation(&evaluation)`) says where the row came from, so an
+  operator maps it to the input rows it derives from. Explanation belongs to
+  the operator, not the row view, because the operator owns the sources.
+  Terminals call it only on the cold explanation path, and a custom operator
+  implements it to make its matches explainable.
 - `stream::joiner::plan::{CompileCondition, IndexedPlan, ExecutablePlan}`
   separates condition compilation, owned index state, and borrowed-row execution.
   Candidate probes return `Cow<'i, [RowHandle]>`: equality borrows an exact
@@ -313,7 +317,8 @@ src/
 │   ├── projected_stream/source/filtered.rs         — Row-level filtered projected source
 │   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
-│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, source() constructor
+│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, source() and model_source() constructors
+│   ├── collection_extract/planning_id.rs           — Hidden planning-id rendering for analysis: AnalysisPlanningId, SourcePlanningIds, NoPlanningIds, ModelPlanningIds, RenderPlanningId
 │   ├── unassigned.rs                               — UnassignedEntity and the `.unassigned()` stream method
 │   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
 │   ├── closures.rs                                 — Filter, key and weight closures built in functions generic only over what they capture, so constraint types do not repeat upstream stream types
@@ -717,10 +722,11 @@ terminals of one shared node. Weight adapters (`GroupAdapter`/`GroupWeight`,
 `RowWeight`, `AdaptWeight`) adapt each family's weight closure to the shared
 row. Sharing is compiler-owned; there are no runtime node caches.
 
-A shared terminal requires its operator's rows to implement `ExplainRow`, so
-every grouped and complemented builder's `named` requires `Debug` entities
-(projected `Out` rows excepted: they justify nothing themselves). No stream
-requires `Clone` on an entity type.
+A shared terminal requires its operator to implement `ExplainOperator`, so
+every grouped and complemented builder's `named` requires `Debug` entities.
+A projected row is justified by the entities it was projected from (its
+coordinate's owners, read from the projected source); its `Out` value needs no
+`Debug`. No stream requires `Clone` on an entity type.
 Detailed analysis (`get_matches`, `ConstraintSet::evaluate_detailed[_weighted]`)
 reports, for every terminal on the node, one match per row whose coded weight
 is not zero, scored at the terminal's multiplier and justified by the row's
@@ -749,9 +755,10 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 
 **`ConstraintMetadata<'a>`** — `{ constraint_ref: &'a ConstraintRef, is_hard: bool }`; `name()` returns the short constraint name, and `full_name()` returns the package-qualified identity used for exact matching.
 
-**`EntityRef`** — `{ type_name: String, display: String }`: the entity's type name and `Debug` rendering, taken when a match is explained. It keeps no copy of the entity.
-- Methods: `new<T: Debug + ?Sized>(&T)`, `short_type_name()`
-- Implements `Hash + Eq` (by display string)
+**`EntityRef`** — `{ type_name: String, display: String, planning_id: Option<String> }`: the entity's type name, `Debug` rendering and planning id, taken when a match is explained. It keeps no copy of the entity.
+- `planning_id` is the record's `#[planning_id]` rendered as a string: the id's `Display` output when its type implements `Display` (`7`, `anna`), otherwise its `Debug` output (e.g. a tuple-struct id renders as ShiftId(7)), and `None` for an id type with neither. Equal ids render equally, so it is a lookup key within the entity's type. It is set for entities streamed from planning-model entity and fact collections (`#[planning_entity]` / `#[problem_fact]` types with a `#[planning_id]` field) and `None` otherwise, including for plain values streamed from a hand-built source; stream elements need no new bound.
+- Methods: `new<T: Debug + ?Sized>(&T)` (no planning id), `with_planning_id(Option<String>)`, `short_type_name()`
+- Implements `Hash + Eq` (by all three fields)
 
 **`ConstraintJustification`** — `{ entities: Vec<EntityRef>, description: String }`.
 Construct with `new(entities)` or `with_description(entities, description)`.
@@ -911,13 +918,16 @@ further joins); low-level constructors are `new_self_join()` and
 - Method: `fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]`
 - Method: `fn contains(&self, s: &S, item: &Self::Item) -> bool` — source-level membership predicate; defaults to `true`, while `UniConstraintStream` delegates to its accumulated source filter.
 - Required method: `fn change_source(&self) -> ChangeSource` — the descriptor that owns the source's rows, or `Static`.
+- Provided method: `fn planning_id(&self, item: &Self::Item) -> Option<String>` — the planning id constraint analysis reports for `item` (see `EntityRef`); read only while explaining a match. Defaults to `None`.
 - Implemented by `SourceExtract` (generated accessors), `FilteredExtract` and `UniConstraintStream`.
 
-**`SourceExtract<E>`** — Hidden descriptor-aware collection extraction wrapper used by macro-generated solution source methods. It satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins.
+**`SourceExtract<E, I = NoPlanningIds>`** — Hidden descriptor-aware collection extraction wrapper used by macro-generated solution source methods. It satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins. The zero-sized `I` picks how constraint analysis renders its items' planning ids: `NoPlanningIds` reports none, `ModelPlanningIds` reads the `AnalysisPlanningId` that `#[planning_entity]` and `#[problem_fact]` implement.
 
 **`ChangeSource`** — Hidden enum naming which descriptor owns a stream source's rows: `Static` or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor; `Static` ignores every descriptor notification.
 
 **`source(...)`** — Hidden constructor for descriptor-aware collection extraction used by macro-generated solution source methods. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact and list-element collections carry `ChangeSource::Static`. This symbol is not part of the facade stream workflow.
+
+**`model_source(...)`** — Hidden constructor like `source(...)` whose items report their `#[planning_id]` in constraint analysis (`SourceExtract<E, ModelPlanningIds>`). Generated entity and fact collection accessors use it; list-element collections, which hold plain values, use `source(...)`.
 
 **`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 

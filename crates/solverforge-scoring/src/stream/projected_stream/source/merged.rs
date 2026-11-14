@@ -1,6 +1,7 @@
 use crate::stream::collection_extract::ChangeSource;
 
-use super::{RowCoordinate, Source};
+use super::{ExplainSource, RowCoordinate, RowOwner, Source};
+use crate::api::analysis::EntityRef;
 
 pub struct MergedSource<Left, Right> {
     left: Left,
@@ -119,6 +120,27 @@ where
                 slot - left_count,
                 entity_index,
             );
+        }
+    }
+}
+
+impl<S, Out, Left, Right> ExplainSource<S, Out> for MergedSource<Left, Right>
+where
+    S: Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    Left: ExplainSource<S, Out>,
+    Right: ExplainSource<S, Out>,
+{
+    fn explain_owner(&self, solution: &S, owner: RowOwner, entities: &mut Vec<EntityRef>) {
+        let left_count = self.left.source_count();
+        if owner.source_slot < left_count {
+            self.left.explain_owner(solution, owner, entities);
+        } else {
+            let owner = RowOwner {
+                source_slot: owner.source_slot - left_count,
+                entity_index: owner.entity_index,
+            };
+            self.right.explain_owner(solution, owner, entities);
         }
     }
 }

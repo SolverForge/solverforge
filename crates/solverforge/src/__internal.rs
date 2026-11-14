@@ -41,5 +41,7 @@ pub use solverforge_config::SolverConfig;
 // Stream types needed for macro-generated source methods
 pub use solverforge_scoring::stream::filter::TrueFilter;
 pub use solverforge_scoring::stream::{
-    source, ChangeSource, SourceExtract, UnassignedEntity, UniConstraintStream,
+    model_source, source, AnalysisPlanningId, ChangeSource, ModelPlanningIds, RenderPlanningId,
+    RenderPlanningIdDebug, RenderPlanningIdDisplay, RenderPlanningIdNone, SourceExtract,
+    UnassignedEntity, UniConstraintStream,
 };

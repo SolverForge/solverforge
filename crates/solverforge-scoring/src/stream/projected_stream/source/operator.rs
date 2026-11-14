@@ -5,12 +5,12 @@ use crate::stream::{
     collector::{Accumulator, Collector},
     relational::{
         hash::{FastMap, FastSet},
-        operator::{ExplainRow, Operator},
+        operator::{ExplainOperator, Operator, RowOrigin},
         DenseRowStore, RowHandle,
     },
 };
 
-use super::{RowCoordinate, RowOwner, Source};
+use super::{ExplainSource, RowCoordinate, RowOwner, Source};
 
 #[doc(hidden)]
 pub struct ProjectedRow<'a, Out> {
@@ -22,9 +22,6 @@ impl<Out> Clone for ProjectedRow<'_, Out> {
     fn clone(&self) -> Self {
         *self
     }
-}
-impl<Out> ExplainRow for ProjectedRow<'_, Out> {
-    fn explain(&self, _entities: &mut Vec<EntityRef>) {}
 }
 
 struct StoredRow<Out> {
@@ -285,4 +282,40 @@ where
     fn create_accumulator(&self) -> Acc {
         self.inner.create_accumulator()
     }
+}
+
+/// A projected row is explained by the entities it was projected from: its
+/// coordinate's owners, read from the source.
+impl<S, Out, Src> ExplainOperator<S> for SourceNode<S, Out, Src>
+where
+    S: Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    Src: ExplainSource<S, Out> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        let coordinate = match origin {
+            RowOrigin::Retained(handle) => self.rows.get(handle).map(|stored| stored.coordinate),
+            RowOrigin::Evaluation((_, rows)) => evaluated_coordinate(rows, row.value),
+        };
+        if let Some(coordinate) = coordinate {
+            coordinate.for_each_owner(|owner| self.source.explain_owner(solution, owner, entities));
+        }
+    }
+}
+
+/// The coordinate of the evaluated row whose value `value` borrows. The
+/// value lives in `rows`, so its offset from the first row's value gives its
+/// position directly; the address check rejects a value from anywhere else.
+fn evaluated_coordinate<Out>(rows: &[(RowCoordinate, Out)], value: &Out) -> Option<RowCoordinate> {
+    let first = &rows.first()?.1;
+    let stride = std::mem::size_of::<(RowCoordinate, Out)>();
+    let offset = (value as *const Out as usize).checked_sub(first as *const Out as usize)?;
+    let (coordinate, candidate) = rows.get(offset / stride)?;
+    std::ptr::eq(candidate, value).then_some(*coordinate)
 }

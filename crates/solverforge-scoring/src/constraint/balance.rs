@@ -134,7 +134,7 @@ where
 impl<S, A, K, E, F, KF, Sc> BalanceConstraint<S, A, K, E, F, KF, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
@@ -241,7 +241,7 @@ impl<S, A, K, E, F, KF, Sc> IncrementalConstraint<S, Sc>
     for BalanceConstraint<S, A, K, E, F, KF, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,

@@ -14,7 +14,7 @@ help: the trait `CollectionExtract<S>` is implemented for `UniConstraintStream<S
    | / impl<S, A, E, F, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, F, Sc>
    | | where
    | |     S: Send + Sync + 'static,
-   | |     A: Clone + Send + Sync + 'static,
+   | |     A: Send + Sync + 'static,
    | |     E: CollectionExtract<S, Item = A>,
    | |     F: UniFilter<S, A>,
    | |     Sc: Score + 'static,
@@ -44,7 +44,7 @@ help: the trait `CollectionExtract<S>` is implemented for `UniConstraintStream<S
    | / impl<S, A, E, F, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, F, Sc>
    | | where
    | |     S: Send + Sync + 'static,
-   | |     A: Clone + Send + Sync + 'static,
+   | |     A: Send + Sync + 'static,
    | |     E: CollectionExtract<S, Item = A>,
    | |     F: UniFilter<S, A>,
    | |     Sc: Score + 'static,

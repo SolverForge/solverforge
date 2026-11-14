@@ -42,7 +42,7 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
     GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + std::fmt::Debug + Send + Sync + 'static,
+    A: std::fmt::Debug + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A> + 'static,
     Fi: UniFilter<S, A> + 'static,

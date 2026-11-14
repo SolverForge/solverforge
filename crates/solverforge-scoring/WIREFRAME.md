@@ -718,8 +718,9 @@ terminals of one shared node. Weight adapters (`GroupAdapter`/`GroupWeight`,
 row. Sharing is compiler-owned; there are no runtime node caches.
 
 A shared terminal requires its operator's rows to implement `ExplainRow`, so
-every grouped and complemented builder's `named` requires `Clone + Debug`
-entities (projected `Out` rows excepted: they justify nothing themselves).
+every grouped and complemented builder's `named` requires `Debug` entities
+(projected `Out` rows excepted: they justify nothing themselves). No stream
+requires `Clone` on an entity type.
 Detailed analysis (`get_matches`, `ConstraintSet::evaluate_detailed[_weighted]`)
 reports, for every terminal on the node, one match per row whose coded weight
 is not zero, scored at the terminal's multiplier and justified by the row's
@@ -748,8 +749,8 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 
 **`ConstraintMetadata<'a>`** — `{ constraint_ref: &'a ConstraintRef, is_hard: bool }`; `name()` returns the short constraint name, and `full_name()` returns the package-qualified identity used for exact matching.
 
-**`EntityRef`** — Public fields `{ type_name: String, display: String }` plus a private cloned entity snapshot for typed downcast access.
-- Methods: `new()`, `with_display()`, `as_entity::<T>()`, `short_type_name()`
+**`EntityRef`** — `{ type_name: String, display: String }`: the entity's type name and `Debug` rendering, taken when a match is explained. It keeps no copy of the entity.
+- Methods: `new<T: Debug + ?Sized>(&T)`, `short_type_name()`
 - Implements `Hash + Eq` (by display string)
 
 **`ConstraintJustification`** — `{ entities: Vec<EntityRef>, description: String }`.

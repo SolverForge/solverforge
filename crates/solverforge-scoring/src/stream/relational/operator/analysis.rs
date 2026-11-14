@@ -17,7 +17,7 @@ pub trait ExplainRow {
     /// `entities`, in row order.
     fn explain(&self, entities: &mut Vec<EntityRef>);
 }
-impl<T: Clone + Debug + Send + Sync + 'static> ExplainRow for Leaf<'_, T> {
+impl<T: Debug> ExplainRow for Leaf<'_, T> {
     fn explain(&self, entities: &mut Vec<EntityRef>) {
         entities.push(EntityRef::new(self.entity));
     }

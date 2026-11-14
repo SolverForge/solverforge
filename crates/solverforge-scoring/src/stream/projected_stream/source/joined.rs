@@ -133,8 +133,8 @@ impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> Source<S, Out>
     for JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,

@@ -224,9 +224,10 @@ satisfied one. For analysis of a running job, see
 with the entities behind them. A grouped or complemented constraint reports one
 match per group whose weight is not zero, justified by the entities in the
 group (a complemented key without a group is justified by its target entity),
-and the match scores add up to the constraint's score. Grouped and complemented
-constraints therefore need entities that implement `Clone` and `Debug`, like
-every other constraint.
+and the match scores add up to the constraint's score. Each entity appears as
+its type name and `Debug` rendering, so constraints need entities that
+implement `Debug`; no constraint requires `Clone`, and analysis keeps no copy
+of your entities.
 
 ## Runtime constraint weights
 

@@ -43,7 +43,7 @@ pub trait JoinTarget<S, A, E, F, Sc: Score> {
 impl<S, A, E, F, K, KA, Sc> JoinTarget<S, A, E, F, Sc> for EqualJoiner<KA, KA, K, Symmetric>
 where
     S: Send + Sync + 'static,
-    A: Clone + Hash + PartialEq + Send + Sync + 'static,
+    A: Hash + PartialEq + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     K: Eq + Hash + Clone + Send + Sync,
@@ -65,8 +65,8 @@ impl<S, A, B, E, F, EB, K, KA, KB, Mode, Sc> JoinTarget<S, A, E, F, Sc>
     for (EB, EqualJoiner<KA, KB, K, Mode>)
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     EB: CollectionExtract<S, Item = B>,
@@ -104,8 +104,8 @@ macro_rules! impl_comparison_join_target {
             for (EB, $joiner<KA, KB, K>)
         where
             S: Send + Sync + 'static,
-            A: Clone + Send + Sync + 'static,
-            B: Clone + Send + Sync + 'static,
+            A: Send + Sync + 'static,
+            B: Send + Sync + 'static,
             E: CollectionExtract<S, Item = A>,
             F: UniFilter<S, A>,
             EB: CollectionExtract<S, Item = B>,
@@ -152,8 +152,8 @@ impl<S, A, B, E, F, EB, K, SA, EA, SB, EBd, Sc> JoinTarget<S, A, E, F, Sc>
     for (EB, OverlappingJoiner<SA, EA, SB, EBd, K>)
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     EB: CollectionExtract<S, Item = B>,
@@ -185,8 +185,8 @@ where
 impl<S, A, B, E, F, EB, J1, J2, Sc> JoinTarget<S, A, E, F, Sc> for (EB, AndJoiner<J1, J2>)
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     EB: CollectionExtract<S, Item = B>,
@@ -225,8 +225,8 @@ impl<S, A, B, E, F, EB, FB, P, Sc> JoinTarget<S, A, E, F, Sc>
     for (UniConstraintStream<S, B, EB, FB, Sc>, P)
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     EB: CollectionExtract<S, Item = B>,

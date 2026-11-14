@@ -60,7 +60,7 @@ super::arity_stream_macros::impl_arity_stream!(bi, BiConstraintStream, BiConstra
 impl<S, A, K, E, KE, F, Sc> BiConstraintStream<S, A, K, E, KE, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Hash + PartialEq + Send + Sync + 'static,
+    A: Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     E: super::collection_extract::CollectionExtract<S, Item = A>,
     KE: super::key_extract::KeyExtract<S, A, K>,

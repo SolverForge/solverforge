@@ -117,7 +117,7 @@ where
     Acc: Accumulator<V, R> + 'static,
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    B: Send + Sync + 'static,
     EB: crate::stream::collection_extract::CollectionExtract<S, Item = B> + 'static,
     P: crate::stream::joiner::plan::IndexedPlan + 'static,
     for<'a> P:
@@ -156,7 +156,7 @@ where
     Acc: Accumulator<V, R> + 'static,
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    B: Send + Sync + 'static,
     EB: crate::stream::collection_extract::CollectionExtract<S, Item = B> + 'static,
     P: crate::stream::joiner::plan::IndexedPlan + 'static,
     for<'a> P:

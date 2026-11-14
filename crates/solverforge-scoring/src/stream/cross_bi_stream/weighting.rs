@@ -16,8 +16,8 @@ use crate::constraint::relational::OperatorTerminal;
 impl<S, A, B, P, EA, EB, F, Sc> Bi<S, A, B, P, EA, EB, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     P: CompileCondition + 'static,
     for<'a> P::Plan: ExecutablePlan<Leaf<'a, A>, Leaf<'a, B>>,
     P::Plan: IndexedPlan<Indexes: Send + Sync>,
@@ -107,8 +107,8 @@ where
 impl<S, A, B, P, EA, EB, F, W, Sc> Builder<S, A, B, P, EA, EB, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     P: CompileCondition + 'static,
     for<'a> P::Plan: ExecutablePlan<Leaf<'a, A>, Leaf<'a, B>>,
     P::Plan: IndexedPlan<Indexes: Send + Sync>,

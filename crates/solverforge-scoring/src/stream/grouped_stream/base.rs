@@ -38,7 +38,7 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
     GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
@@ -170,7 +170,7 @@ where
         Sc,
     >
     where
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KB: Fn(&B) -> K + Send + Sync,
         D: Fn(&B) -> R + Send + Sync + 'static,
@@ -197,7 +197,7 @@ where
         target: (EB, KB),
     ) -> super::joined::GroupedJoinedStream<S, A, B, K, E, EB, Fi, KF, C, V, R, Acc, KB, Sc>
     where
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B> + 'static,
         KB: Fn(&B) -> K + Send + Sync + 'static,
     {
@@ -221,7 +221,7 @@ where
         default_fn: D,
     ) -> ComplementedConstraintStream<S, A, B, K, E, EB, KA2, KB, C, V, R, Acc, D, Sc>
     where
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KA2: Fn(&A) -> Option<K> + Send + Sync,
         KB: Fn(&B) -> K + Send + Sync,

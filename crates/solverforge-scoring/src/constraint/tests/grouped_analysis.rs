@@ -7,6 +7,8 @@ the match scores must sum to the constraint's score: before initialization,
 after it, and across mutations. Shared grouped nodes report matches for every
 terminal they carry, scaled by each terminal's weight multiplier.
 
+The entities implement only `Debug`: explaining a match copies nothing.
+
 Roster: nurse 0 works shifts 0 and 1, nurse 1 works shift 2, shift 3 is
 unassigned, nurse 2 works nothing.
 */
@@ -22,12 +24,12 @@ use crate::stream::ConstraintFactory;
 
 const UNASSIGNED: usize = usize::MAX;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Nurse {
     id: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct Shift {
     // Read only through `Debug`: it tells the shifts apart in justifications.
     #[allow(dead_code)]
@@ -35,7 +37,6 @@ struct Shift {
     nurse: Option<usize>,
 }
 
-#[derive(Clone)]
 struct Roster {
     shifts: Vec<Shift>,
     nurses: Vec<Nurse>,

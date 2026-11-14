@@ -89,7 +89,7 @@ where
         target: (EB, P),
     ) -> Chain<S, JoinNode<S, O, CollectionNodeAlias<S, EB>, P::Plan>, Sc>
     where
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B> + 'static,
         P: CompileCondition + 'static,
         P::Plan: IndexedPlan,

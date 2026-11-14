@@ -67,7 +67,7 @@ super::arity_stream_macros::impl_arity_stream!(tri, TriConstraintStream, TriCons
 impl<S, A, K, E, KE, F, Sc> TriConstraintStream<S, A, K, E, KE, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Hash + PartialEq + Send + Sync + 'static,
+    A: Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     E: CollectionExtract<S, Item = A>,
     KE: super::key_extract::KeyExtract<S, A, K>,

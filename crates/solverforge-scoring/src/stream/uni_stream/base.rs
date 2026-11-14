@@ -39,7 +39,7 @@ where
 impl<S, A, E, Sc> UniConstraintStream<S, A, E, TrueFilter, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     Sc: Score + 'static,
 {
@@ -56,7 +56,7 @@ where
 impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,
@@ -70,7 +70,7 @@ where
     ) -> FlattenedCollectionTarget<S, A, B, E, F, FlattenVecExtract<Flat>, Sc>
     where
         E: CollectionExtract<S, Item = A>,
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         Flat: for<'a> Fn(&'a A) -> &'a Vec<B> + Send + Sync,
     {
         FlattenedCollectionTarget {
@@ -150,7 +150,7 @@ where
 impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,
@@ -204,7 +204,7 @@ impl<S, A, E, F, Sc: Score> std::fmt::Debug for UniConstraintStream<S, A, E, F, 
 impl<S, A, E, F, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,

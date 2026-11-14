@@ -74,9 +74,9 @@ impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, Sc>
     >
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     CK: Eq + Hash + Clone + Send + Sync,
     EA: CollectionExtract<S, Item = A>,
@@ -117,9 +117,9 @@ impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc>
     FlattenedBiConstraintStream<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     CK: Eq + Hash + Clone + Send + Sync,
     EA: CollectionExtract<S, Item = A>,

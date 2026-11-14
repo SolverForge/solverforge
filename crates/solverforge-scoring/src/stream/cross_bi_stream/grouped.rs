@@ -50,8 +50,8 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
     Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
@@ -179,7 +179,7 @@ where
         default_fn: D,
     ) -> ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc>
     where
-        T: Clone + Send + Sync + 'static,
+        T: Send + Sync + 'static,
         ET: CollectionExtract<S, Item = T>,
         KT: Fn(&T) -> GK + Send + Sync,
         D: Fn(&T) -> R + Send + Sync,
@@ -233,8 +233,8 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
     GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + std::fmt::Debug + Send + Sync + 'static,
-    B: Clone + std::fmt::Debug + Send + Sync + 'static,
+    A: std::fmt::Debug + Send + Sync + 'static,
+    B: std::fmt::Debug + Send + Sync + 'static,
     JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,

@@ -96,8 +96,9 @@ unlocalized source and no rebuild fallback.
 side-table. Return the inverse retained score on retraction; do not recompute
 it from changed entities. Accumulate callbacks as `retract_delta + insert_delta`.
 Full evaluation and match counting are meaningful before initialization.
-Explanation payload conversion is confined to the existing cold `EntityRef`
-boundary.
+Explanation is confined to the cold `EntityRef` conversion: a type name and
+a `Debug` rendering per entity, no copy and no type erasure. Do not add a
+`Clone` bound on entity types; no stream needs one.
 
 Runtime constraint weights never touch that signing step. A score director's
 weight mode is a type (`ScoreDirector<S, C, Desc, M>`, `M` = `UnweightedMode`

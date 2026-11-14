@@ -41,8 +41,8 @@ where
 impl<S, A, B, K, KA, KB, EA, EB, Sc> Bi<S, A, B, BiUnaryPlan<K, KA, KB>, EA, EB, TrueFilter, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     K: Eq + std::hash::Hash + Clone + Send + Sync,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
@@ -66,8 +66,8 @@ where
 impl<S, A, B, K, KA, KB, EA, EB, F, Sc> Bi<S, A, B, BiUnaryPlan<K, KA, KB>, EA, EB, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     K: Eq + std::hash::Hash + Clone + Send + Sync,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
@@ -97,8 +97,8 @@ where
 impl<S, A, B, P, EA, EB, F, Sc> Bi<S, A, B, P, EA, EB, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
     F: BiFilter<S, A, B>,
@@ -191,7 +191,7 @@ where
         Sc,
     >
     where
-        C: Clone + Send + Sync + 'static,
+        C: Send + Sync + 'static,
         EC: CollectionExtract<S, Item = C> + 'static,
         P: CompileCondition + 'static,
         for<'a> P::Plan: ExecutablePlan<
@@ -226,8 +226,8 @@ where
 impl<S, A, B, K, KA, KB, EA, EB, F, Sc> Bi<S, A, B, BiUnaryPlan<K, KA, KB>, EA, EB, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
     K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
@@ -260,7 +260,7 @@ where
         Sc,
     >
     where
-        C: Clone + Send + Sync + 'static,
+        C: Send + Sync + 'static,
         CK: Eq + std::hash::Hash + Clone + Send + Sync,
         Flatten: Fn(&B) -> &[C] + Send + Sync,
         CKeyFn: Fn(&C) -> CK + Send + Sync,

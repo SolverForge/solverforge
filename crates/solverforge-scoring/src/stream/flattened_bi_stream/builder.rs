@@ -80,8 +80,8 @@ impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
     >
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + std::fmt::Debug + 'static,
-    B: Clone + Send + Sync + 'static,
+    A: Send + Sync + std::fmt::Debug + 'static,
+    B: Send + Sync + 'static,
     C: 'static,
     K: Eq + Hash + Clone + Send + Sync + 'static,
     CK: Eq + Hash + Clone + Send + Sync + 'static,

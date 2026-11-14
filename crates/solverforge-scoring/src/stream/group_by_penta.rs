@@ -13,11 +13,11 @@ impl<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
     super::cross::Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
-    D: Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
+    D: Send + Sync + 'static,
+    E: Send + Sync + 'static,
     EA: 'static,
     EB: 'static,
     EC: 'static,

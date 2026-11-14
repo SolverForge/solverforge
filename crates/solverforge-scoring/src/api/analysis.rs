@@ -1,52 +1,32 @@
 //! Score analysis types for detailed constraint tracking.
 //!
-//! This module provides types for analyzing constraint matches in detail,
-//! including which entities are involved in each match, score explanations,
-//! and entity-level indictments.
+//! This module provides types for analyzing constraint matches in detail:
+//! each match's score and the entities that caused it.
 
-use std::any::Any;
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
-/// Reference to an entity involved in a constraint match.
-/// Uses type erasure to allow storing references to different entity types
-/// in a single collection.
-#[derive(Clone)]
+/// An entity involved in a constraint match, as constraint analysis reports
+/// it: the entity's type name and its `Debug` rendering, taken when the match
+/// is explained. It holds no copy of the entity, so explaining a match
+/// requires only `Debug` on the entity type.
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct EntityRef {
     /// Type name of the entity (e.g., "Shift", "Employee").
     pub type_name: String,
     /// String representation for display.
     pub display: String,
-    // Type-erased entity for programmatic access.
-    entity: Arc<dyn Any + Send + Sync>,
 }
 
 impl EntityRef {
-    /// Creates a new entity reference from a concrete entity.
-    pub fn new<T: Clone + Debug + Send + Sync + 'static>(entity: &T) -> Self {
+    /// Describes `entity` by its type name and `Debug` rendering.
+    pub fn new<T: Debug + ?Sized>(entity: &T) -> Self {
         Self {
             type_name: std::any::type_name::<T>().to_string(),
-            display: format!("{:?}", entity),
-            entity: Arc::new(entity.clone()),
+            display: format!("{entity:?}"),
         }
-    }
-
-    /// Creates an entity reference with a custom display string.
-    pub fn with_display<T: Clone + Send + Sync + 'static>(entity: &T, display: String) -> Self {
-        Self {
-            type_name: std::any::type_name::<T>().to_string(),
-            display,
-            entity: Arc::new(entity.clone()),
-        }
-    }
-
-    /// Attempts to downcast to the concrete entity type.
-    pub fn as_entity<T: 'static>(&self) -> Option<&T> {
-        self.entity.downcast_ref::<T>()
     }
 
     /// Returns the short type name (without module path).
@@ -64,21 +44,6 @@ impl Debug for EntityRef {
             .field("type", &self.short_type_name())
             .field("display", &self.display)
             .finish()
-    }
-}
-
-impl PartialEq for EntityRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.type_name == other.type_name && self.display == other.display
-    }
-}
-
-impl Eq for EntityRef {}
-
-impl Hash for EntityRef {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.type_name.hash(state);
-        self.display.hash(state);
     }
 }
 

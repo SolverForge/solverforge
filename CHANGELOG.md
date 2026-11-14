@@ -1,6 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.28.0](https://github.com/SolverForge/solverforge/compare/v0.27.0...v0.28.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** Constraint analysis describes entities by type name and `Debug` rendering only. `EntityRef::as_entity` and `EntityRef::with_display` are removed and `EntityRef::new` takes any `T: Debug + ?Sized`; read the entity from your solution instead of from the match. Grouped and complemented constraints, which now report their matches (#261), require `Debug` on their entities like every other constraint. `SharedOperatorBuilder::with_explainer` and `OperatorScorerSet::score_for` are removed. Scoring streams no longer require `Clone` on entity types.
+
+### Features
+
+* **solver:** report the resolved solver policy in final telemetry ([dc34520](https://github.com/SolverForge/solverforge/commit/dc34520a370cc57c88770059294876c7c51880ae)), references #253
+
+
+### Bug Fixes
+
+* **scoring:** describe matched entities without copying them ([19188ac](https://github.com/SolverForge/solverforge/commit/19188acc3cbb01df9457566d204a8bdc822c00e9)), references #261
+* **scoring:** report matches for grouped and complemented constraints ([ac41c31](https://github.com/SolverForge/solverforge/commit/ac41c313ecaedfc498eed425266b5afdefae691d)), closes #261
+
+
 ## [0.27.0](https://github.com/SolverForge/solverforge/compare/v0.26.1...v0.27.0) (2026-11-13)
 
 

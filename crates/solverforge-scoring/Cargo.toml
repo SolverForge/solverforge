@@ -11,7 +11,7 @@ rust-version.workspace = true
 description = "Incremental constraint scoring for SolverForge"
 
 [dependencies]
-solverforge-core = { version = "=0.27.0", path = "../solverforge-core" }
+solverforge-core = { version = "=0.28.0", path = "../solverforge-core" }
 
 [lints.rust]
 unreachable_pub = "warn"

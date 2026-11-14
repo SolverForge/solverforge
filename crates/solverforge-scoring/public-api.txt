@@ -7,8 +7,9 @@ struct api::analysis::ConstraintJustification: pub struct ConstraintJustificatio
     api::analysis::ConstraintJustification: pub fn with_description(entities: Vec<EntityRef>, description: String) -> Self
 struct api::analysis::DetailedConstraintMatch: pub struct DetailedConstraintMatch<'a, Sc: Score> { pub constraint_ref: &'a ConstraintRef, pub score: Sc, pub justification: ConstraintJustification, }
     api::analysis::DetailedConstraintMatch: pub fn new( constraint_ref: &'a ConstraintRef, score: Sc, justification: ConstraintJustification, ) -> Self
-struct api::analysis::EntityRef: pub struct EntityRef { pub type_name: String, pub display: String, }
+struct api::analysis::EntityRef: pub struct EntityRef { pub type_name: String, pub display: String, pub planning_id: Option<String>, }
     api::analysis::EntityRef: pub fn new<T: Debug + ?Sized>(entity: &T) -> Self
+    api::analysis::EntityRef: pub fn with_planning_id(self, planning_id: Option<String>) -> Self
     api::analysis::EntityRef: pub fn short_type_name(&self) -> &str
 struct api::constraint_set::ConstraintMetadata: pub struct ConstraintMetadata<'a> { pub constraint_ref: &'a ConstraintRef, pub is_hard: bool, }
     api::constraint_set::ConstraintMetadata: pub fn new(constraint_ref: &'a ConstraintRef, is_hard: bool) -> Self
@@ -541,11 +542,12 @@ trait stream::ProjectionSink: pub trait ProjectionSink<Out> { // Required method
     stream::ProjectionSink: fn emit(&mut self, output: Out)
 trait stream::UnassignedEntity: pub trait UnassignedEntity<S>: Clone + Send + Sync + 'static { // Required method fn is_unassigned(solution: &S, entity: &Self) -> bool; }
     stream::UnassignedEntity: fn is_unassigned(solution: &S, entity: &Self) -> bool
-trait stream::collection_extract::CollectionExtract: pub trait CollectionExtract<S>: Send + Sync { type Item; // Required methods fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]; fn change_source(&self) -> ChangeSource; // Provided method fn contains(&self, _s: &S, _item: &Self::Item) -> bool { ... } }
+trait stream::collection_extract::CollectionExtract: pub trait CollectionExtract<S>: Send + Sync { type Item; // Required methods fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]; fn change_source(&self) -> ChangeSource; // Provided methods fn contains(&self, _s: &S, _item: &Self::Item) -> bool { ... } fn planning_id(&self, _item: &Self::Item) -> Option<String> { ... } }
     stream::collection_extract::CollectionExtract: type Item
     stream::collection_extract::CollectionExtract: fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]
     stream::collection_extract::CollectionExtract: fn change_source(&self) -> ChangeSource
     stream::collection_extract::CollectionExtract: fn contains(&self, _s: &S, _item: &Self::Item) -> bool
+    stream::collection_extract::CollectionExtract: fn planning_id(&self, _item: &Self::Item) -> Option<String>
 trait stream::collection_extract::FlattenExtract: pub trait FlattenExtract<P>: Send + Sync { type Item; // Required method fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item]; }
     stream::collection_extract::FlattenExtract: type Item
     stream::collection_extract::FlattenExtract: fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item]

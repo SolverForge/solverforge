@@ -96,9 +96,14 @@ unlocalized source and no rebuild fallback.
 side-table. Return the inverse retained score on retraction; do not recompute
 it from changed entities. Accumulate callbacks as `retract_delta + insert_delta`.
 Full evaluation and match counting are meaningful before initialization.
-Explanation is confined to the cold `EntityRef` conversion: a type name and
-a `Debug` rendering per entity, no copy and no type erasure. Do not add a
-`Clone` bound on entity types; no stream needs one.
+Explanation is confined to the cold `EntityRef` conversion: a type name, a
+`Debug` rendering and the source's planning-id rendering per entity, no copy
+and no type erasure. A custom operator explains its rows by implementing
+`ExplainOperator`: it maps the row's `RowOrigin` (a retained handle, or the
+evaluation it was visited from) to its input rows and asks its inputs to
+explain them, so the collection leaves read the planning ids from their
+sources. Do not add a `Clone` bound on entity types; no stream needs one, and
+do not read planning ids while scoring.
 
 Runtime constraint weights never touch that signing step. A score director's
 weight mode is a type (`ScoreDirector<S, C, Desc, M>`, `M` = `UnweightedMode`

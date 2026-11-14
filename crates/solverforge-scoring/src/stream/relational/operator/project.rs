@@ -1,4 +1,5 @@
-use super::{ExplainRow, Operator};
+use super::Operator;
+use super::{ExplainOperator, RowOrigin};
 use crate::api::analysis::EntityRef;
 use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
 
@@ -15,11 +16,6 @@ impl<V: Copy, T> Copy for ProjectView<'_, V, T> {}
 impl<V: Copy, T> Clone for ProjectView<'_, V, T> {
     fn clone(&self) -> Self {
         *self
-    }
-}
-impl<V: ExplainRow, T> ExplainRow for ProjectView<'_, V, T> {
-    fn explain(&self, entities: &mut Vec<EntityRef>) {
-        self.input.explain(entities);
     }
 }
 
@@ -216,5 +212,28 @@ where
         self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
         self.child_removed = in_removed;
         self.child_inserted = in_inserted;
+    }
+}
+
+impl<S: 'static, O, F, T: 'static> ExplainOperator<S> for ProjectNode<O, F, T>
+where
+    O: ExplainOperator<S>,
+    F: for<'a> Fn(&S, &O::View<'a>) -> Vec<T> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        let input = match origin {
+            RowOrigin::Retained(handle) => match self.rows.get(handle) {
+                Some(output) => RowOrigin::Retained(output.input),
+                None => return,
+            },
+            RowOrigin::Evaluation(evaluation) => RowOrigin::Evaluation(&evaluation.input),
+        };
+        self.input.explain(solution, &row.input, input, entities);
     }
 }

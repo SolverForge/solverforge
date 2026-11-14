@@ -1,4 +1,6 @@
 use super::*;
+use crate::api::analysis::EntityRef;
+use crate::stream::relational::operator::{ExplainOperator, RowOrigin};
 
 /// Scored tri operator: the tree plus the authored filter as one row producer.
 ///
@@ -195,5 +197,31 @@ where
         let (a, b, c) = row.entities();
         let (ai, bi, ci) = row.indexes();
         self.filter.test(solution, a, b, c, ai, bi, ci)
+    }
+}
+
+impl<S, A, B, C, EA, EB, EC, P1, P2, F> ExplainOperator<S>
+    for TriScored<S, A, B, C, EA, EB, EC, P1, P2, F>
+where
+    S: Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    C: Send + Sync + 'static,
+    P1: CompileCondition<Plan: IndexedPlan> + 'static,
+    P2: CompileCondition<Plan: IndexedPlan> + 'static,
+    for<'a> JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>:
+        Operator<S, View<'a> = Pair<Leaf<'a, A>, Leaf<'a, B>>>,
+    for<'a> BuiltTri<S, EA, EB, EC, P1, P2>:
+        ExplainOperator<S, View<'a> = Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>>,
+    F: TriFilter<S, A, B, C> + 'static,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.inner.explain(solution, row, origin, entities);
     }
 }

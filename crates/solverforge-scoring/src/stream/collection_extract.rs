@@ -7,6 +7,16 @@
 //! changes. A raw closure or `fn` item carries no such identity and is not a
 //! source.
 
+use std::marker::PhantomData;
+
+mod planning_id;
+
+#[doc(hidden)]
+pub use planning_id::{
+    AnalysisPlanningId, ModelPlanningIds, NoPlanningIds, RenderPlanningId, RenderPlanningIdDebug,
+    RenderPlanningIdDisplay, RenderPlanningIdNone, SourcePlanningIds,
+};
+
 /// Extracts a slice of entities from the solution.
 ///
 /// The associated type `Item` names the entity type, allowing callers to
@@ -33,6 +43,15 @@ pub trait CollectionExtract<S>: Send + Sync {
     /// planning-variable change can alter them. Macro-generated solution source
     /// methods attach it through hidden internal support.
     fn change_source(&self) -> ChangeSource;
+
+    /// The planning id constraint analysis reports for `item`, rendered as
+    /// described on [`EntityRef::planning_id`](crate::api::analysis::EntityRef::planning_id).
+    /// Read only while explaining a match, never while scoring. Planning-model
+    /// entity and fact collections report their `#[planning_id]`; the default
+    /// reports none.
+    fn planning_id(&self, _item: &Self::Item) -> Option<String> {
+        None
+    }
 }
 
 /// Preserves a unary stream's membership at the source boundary, before
@@ -67,6 +86,10 @@ where
 
     fn change_source(&self) -> ChangeSource {
         self.extractor.change_source()
+    }
+
+    fn planning_id(&self, item: &Self::Item) -> Option<String> {
+        self.extractor.planning_id(item)
     }
 }
 
@@ -126,18 +149,34 @@ where
     }
 }
 
+/// A collection source: the slice accessor, the descriptor that owns its
+/// rows, and, in `I`, how analysis renders its items' planning ids (a
+/// zero-sized [`SourcePlanningIds`] choice, so it adds nothing to the source).
 #[doc(hidden)]
-#[derive(Clone, Copy)]
-pub struct SourceExtract<E> {
+pub struct SourceExtract<E, I = NoPlanningIds> {
     extractor: E,
     change_source: ChangeSource,
+    planning_ids: PhantomData<fn() -> I>,
 }
 
-impl<E> SourceExtract<E> {
+impl<E: Clone, I> Clone for SourceExtract<E, I> {
+    fn clone(&self) -> Self {
+        Self {
+            extractor: self.extractor.clone(),
+            change_source: self.change_source,
+            planning_ids: PhantomData,
+        }
+    }
+}
+
+impl<E: Copy, I> Copy for SourceExtract<E, I> {}
+
+impl<E, I> SourceExtract<E, I> {
     pub fn new(extractor: E, change_source: ChangeSource) -> Self {
         Self {
             extractor,
             change_source,
+            planning_ids: PhantomData,
         }
     }
 
@@ -146,9 +185,10 @@ impl<E> SourceExtract<E> {
     }
 }
 
-impl<S, A, E> CollectionExtract<S> for SourceExtract<E>
+impl<S, A, E, I> CollectionExtract<S> for SourceExtract<E, I>
 where
     E: for<'a> Fn(&'a S) -> &'a [A] + Send + Sync,
+    I: SourcePlanningIds<A>,
 {
     type Item = A;
 
@@ -160,9 +200,23 @@ where
     fn change_source(&self) -> ChangeSource {
         self.change_source
     }
+
+    fn planning_id(&self, item: &A) -> Option<String> {
+        I::planning_id(item)
+    }
 }
 
 #[doc(hidden)]
 pub fn source<E>(extractor: E, change_source: ChangeSource) -> SourceExtract<E> {
+    SourceExtract::new(extractor, change_source)
+}
+
+/// A planning-model entity or fact collection source: like [`source`], and
+/// its items report their `#[planning_id]` in constraint analysis.
+#[doc(hidden)]
+pub fn model_source<E>(
+    extractor: E,
+    change_source: ChangeSource,
+) -> SourceExtract<E, ModelPlanningIds> {
     SourceExtract::new(extractor, change_source)
 }

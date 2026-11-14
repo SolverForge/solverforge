@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use super::collector::{Accumulator, Collector};
-use super::relational::operator::{ExplainRow, GroupNode, Operator};
+use super::relational::operator::{ExplainOperator, GroupNode, Operator};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::{GroupAdapter, SharedOperatorBuilder, SharedOperatorTerminal};
 use solverforge_core::{score::Score, ImpactType};
@@ -85,8 +85,7 @@ pub struct JoinedGroupedBuilder<S, O, F, C, K, V, R, Acc: Accumulator<V, R>, W, 
 impl<S, O, F, C, K, V, R, Acc, W, Sc> JoinedGroupedBuilder<S, O, F, C, K, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    O: Operator<S> + Send + Sync,
-    for<'a> O::View<'a>: ExplainRow,
+    O: ExplainOperator<S> + Send + Sync,
     F: for<'a> Fn(&O::View<'a>) -> K + Send + Sync + 'static,
     C: for<'a> Collector<O::View<'a>, Value = V, Result = R, Accumulator = Acc> + 'static,
     K: Eq + Hash + Clone + Send + Sync + 'static,

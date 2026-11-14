@@ -19,7 +19,9 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::{AndTriFilter, FnTriFilter, TriAsQuadFilter, TriFilter};
 use super::super::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
-use super::super::relational::operator::{CollectionNode, ExplainRow, JoinNode, Operator, Pair};
+use super::super::relational::operator::{
+    CollectionNode, ExplainOperator, JoinNode, Operator, Pair,
+};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
 use super::super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
@@ -344,7 +346,7 @@ where
         Operator<S, View<'a> = Pair<Leaf<'a, A>, Leaf<'a, B>>>,
     for<'a> BuiltTri<S, EA, EB, EC, P1, P2>:
         Operator<S, View<'a> = Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>>,
-    for<'a> TriRow<'a, S, EA, EB, EC, P1, P2>: ExplainRow,
+    BuiltTri<S, EA, EB, EC, P1, P2>: ExplainOperator<S>,
     F: TriFilter<S, A, B, C> + 'static,
     W: Fn(&A, &B, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,

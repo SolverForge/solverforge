@@ -198,7 +198,8 @@ where
             .iter()
             .filter(|e| self.matches(solution, e))
             .map(|entity| {
-                let entity_ref = EntityRef::new(entity);
+                let entity_ref =
+                    EntityRef::new(entity).with_planning_id(self.extractor.planning_id(entity));
                 let justification = ConstraintJustification::new(vec![entity_ref]);
                 DetailedConstraintMatch::new(cref, self.compute_delta(entity), justification)
             })

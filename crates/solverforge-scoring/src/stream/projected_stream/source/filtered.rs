@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use crate::stream::collection_extract::ChangeSource;
 use crate::stream::filter::UniFilter;
 
-use super::{RowCoordinate, Source};
+use super::{ExplainSource, RowCoordinate, RowOwner, Source};
+use crate::api::analysis::EntityRef;
 
 pub struct FilteredSource<S, Out, Src, F> {
     source: Src,
@@ -94,5 +95,17 @@ where
     ) {
         self.source
             .retract_entity_state(solution, state, slot, entity_index);
+    }
+}
+
+impl<S, Out, Src, F> ExplainSource<S, Out> for FilteredSource<S, Out, Src, F>
+where
+    S: Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    Src: ExplainSource<S, Out>,
+    F: UniFilter<S, Out>,
+{
+    fn explain_owner(&self, solution: &S, owner: RowOwner, entities: &mut Vec<EntityRef>) {
+        self.source.explain_owner(solution, owner, entities);
     }
 }

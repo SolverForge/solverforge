@@ -1,5 +1,7 @@
 use super::super::{BindingId, DenseRowStore, Leaf, RowHandle};
 use super::Operator;
+use super::{ExplainOperator, RowOrigin};
+use crate::api::analysis::EntityRef;
 use crate::stream::collection_extract::CollectionExtract;
 use std::marker::PhantomData;
 
@@ -129,5 +131,22 @@ where
                 inserted.push(handle);
             }
         }
+    }
+}
+
+impl<S: 'static, E: CollectionExtract<S> + 'static> ExplainOperator<S> for CollectionNode<S, E>
+where
+    E::Item: std::fmt::Debug + 'static,
+{
+    fn explain(
+        &self,
+        _solution: &S,
+        row: &Self::View<'_>,
+        _origin: RowOrigin<'_, ()>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        entities.push(
+            EntityRef::new(row.entity).with_planning_id(self.extractor.planning_id(row.entity)),
+        );
     }
 }

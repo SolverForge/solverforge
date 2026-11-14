@@ -178,8 +178,9 @@ All hot-path code must stay monomorphized.
 - Avoid `.clone()` in move evaluation and scoring paths. Scoring streams do
   not require `Clone` on entity types, so generic scoring code cannot clone an
   entity; do not add a `Clone` bound to make one compile. Constraint analysis
-  describes an entity by its type name and `Debug` rendering (`EntityRef`) and
-  keeps no copy of it.
+  describes an entity by its type name, `Debug` rendering and source-rendered
+  planning id (`EntityRef`) and keeps no copy of it; planning ids are read
+  only on the cold explanation path.
 - Preserve concrete types through the full solver pipeline.
 
 Intentional type-erasure boundaries that should not be "fixed":

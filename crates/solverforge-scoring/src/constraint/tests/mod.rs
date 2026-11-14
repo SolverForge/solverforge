@@ -9,6 +9,7 @@ mod flattened_bi;
 mod grouped;
 mod grouped_analysis;
 mod overflow;
+mod planning_id_analysis;
 mod projected;
 mod relational;
 mod weights;

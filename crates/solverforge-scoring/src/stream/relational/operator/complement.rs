@@ -5,6 +5,7 @@ use crate::stream::relational::keyed_plan::{KeyOf, RightKeyOf};
 use crate::stream::relational::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
 use std::marker::PhantomData;
 
+mod explain;
 mod outputs;
 
 struct Output<T> {

@@ -1,5 +1,7 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
 use super::{links::remove_link, GroupedOperator, Operator, Pair, PairDelta};
+use super::{ExplainOperator, RowOrigin};
+use crate::api::analysis::EntityRef;
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::hash::FastMap;
 use std::marker::PhantomData;
@@ -405,5 +407,36 @@ where
 {
     fn changed_group_count(&self) -> usize {
         self.left.changed_group_count()
+    }
+}
+
+impl<S: 'static, L: ExplainOperator<S>, R: ExplainOperator<S>, P: IndexedPlan + 'static>
+    ExplainOperator<S> for JoinNode<S, L, R, P>
+where
+    for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        let (left, right) = match origin {
+            RowOrigin::Retained(handle) => {
+                let Some(joined) = self.rows.get(handle) else {
+                    return;
+                };
+                (
+                    RowOrigin::Retained(joined.identity.left()),
+                    RowOrigin::Retained(joined.identity.right()),
+                )
+            }
+            RowOrigin::Evaluation((left, right)) => {
+                (RowOrigin::Evaluation(left), RowOrigin::Evaluation(right))
+            }
+        };
+        self.left.explain(solution, &row.left, left, entities);
+        self.right.explain(solution, &row.right, right, entities);
     }
 }

@@ -162,7 +162,7 @@ where
     O: Operator<S> + Send + Sync,
     W: for<'a> Fn(&S, &O::View<'a>) -> Sc + Send + Sync,
     Sc: Score + 'static,
-    for<'a> O::View<'a>: super::relational::operator::ExplainRow,
+    O: super::relational::operator::ExplainOperator<S>,
 {
     /// Marks the constraint hard.
     pub fn hard(mut self) -> Self {

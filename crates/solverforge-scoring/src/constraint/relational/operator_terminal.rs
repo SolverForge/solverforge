@@ -4,7 +4,7 @@ use crate::api::{
 };
 use crate::constraint::score_sum::{checked, ScoreSum};
 use crate::stream::relational::{
-    operator::{ExplainRow, Operator},
+    operator::{ExplainOperator, Operator, RowOrigin},
     HandleMap, RowHandle,
 };
 use solverforge_core::{score::Score, ConstraintRef, ImpactType};
@@ -101,7 +101,7 @@ where
     O: Operator<S> + Send + Sync,
     W: for<'a> Fn(&S, &O::View<'a>) -> Sc + Send + Sync,
     Sc: Score,
-    for<'a> O::View<'a>: ExplainRow,
+    O: ExplainOperator<S>,
 {
     fn evaluate(&self, solution: &S) -> Sc {
         let mut score = ScoreSum::new();
@@ -196,9 +196,9 @@ where
     }
     fn get_matches<'a>(&'a self, solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
         let mut matches = Vec::new();
-        let mut record = |row: O::View<'_>, score| {
+        let mut record = |row: O::View<'_>, origin: RowOrigin<'_, O::Evaluation>, score| {
             let mut entities = Vec::new();
-            row.explain(&mut entities);
+            self.operator.explain(solution, &row, origin, &mut entities);
             matches.push(DetailedConstraintMatch::new(
                 &self.constraint_ref,
                 score,
@@ -213,13 +213,17 @@ where
                     .expect("live explanation row");
                 record(
                     row,
+                    RowOrigin::Retained(handle),
                     self.signed_checked(*self.scores.get(handle).expect("live terminal score")),
                 );
             }
         } else {
-            self.operator.visit_all(solution, &mut |row| {
-                record(row, self.signed_checked((self.weight)(solution, &row)));
-            });
+            let evaluation = self.operator.prepare_evaluation(solution);
+            self.operator
+                .visit_evaluation(solution, &evaluation, &mut |row| {
+                    let score = self.signed_checked((self.weight)(solution, &row));
+                    record(row, RowOrigin::Evaluation(&evaluation), score);
+                });
         }
         matches
     }

@@ -1,5 +1,7 @@
 use super::group_view::GroupView;
+use super::{ExplainOperator, RowOrigin};
 use super::{Operator, PairDelta};
+use crate::api::analysis::EntityRef;
 use crate::stream::collection_extract::FlattenExtract;
 use crate::stream::collector::Accumulator;
 use crate::stream::relational::count_state::KeyState;
@@ -455,5 +457,26 @@ where
         removed.clear();
         inserted.clear();
         self.notify(solution, descriptor, index, false, removed, inserted);
+    }
+}
+
+impl<S: 'static, L: ExplainOperator<S>, R: Operator<S>, K, LK, RK> ExplainOperator<S>
+    for ExistenceNode<S, L, R, K, LK, RK>
+where
+    K: Eq + Hash + Clone + 'static,
+    LK: Send + Sync + 'static,
+    RK: Send + Sync + 'static,
+    for<'a> LK: ViewKey<L::View<'a>, Key = K>,
+    for<'a> RK: RightKeySet<R::View<'a>, Key = K>,
+{
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        self.left
+            .explain(solution, row, origin.map(|(left, _)| left), entities);
     }
 }

@@ -17,7 +17,7 @@ use solverforge_core::score::SoftScore;
 
 use crate::api::analysis::DetailedConstraintMatch;
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-use crate::stream::collection_extract::{source, ChangeSource};
+use crate::stream::collection_extract::{source, ChangeSource, SourceExtract, SourcePlanningIds};
 use crate::stream::collector::{count, sum};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
@@ -310,4 +310,73 @@ fn shared_grouped_terminals_each_report_their_matches_under_their_multiplier() {
         vec![(0, vec![shift(0, Some(0)), shift(1, Some(0))])],
         "a disabled terminal still names its groups, at score zero"
     );
+}
+
+struct ShiftIds;
+
+impl SourcePlanningIds<Shift> for ShiftIds {
+    fn planning_id(shift: &Shift) -> Option<String> {
+        Some(format!("shift-{}", shift.id))
+    }
+}
+
+#[test]
+fn shared_grouped_terminals_report_their_contributors_planning_ids() {
+    let shifts_with_ids: SourceExtract<fn(&Roster) -> &[Shift], ShiftIds> = SourceExtract::new(
+        shifts as fn(&Roster) -> &[Shift],
+        ChangeSource::Descriptor(0),
+    );
+    let mut constraints = factory()
+        .for_each(shifts_with_ids)
+        .group_by(nurse_key, count())
+        .penalize(|_nurse: &usize, shifts: &usize| SoftScore::of(shifts.saturating_sub(1) as i64))
+        .named("Shifts beyond one")
+        .reward(|nurse: &usize, shifts: &usize| {
+            SoftScore::of(if *nurse == UNASSIGNED {
+                0
+            } else {
+                *shifts as i64
+            })
+        })
+        .named("Assigned shifts");
+    let plan = roster();
+    let planning_ids = |analysis: &crate::api::analysis::ConstraintAnalysis<'_, SoftScore>| {
+        let mut rows = analysis
+            .matches
+            .iter()
+            .map(|detailed| {
+                detailed
+                    .justification
+                    .entities
+                    .iter()
+                    .map(|entity| entity.planning_id.clone().unwrap_or_default())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        rows.sort();
+        rows
+    };
+    let expected = [
+        vec![vec!["shift-0".to_string(), "shift-1".to_string()]],
+        vec![
+            vec!["shift-0".to_string(), "shift-1".to_string()],
+            vec!["shift-2".to_string()],
+        ],
+    ];
+
+    // Before initialization (a full evaluation) and after it (retained rows).
+    for initialized in [false, true] {
+        if initialized {
+            constraints.initialize_all(&plan);
+        }
+        let analyses = constraints.evaluate_detailed(&plan);
+        for (analysis, expected) in analyses.iter().zip(&expected) {
+            assert_eq!(match_sum(&analysis.matches), analysis.score);
+            assert_eq!(
+                &planning_ids(analysis),
+                expected,
+                "initialized: {initialized}"
+            );
+        }
+    }
 }

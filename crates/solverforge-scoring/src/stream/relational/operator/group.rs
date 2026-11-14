@@ -1,4 +1,6 @@
 use super::{group_view::Contributors, GroupView, GroupedOperator, Operator};
+use super::{ExplainOperator, RowOrigin};
+use crate::api::analysis::EntityRef;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, RowHandle};
 use solverforge_core::fast_hash::FastHasher;
@@ -214,7 +216,7 @@ where
     }
     fn visit_evaluation<'a>(
         &'a self,
-        solution: &'a S,
+        _solution: &'a S,
         evaluation: &'a Self::Evaluation,
         visitor: &mut impl FnMut(Self::View<'a>),
     ) {
@@ -222,8 +224,6 @@ where
             visitor(GroupView {
                 key: &group.key,
                 accumulator: &group.accumulator,
-                input: &self.input,
-                solution,
                 contributors: Contributors::Evaluation(&evaluation.input, &group.ordinals),
                 marker: PhantomData,
             });
@@ -260,13 +260,11 @@ where
     fn handles(&self) -> Vec<RowHandle> {
         self.rows.iter().map(|(h, _)| h).collect()
     }
-    fn resolve<'a>(&'a self, solution: &'a S, h: RowHandle) -> Option<Self::View<'a>> {
+    fn resolve<'a>(&'a self, _solution: &'a S, h: RowHandle) -> Option<Self::View<'a>> {
         let group = self.groups.get(*self.rows.get(h)?)?;
         Some(GroupView {
             key: &group.key,
             accumulator: &group.accumulator,
-            input: &self.input,
-            solution,
             contributors: Contributors::Retained(&group.inputs),
             marker: PhantomData,
         })
@@ -343,5 +341,57 @@ where
 {
     fn changed_group_count(&self) -> usize {
         self.changed_group_count
+    }
+}
+
+impl<S: 'static, O, F, C, K, A, V: 'static, R: 'static> ExplainOperator<S>
+    for GroupNode<O, F, C, K, A, V, R>
+where
+    O: ExplainOperator<S>,
+    F: for<'a> Fn(&O::View<'a>) -> K + 'static,
+    for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A> + 'static,
+    K: Eq + Hash + 'static,
+    A: Accumulator<V, R> + 'static,
+{
+    /// A group is explained by the input rows that contribute to it, in
+    /// contribution order; the view itself records them.
+    fn explain(
+        &self,
+        solution: &S,
+        row: &Self::View<'_>,
+        _origin: RowOrigin<'_, Self::Evaluation>,
+        entities: &mut Vec<EntityRef>,
+    ) {
+        match row.contributors {
+            Contributors::Retained(handles) => {
+                for &handle in handles {
+                    let contributor = self
+                        .input
+                        .resolve(solution, handle)
+                        .expect("live group contributor");
+                    self.input.explain(
+                        solution,
+                        &contributor,
+                        RowOrigin::Retained(handle),
+                        entities,
+                    );
+                }
+            }
+            Contributors::Evaluation(evaluation, ordinals) => {
+                let mut ordinal = 0;
+                self.input
+                    .visit_evaluation(solution, evaluation, &mut |contributor| {
+                        if ordinals.contains(&ordinal) {
+                            self.input.explain(
+                                solution,
+                                &contributor,
+                                RowOrigin::Evaluation(evaluation),
+                                entities,
+                            );
+                        }
+                        ordinal += 1;
+                    });
+            }
+        }
     }
 }

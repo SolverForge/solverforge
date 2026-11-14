@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.29.0](https://github.com/SolverForge/solverforge/compare/v0.28.0...v0.29.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** EntityRef has a new public field `planning_id`, so struct literals must set it (or use EntityRef::new(..).with_planning_id).
+
+### Features
+
+* **scoring:** report planning ids in constraint matches ([cdbd83a](https://github.com/SolverForge/solverforge/commit/cdbd83a813b49459dee81e3dc834ba009990f27a)), closes #265
+
+
 ## [0.28.0](https://github.com/SolverForge/solverforge/compare/v0.27.0...v0.28.0) (2026-11-14)
 
 

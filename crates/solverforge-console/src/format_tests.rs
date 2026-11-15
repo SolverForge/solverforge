@@ -28,7 +28,13 @@ fn capture_events(f: impl FnOnce()) -> Vec<String> {
         outputs: outputs.clone(),
     });
 
-    tracing::subscriber::with_default(subscriber, f);
+    tracing::subscriber::with_default(subscriber, || {
+        // Callsite interest is cached process-wide; rebuild it once this
+        // thread's dispatcher is installed so a callsite another test thread
+        // registered concurrently cannot keep a "never" interest.
+        tracing::callsite::rebuild_interest_cache();
+        f();
+    });
     let captured = outputs.lock().unwrap().clone();
     captured
 }

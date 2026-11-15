@@ -235,6 +235,12 @@ mod tests {
         solver_scope.start_solving();
 
         tracing::subscriber::with_default(subscriber, || {
+            // Callsite interest is cached process-wide. A callsite another
+            // test thread registered while this dispatcher was being
+            // installed can keep the "never" interest it computed without
+            // it; rebuilding after the install makes this thread's
+            // dispatcher see every callsite.
+            tracing::callsite::rebuild_interest_cache();
             run_construction_phase(&mut solver_scope, 3, "Test Construction", |phase_scope| {
                 phase_scope.calculate_score();
                 phase_scope.update_best_solution();

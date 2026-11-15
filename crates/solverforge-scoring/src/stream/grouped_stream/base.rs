@@ -159,6 +159,7 @@ where
         B,
         K,
         E,
+        Fi,
         EB,
         impl Fn(&A) -> Option<K> + Send + Sync,
         KB,
@@ -179,6 +180,7 @@ where
         let wrapped_key_fn = crate::stream::closures::some_key::<A, K, _>(key_fn);
         ComplementedConstraintStream::new(
             self.extractor,
+            self.filter,
             extractor_b,
             wrapped_key_fn,
             key_b,
@@ -219,7 +221,7 @@ where
         key_a: KA2,
         key_b: KB,
         default_fn: D,
-    ) -> ComplementedConstraintStream<S, A, B, K, E, EB, KA2, KB, C, V, R, Acc, D, Sc>
+    ) -> ComplementedConstraintStream<S, A, B, K, E, Fi, EB, KA2, KB, C, V, R, Acc, D, Sc>
     where
         B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
@@ -229,6 +231,7 @@ where
     {
         ComplementedConstraintStream::new(
             self.extractor,
+            self.filter,
             extractor_b,
             key_a,
             key_b,

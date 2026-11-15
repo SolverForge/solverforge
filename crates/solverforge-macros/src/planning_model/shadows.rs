@@ -4,6 +4,10 @@ struct GeneratedListShadowUpdate {
     descriptor: Option<(usize, Ident)>,
     // Element reporting, present when the update writes element fields.
     elements: TokenStream,
+    // Cascading shadow hooks, present when `cascading_field` is configured.
+    cascade: TokenStream,
+    // The owner's list variable field.
+    list_variable: TokenStream,
 }
 
 fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
@@ -11,11 +15,11 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
     let solution_ident = &model.solution.ident;
     let solution_path = quote! { #solution_module::#solution_ident };
     let generated = generate_list_shadow_update(model, &solution_path)?;
-    let list_update = generated.update;
-    let list_reset = generated.reset;
-    let list_elements = generated.elements;
+    let list_update = generated.update.clone();
+    let list_reset = generated.reset.clone();
+    let list_elements = generated.elements.clone();
 
-    let Some((descriptor_index, collection_accessor)) = generated.descriptor else {
+    let Some((descriptor_index, collection_accessor)) = generated.descriptor.clone() else {
         return Ok(quote! {
             fn update_entity_shadows(
                 _solution: &mut Self,
@@ -30,6 +34,15 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
             }
         });
     };
+
+    if model.solution.shadow_config.cascading_field.is_some() {
+        return Ok(generate_cascading_shadow_methods(
+            &generated,
+            &solution_path,
+            descriptor_index,
+            &collection_accessor,
+        ));
+    }
 
     Ok(quote! {
         fn update_entity_shadows(
@@ -63,12 +76,15 @@ fn generate_list_shadow_update(
     solution_path: &TokenStream,
 ) -> Result<GeneratedListShadowUpdate> {
     let config = &model.solution.shadow_config;
+    validate_cascade_config(config)?;
     if !list_shadow_updates_requested(config) {
         return Ok(GeneratedListShadowUpdate {
             update: TokenStream::new(),
             reset: TokenStream::new(),
             descriptor: None,
             elements: TokenStream::new(),
+            cascade: TokenStream::new(),
+            list_variable: TokenStream::new(),
         });
     }
 
@@ -246,7 +262,8 @@ fn generate_list_shadow_update(
         || config.index_field.is_some()
         || config.previous_field.is_some()
         || config.next_field.is_some()
-        || config.cascading_listener.is_some();
+        || config.cascading_listener.is_some()
+        || config.cascading_field.is_some();
     let element_source = element_collection.descriptor_index.unwrap_or_else(|| {
         model
             .solution
@@ -286,11 +303,25 @@ fn generate_list_shadow_update(
     } else {
         TokenStream::new()
     };
+    let cascade = if config.cascading_field.is_some() {
+        generate_cascade_hooks(
+            config,
+            &CascadeContext {
+                solution_path,
+                element_accessor: &element_accessor,
+                element_mut_accessor: &element_mut_accessor,
+            },
+        )
+    } else {
+        TokenStream::new()
+    };
     Ok(GeneratedListShadowUpdate {
         update,
         reset: element_reset.unwrap_or_default(),
         descriptor: Some((descriptor_index, owner_accessor)),
         elements,
+        cascade,
+        list_variable: quote! { #list_variable_ident },
     })
 }
 
@@ -345,7 +376,8 @@ fn generate_list_compute_updates(
 }
 
 fn list_shadow_updates_requested(config: &ShadowConfig) -> bool {
-    config.inverse_field.is_some()
+    config.cascading_field.is_some()
+        || config.inverse_field.is_some()
         || config.index_field.is_some()
         || config.previous_field.is_some()
         || config.next_field.is_some()

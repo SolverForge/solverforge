@@ -12,6 +12,8 @@
 mod nurses;
 #[path = "readme_examples/routes/mod.rs"]
 mod routes;
+#[path = "readme_examples/shop/mod.rs"]
+mod shop;
 #[path = "readme_examples/staffing/mod.rs"]
 mod staffing;
 #[path = "readme_examples/weighted/mod.rs"]
@@ -83,6 +85,7 @@ const SOURCES: &[(&str, &str)] = &[
         include_str!("readme_examples/routes/plan.rs"),
     ),
     ("scores.rs", include_str!("readme_examples/scores.rs")),
+    ("shop/plan.rs", include_str!("readme_examples/shop/plan.rs")),
     ("streams.rs", include_str!("readme_examples/streams.rs")),
     (
         "weighted/schedule.rs",
@@ -215,4 +218,36 @@ fn readme_join_example_scores_night_shifts_with_a_matching_employee() {
     let constraint = night_shift::constraint();
     assert_eq!(constraint.match_count(&schedule), 1);
     assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
+}
+
+#[test]
+fn the_documented_cascading_shadow_follows_a_dependency_across_machines() {
+    use shop::{Machine, Shop, Task};
+    use solverforge::PlanningSolution;
+    let task = |id, duration, waits_on| Task {
+        id,
+        duration,
+        waits_on,
+        machine: None,
+        previous: None,
+        next: None,
+        start: None,
+    };
+    let mut plan = Shop {
+        machines: vec![
+            Machine {
+                id: 0,
+                tasks: vec![0],
+            },
+            Machine {
+                id: 1,
+                tasks: vec![2, 1],
+            },
+        ],
+        tasks: vec![task(0, 4, None), task(1, 3, Some(0)), task(2, 2, None)],
+        score: None,
+    };
+    plan.update_all_shadows();
+    let starts: Vec<_> = plan.tasks.iter().map(|task| task.start).collect();
+    assert_eq!(starts, vec![Some(0), Some(4), Some(0)]);
 }

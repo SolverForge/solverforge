@@ -49,6 +49,7 @@ src/
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId
+│   ├── cascade.rs                         — CascadePropagation: cascading list shadow propagation across list owners
 │   ├── dynamic.rs                         — DynamicModelBackend, scalar/list access contracts, explicit list access/metadata capabilities
 │   ├── dynamic/
 │   │   ├── assignment.rs                  — Dynamic scalar-assignment metadata contract and structural capabilities
@@ -151,6 +152,14 @@ Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domai
 | `list_shadow_elements` | `fn list_shadow_elements(&self, descriptor_index: usize, entity_index: usize) -> Option<(usize, &[usize])>` | Default: `None`; the elements an owner's shadow update writes, with the change source their stream rows use |
 | `clear_list_shadows` | `fn clear_list_shadows(&mut self, element: usize)` | Default: no-op; clears the list shadows of an element no list holds |
 | `list_shadow_source` | `fn list_shadow_source(collection: &str) -> Option<usize>` | Default: `None`; change source of a collection whose rows carry list shadows |
+| `HAS_CASCADING_SHADOWS` | `const HAS_CASCADING_SHADOWS: bool` | Default: `false`; `true` when the list shadows include a cascading shadow (`#[shadow_variable_updates(cascading_field = ...)]`). A score director compiles cascading propagation into its variable-change path only when it is `true` |
+| `cascading_element_count` | `fn cascading_element_count(&self) -> usize` | Default: `0`; elements of the collection carrying the cascading shadow |
+| `cascading_assigned` | `fn cascading_assigned(&self, element: usize) -> bool` | Default: `false`; whether a list holds `element` |
+| `cascading_next` | `fn cascading_next(&self, element: usize) -> Option<usize>` | Default: `None`; the element after `element` in its list |
+| `cascading_dependencies` | `fn cascading_dependencies(&self, element: usize, dependencies: &mut Vec<usize>)` | Default: none; appends the elements `element` waits on besides its previous element. Dependencies are problem facts |
+| `cascading_unset` | `fn cascading_unset(&self, element: usize) -> bool` | Default: `true`; whether the cascading value is unset |
+| `update_cascading_shadow` | `fn update_cascading_shadow<W: FnOnce(&Self)>(&mut self, element: usize, computable: bool, before_write: W) -> bool` | Default: `false`; recomputes (or, when `computable` is `false`, unsets) the value, calls `before_write` before writing a changed value, returns whether it changed |
+| `update_list_structure_shadows` | `fn update_list_structure_shadows(&mut self, descriptor_index: usize, entity_index: usize)` | Default: `update_entity_shadows`; refreshes one owner's inverse, index, previous and next shadows without the cascading shadow |
 | `is_initialized` | `fn is_initialized(&self) -> bool` | Default: `true` |
 
 **Associated type:** `type Score: Score`
@@ -327,6 +336,17 @@ pub struct EntityRef {
 ```
 
 Derives: `Debug, Clone`
+
+#### `CascadePropagation`
+
+Reusable propagation state for a solution's cascading list shadow (see
+`PlanningSolution::HAS_CASCADING_SHADOWS`): the reverse index of the declared
+dependencies plus per-element scratch. `Default`.
+
+- `new<S: PlanningSolution>(&S) -> Self` — state with the dependency index built.
+- `rebuild_dependencies<S: PlanningSolution>(&mut self, &S)` — rebuilds the index and resizes scratch; panics on a dependency to a missing element.
+- `refresh_all<S: PlanningSolution>(&mut S)` — recomputes every cascading value.
+- `propagate<S, I, W>(&mut self, &mut S, changed: I, before_write: W)` with `I: IntoIterator<Item = usize>`, `W: FnMut(&S, usize)` — recomputes the downstream cone of the `changed` elements in dependency order: each element at most once, after its inputs in the cone, and only when it is changed, an input changed value, or it is held by a list but unset; elements on a dependency cycle are unset. `before_write` sees the solution before each write.
 
 #### `EntityCollectionExtractor<S, E>`
 

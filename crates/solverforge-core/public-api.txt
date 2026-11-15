@@ -11,6 +11,11 @@ struct constraint_weights::ConstraintWeights: pub struct ConstraintWeights { /* 
     constraint_weights::ConstraintWeights: pub fn len(&self) -> usize
     constraint_weights::ConstraintWeights: pub fn iter(&self) -> impl Iterator<Item = (&str, u32)>
     constraint_weights::ConstraintWeights: pub fn validate<'a>( &self, known: impl IntoIterator<Item = &'a ConstraintRef>, ) -> Result<(), ConstraintWeightError>
+struct domain::CascadePropagation: pub struct CascadePropagation { /* private fields */ }
+    domain::CascadePropagation: pub fn new<S: PlanningSolution>(solution: &S) -> Self
+    domain::CascadePropagation: pub fn rebuild_dependencies<S: PlanningSolution>(&mut self, solution: &S)
+    domain::CascadePropagation: pub fn refresh_all<S: PlanningSolution>(solution: &mut S)
+    domain::CascadePropagation: pub fn propagate<S, I, W>( &mut self, solution: &mut S, changed: I, before_write: W, ) where S: PlanningSolution, I: IntoIterator<Item = usize>, W: FnMut(&S, usize),
 struct domain::DynamicListAccessCapabilities: pub struct DynamicListAccessCapabilities { pub set: bool, pub replace: bool, pub reverse: bool, pub sublist: bool, }
 struct domain::DynamicListMetadataCapabilities: pub struct DynamicListMetadataCapabilities { pub element_owner: bool, pub construction_order_key: bool, pub precedence_duration: bool, pub precedence_successors: bool, pub cross_position_distance: bool, pub intra_position_distance: bool, pub route: bool, pub savings: bool, }
 struct domain::DynamicListVariableSlot: pub struct DynamicListVariableSlot<S> { pub entity: EntityClassId, pub variable: VariableId, pub entity_type_name: &'static str, pub variable_name: &'static str, /* private fields */ }
@@ -291,8 +296,9 @@ trait domain::PlanningEntity: pub trait PlanningEntity: Clone + Send + Sync + An
 trait domain::PlanningId: pub trait PlanningId { type Id: Eq + Hash + Clone + Send + Sync + 'static; // Required method fn planning_id(&self) -> Self::Id; }
     domain::PlanningId: type Id: Eq + Hash + Clone + Send + Sync + 'static
     domain::PlanningId: fn planning_id(&self) -> Self::Id
-trait domain::PlanningSolution: pub trait PlanningSolution: Clone + Send + Sync + 'static { type Score: Score; const HAS_CONSTRAINT_WEIGHTS: bool = false; // Required methods fn score(&self) -> Option<Self::Score>; fn set_score(&mut self, score: Option<Self::Score>); // Provided methods fn update_entity_shadows( &mut self, _descriptor_index: usize, _entity_index: usize, ) { ... } fn update_all_shadows(&mut self) { ... } fn constraint_weights(&self) -> Option<&ConstraintWeights> { ... } fn list_shadow_elements( &self, _descriptor_index: usize, _entity_index: usize, ) -> Option<(usize, &[usize])> { ... } fn clear_list_shadows(&mut self, _element: usize) { ... } fn list_shadow_source(_collection: &str) -> Option<usize> { ... } fn is_initialized(&self) -> bool { ... } }
+trait domain::PlanningSolution: pub trait PlanningSolution: Clone + Send + Sync + 'static { type Score: Score; const HAS_CONSTRAINT_WEIGHTS: bool = false; const HAS_CASCADING_SHADOWS: bool = false; Show 16 methods // Required methods fn score(&self) -> Option<Self::Score>; fn set_score(&mut self, score: Option<Self::Score>); // Provided methods fn update_entity_shadows( &mut self, _descriptor_index: usize, _entity_index: usize, ) { ... } fn update_all_shadows(&mut self) { ... } fn constraint_weights(&self) -> Option<&ConstraintWeights> { ... } fn list_shadow_elements( &self, _descriptor_index: usize, _entity_index: usize, ) -> Option<(usize, &[usize])> { ... } fn clear_list_shadows(&mut self, _element: usize) { ... } fn list_shadow_source(_collection: &str) -> Option<usize> { ... } fn cascading_element_count(&self) -> usize { ... } fn cascading_assigned(&self, _element: usize) -> bool { ... } fn cascading_next(&self, _element: usize) -> Option<usize> { ... } fn cascading_dependencies( &self, _element: usize, _dependencies: &mut Vec<usize>, ) { ... } fn cascading_unset(&self, _element: usize) -> bool { ... } fn update_cascading_shadow<W: FnOnce(&Self)>( &mut self, _element: usize, _computable: bool, _before_write: W, ) -> bool { ... } fn update_list_structure_shadows( &mut self, descriptor_index: usize, entity_index: usize, ) { ... } fn is_initialized(&self) -> bool { ... } }
     domain::PlanningSolution: const HAS_CONSTRAINT_WEIGHTS: bool = false
+    domain::PlanningSolution: const HAS_CASCADING_SHADOWS: bool = false
     domain::PlanningSolution: type Score: Score
     domain::PlanningSolution: fn score(&self) -> Option<Self::Score>
     domain::PlanningSolution: fn set_score(&mut self, score: Option<Self::Score>)
@@ -302,6 +308,13 @@ trait domain::PlanningSolution: pub trait PlanningSolution: Clone + Send + Sync 
     domain::PlanningSolution: fn list_shadow_elements( &self, _descriptor_index: usize, _entity_index: usize, ) -> Option<(usize, &[usize])>
     domain::PlanningSolution: fn clear_list_shadows(&mut self, _element: usize)
     domain::PlanningSolution: fn list_shadow_source(_collection: &str) -> Option<usize>
+    domain::PlanningSolution: fn cascading_element_count(&self) -> usize
+    domain::PlanningSolution: fn cascading_assigned(&self, _element: usize) -> bool
+    domain::PlanningSolution: fn cascading_next(&self, _element: usize) -> Option<usize>
+    domain::PlanningSolution: fn cascading_dependencies( &self, _element: usize, _dependencies: &mut Vec<usize>, )
+    domain::PlanningSolution: fn cascading_unset(&self, _element: usize) -> bool
+    domain::PlanningSolution: fn update_cascading_shadow<W: FnOnce(&Self)>( &mut self, _element: usize, _computable: bool, _before_write: W, ) -> bool
+    domain::PlanningSolution: fn update_list_structure_shadows( &mut self, descriptor_index: usize, entity_index: usize, )
     domain::PlanningSolution: fn is_initialized(&self) -> bool
 trait domain::ProblemFact: pub trait ProblemFact: Clone + Send + Sync + Any + 'static { // Required method fn as_any(&self) -> &dyn Any; }
     domain::ProblemFact: fn as_any(&self) -> &dyn Any

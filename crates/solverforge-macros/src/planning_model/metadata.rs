@@ -76,6 +76,9 @@ fn parse_shadow_config(attrs: &[Attribute]) -> Result<ShadowConfig> {
         config.previous_field = parse_attribute_string(attr, "previous_field");
         config.next_field = parse_attribute_string(attr, "next_field");
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");
+        config.cascading_field = parse_attribute_string(attr, "cascading_field");
+        config.cascading_compute = parse_attribute_string(attr, "cascading_compute");
+        config.cascading_dependencies = parse_attribute_string(attr, "cascading_dependencies");
         config.post_update_listener = parse_attribute_string(attr, "post_update_listener");
         config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
         config.entity_computes = parse_attribute_list(attr, "entity_compute");

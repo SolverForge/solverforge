@@ -28,5 +28,6 @@ include!("planning_model/support.rs");
 include!("planning_model/scalar_candidate_hooks.rs");
 include!("planning_model/scalar_order_hooks.rs");
 include!("planning_model/shadows.rs");
+include!("planning_model/cascade.rs");
 #[cfg(test)]
 include!("planning_model/tests.rs");

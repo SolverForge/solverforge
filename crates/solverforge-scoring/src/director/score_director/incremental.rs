@@ -217,6 +217,10 @@ where
             descriptor_index,
             entity_index,
         );
+        if S::HAS_CASCADING_SHADOWS {
+            self.list_shadow_rows
+                .begin_cascading_change(&self.working_solution);
+        }
         let mut score = ScoreSum::new();
         score.add(self.cached_score);
         score.add(delta);
@@ -232,15 +236,25 @@ where
         if !self.initialized {
             return;
         }
-        let delta = self.list_shadow_rows.refresh_owner(
-            &mut self.working_solution,
-            &mut ModeRows {
-                constraints: &mut self.constraints,
-                mode: &self.weight_mode,
-            },
-            descriptor_index,
-            entity_index,
-        );
+        let mut rows = ModeRows {
+            constraints: &mut self.constraints,
+            mode: &self.weight_mode,
+        };
+        let delta = if S::HAS_CASCADING_SHADOWS {
+            self.list_shadow_rows.refresh_cascading_owner(
+                &mut self.working_solution,
+                &mut rows,
+                descriptor_index,
+                entity_index,
+            )
+        } else {
+            self.list_shadow_rows.refresh_owner(
+                &mut self.working_solution,
+                &mut rows,
+                descriptor_index,
+                entity_index,
+            )
+        };
         self.cached_score = self.cached_score + delta;
     }
 

@@ -11,6 +11,9 @@ pub(super) struct ShadowConfig {
     pub(super) previous_field: Option<String>,
     pub(super) next_field: Option<String>,
     pub(super) cascading_listener: Option<String>,
+    pub(super) cascading_field: Option<String>,
+    pub(super) cascading_compute: Option<String>,
+    pub(super) cascading_dependencies: Option<String>,
     pub(super) post_update_listener: Option<String>,
     pub(super) entity_aggregates: Vec<String>,
     pub(super) entity_computes: Vec<String>,
@@ -129,6 +132,9 @@ pub(super) fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.previous_field = parse_attribute_string(attr, "previous_field");
         config.next_field = parse_attribute_string(attr, "next_field");
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");
+        config.cascading_field = parse_attribute_string(attr, "cascading_field");
+        config.cascading_compute = parse_attribute_string(attr, "cascading_compute");
+        config.cascading_dependencies = parse_attribute_string(attr, "cascading_dependencies");
         config.post_update_listener = parse_attribute_string(attr, "post_update_listener");
         config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
         config.entity_computes = parse_attribute_list(attr, "entity_compute");

@@ -6,6 +6,7 @@
 //! - `ProblemFact`: Immutable input data
 //! - `PlanningId`: Unique identification for entities
 
+mod cascade;
 mod descriptor;
 mod dynamic;
 mod entity_ref;
@@ -15,6 +16,7 @@ mod variable;
 #[cfg(test)]
 mod tests;
 
+pub use cascade::CascadePropagation;
 pub use descriptor::{
     EntityClassId, EntityDescriptor, ProblemFactClassId, ProblemFactDescriptor, SolutionDescriptor,
     UsizeCandidateValues, UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey,

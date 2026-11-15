@@ -1,6 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.30.0](https://github.com/SolverForge/solverforge/compare/v0.29.0...v0.30.0) (2026-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** ComplementedConstraintStream and ComplementedConstraintBuilder gain a filter type parameter Fi after EA. Code naming these types spells the extra parameter.
+
+### Features
+
+* **shadows:** propagate cascading list shadows across list owners ([e475e7f](https://github.com/SolverForge/solverforge/commit/e475e7f8f44de38140406186185a57fb5a5446b6)), closes #268
+
+
+### Bug Fixes
+
+* **scoring:** apply the stream filter to uni grouped complements ([54ec9db](https://github.com/SolverForge/solverforge/commit/54ec9db6c36b4c4c2f201d06cc95eeb29d8c51ce)), closes #266
+* **test:** rebuild tracing interest after installing capture subscribers ([6fec1a4](https://github.com/SolverForge/solverforge/commit/6fec1a4ecf7a8bd77b1bb94fb8e18c49fe0e4ef6)), closes #263
+
+
 ## [0.29.0](https://github.com/SolverForge/solverforge/compare/v0.28.0...v0.29.0) (2026-11-14)
 
 

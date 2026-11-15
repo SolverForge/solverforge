@@ -71,4 +71,54 @@ pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     fn list_shadow_source(_collection: &str) -> Option<usize> {
         None
     }
+
+    /// Updates the list structure shadows (inverse, index, previous, next)
+    /// of one owner without the cascading shadow; returns whether anything
+    /// was updated. Defaults to `update_entity_shadows`.
+    fn update_list_structure_shadows(
+        solution: &mut Self,
+        descriptor_index: usize,
+        entity_index: usize,
+    ) -> bool {
+        <Self as PlanningModelSupport>::update_entity_shadows(
+            solution,
+            descriptor_index,
+            entity_index,
+        )
+    }
+
+    /// Number of elements carrying the cascading shadow; `0` by default.
+    fn cascading_element_count(_solution: &Self) -> usize {
+        0
+    }
+
+    /// Whether `element` is held by a list; `false` by default.
+    fn cascading_assigned(_solution: &Self, _element: usize) -> bool {
+        false
+    }
+
+    /// The element after `element` in its list; `None` by default.
+    fn cascading_next(_solution: &Self, _element: usize) -> Option<usize> {
+        None
+    }
+
+    /// Appends the declared dependencies of `element`; none by default.
+    fn cascading_dependencies(_solution: &Self, _element: usize, _dependencies: &mut Vec<usize>) {}
+
+    /// Whether `element`'s cascading value is unset; `true` by default.
+    fn cascading_unset(_solution: &Self, _element: usize) -> bool {
+        true
+    }
+
+    /// Recomputes (or, when `computable` is `false`, unsets) `element`'s
+    /// cascading value, calling `before_write` before writing a changed
+    /// value; returns whether it changed. `false` by default.
+    fn update_cascading_shadow<W: FnOnce(&Self)>(
+        _solution: &mut Self,
+        _element: usize,
+        _computable: bool,
+        _before_write: W,
+    ) -> bool {
+        false
+    }
 }

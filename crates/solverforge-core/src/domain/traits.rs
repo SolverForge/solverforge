@@ -117,6 +117,64 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
         None
     }
 
+    /// Whether the list shadows include a cascading shadow: an element value
+    /// computed from the element's previous element in its list and from the
+    /// elements it declares it depends on, which may sit in other owners'
+    /// lists.
+    ///
+    /// `#[shadow_variable_updates(cascading_field = ...)]` sets it to `true`
+    /// and generates the `cascading_*` hooks below. When it is `false`
+    /// (the default) a score director compiles no cascading code into its
+    /// variable-change path.
+    const HAS_CASCADING_SHADOWS: bool = false;
+
+    /// Number of elements in the collection that carries the cascading
+    /// shadow.
+    fn cascading_element_count(&self) -> usize {
+        0
+    }
+
+    /// Whether `element` is held by a list.
+    fn cascading_assigned(&self, _element: usize) -> bool {
+        false
+    }
+
+    /// The element after `element` in its list, if any.
+    fn cascading_next(&self, _element: usize) -> Option<usize> {
+        None
+    }
+
+    /// Appends the elements `element`'s cascading value depends on, besides
+    /// its previous element in its list, to `dependencies`. Dependencies are
+    /// problem facts: moves never change them.
+    fn cascading_dependencies(&self, _element: usize, _dependencies: &mut Vec<usize>) {}
+
+    /// Whether `element`'s cascading value is unset.
+    fn cascading_unset(&self, _element: usize) -> bool {
+        true
+    }
+
+    /// Recomputes `element`'s cascading value, or unsets it when
+    /// `computable` is `false` (the element is in no list, or on a
+    /// dependency cycle). When the value changes, calls `before_write` with
+    /// the solution still holding the old value, then writes the new one and
+    /// returns `true`.
+    fn update_cascading_shadow<W: FnOnce(&Self)>(
+        &mut self,
+        _element: usize,
+        _computable: bool,
+        _before_write: W,
+    ) -> bool {
+        false
+    }
+
+    /// Updates the list shadows of one owner that describe list structure
+    /// (inverse, index, previous, next) without the cascading shadow, which
+    /// the caller propagates afterwards. Defaults to `update_entity_shadows`.
+    fn update_list_structure_shadows(&mut self, descriptor_index: usize, entity_index: usize) {
+        self.update_entity_shadows(descriptor_index, entity_index);
+    }
+
     /// Returns true if this solution is fully initialized.
     ///
     /// A solution is initialized when all planning variables have been assigned.

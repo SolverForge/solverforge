@@ -501,6 +501,16 @@ inserts the owner and every element it now holds, and clears and re-inserts
 elements that left the owner without joining another list. Element rows
 therefore always hold the shadows they were inserted with.
 
+When `S::HAS_CASCADING_SHADOWS` is `true`, element rows are deferred to the
+end of the move: each `after_variable_changed` refreshes only the owner's list
+structure (`update_list_structure_shadows`) and inserts the owner, and when the
+move's last notified owner has been refreshed the director propagates the
+cascading values (`CascadePropagation`) from every element those owners held
+before or after the move. An element written during propagation is retracted
+before its write unless it is already pending, and every pending element is
+inserted once. The branch is on the associated constant, so other solutions
+compile none of it.
+
 ### `SolvableSolution` — `: PlanningSolution`
 
 | Method | Signature | Note |

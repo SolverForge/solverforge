@@ -239,6 +239,9 @@ arguments are compile errors.
 - `post_update_listener = "method"` — method name called after all shadow updates per entity
 - `entity_aggregate = "target:sum:source"` — aggregate element field onto entity (sum only)
 - `entity_compute = "target:method"` — compute entity field via method
+- `cascading_field = "field"` — `Option<_>` element field computed from the previous element in its list and the element's dependencies, propagated across list owners; requires `cascading_compute`, `inverse_field`, `previous_field` and `next_field`, and rejects `cascading_listener`, `post_update_listener`, `entity_aggregate` and `entity_compute`
+- `cascading_compute = "method"` — solution method `fn(&self, element: usize) -> Option<_>` computing the cascading value of an element held by a list
+- `cascading_dependencies = "method"` — solution method returning the elements an element waits on, as `IntoIterator<Item = usize>`; optional
 
 **`#[planning_list_variable]` parameters:**
 - `element_collection = "field"` — solution field with all list elements
@@ -387,6 +390,15 @@ descriptors. Stream sources of `#[problem_fact_collection]` and
 `#[planning_list_element_collection]` fields ask `list_shadow_source()` and
 react to that source instead of staying static, so constraints that read
 element shadows score incrementally.
+
+With `cascading_field`, the generated support sets
+`PlanningSolution::HAS_CASCADING_SHADOWS = true` and implements the
+`cascading_*` hooks, `update_cascading_shadow` and
+`update_list_structure_shadows` (the owner update without the cascading
+shadow). `update_entity_shadows` refreshes the owner's structure, then
+propagates the cascading values from its elements with `CascadePropagation`;
+`update_all_shadows()` clears the structure fields, refreshes every owner's
+structure, then recomputes every cascading value.
 
 ## Test Coverage
 

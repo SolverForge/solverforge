@@ -221,3 +221,85 @@ fn only_grouped_side_notifications_change_group_keys() {
     assert_eq!(constraint.update_count(), 3);
     assert_eq!(constraint.changed_key_count(), 2);
 }
+
+fn shift_source() -> crate::stream::collection_extract::SourceExtract<fn(&Schedule) -> &[Shift]> {
+    source(
+        shifts as fn(&Schedule) -> &[Shift],
+        ChangeSource::Descriptor(0),
+    )
+}
+
+fn employee_source(
+) -> crate::stream::collection_extract::SourceExtract<fn(&Schedule) -> &[Employee]> {
+    source(
+        employees as fn(&Schedule) -> &[Employee],
+        ChangeSource::Descriptor(1),
+    )
+}
+
+/// The filter applies before the group: the key closure may rely on it, and
+/// filtered-out shifts are never counted, on the evaluation path, after
+/// initialization and across a mutation that crosses the filter.
+fn assert_filtered_complement(mut constraint: impl IncrementalConstraint<Schedule, SoftScore>) {
+    let mut plan = Schedule {
+        employees: vec![Employee { id: 0 }, Employee { id: 1 }],
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+            },
+            Shift { employee_id: None },
+            Shift {
+                employee_id: Some(1),
+            },
+        ],
+    };
+    // Employee 0: 1 shift, employee 1: 1 shift; the unassigned one is filtered.
+    assert_eq!(constraint.evaluate(&plan), SoftScore::of(-2));
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-2));
+
+    // The unassigned shift becomes assigned to employee 0: it now passes.
+    total = total + constraint.on_retract(&plan, 1, 0);
+    plan.shifts[1].employee_id = Some(0);
+    total = total + constraint.on_insert(&plan, 1, 0);
+    assert_eq!(total, SoftScore::of(-3));
+    assert_eq!(constraint.evaluate(&plan), total);
+
+    // Employee 1's shift leaves the filter: employee 1 falls back to 0.
+    total = total + constraint.on_retract(&plan, 2, 0);
+    plan.shifts[2].employee_id = None;
+    total = total + constraint.on_insert(&plan, 2, 0);
+    assert_eq!(total, SoftScore::of(-2));
+    assert_eq!(constraint.evaluate(&plan), total);
+}
+
+#[test]
+fn complement_applies_the_stream_filter_before_grouping() {
+    assert_filtered_complement(
+        ConstraintFactory::<Schedule, SoftScore>::new()
+            .for_each(shift_source())
+            .filter(|shift: &Shift| shift.employee_id.is_some())
+            .group_by(|shift: &Shift| shift.employee_id.unwrap(), count())
+            .complement(employee_source(), |e: &Employee| e.id, |_e| 0usize)
+            .penalize(|_id: &usize, count: &usize| SoftScore::of(*count as i64))
+            .named("Assigned shift count"),
+    );
+}
+
+#[test]
+fn complement_with_key_applies_the_stream_filter_before_grouping() {
+    assert_filtered_complement(
+        ConstraintFactory::<Schedule, SoftScore>::new()
+            .for_each(shift_source())
+            .filter(|shift: &Shift| shift.employee_id.is_some())
+            .group_by(|shift: &Shift| shift.employee_id.unwrap(), count())
+            .complement_with_key(
+                employee_source(),
+                |shift: &Shift| Some(shift.employee_id.unwrap()),
+                |e: &Employee| e.id,
+                |_e| 0usize,
+            )
+            .penalize(|_id: &usize, count: &usize| SoftScore::of(*count as i64))
+            .named("Assigned shift count"),
+    );
+}

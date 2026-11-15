@@ -11,8 +11,9 @@ use solverforge_core::ImpactType;
 
 use super::collection_extract::CollectionExtract;
 use super::collector::{Accumulator, Collector};
-use super::relational::leaf_collector::{leaf_key, LeafCollector, OptionalEntityKey};
-use super::relational::operator::{CollectionNode, ComplementNode, GroupNode};
+use super::filter::UniFilter;
+use super::relational::leaf_collector::{leaf_key, LeafCollector, LeafFilter, OptionalEntityKey};
+use super::relational::operator::{CollectionNode, ComplementNode, FilterNode, GroupNode};
 use super::relational::view_plan::{GroupKey, ViewEqualPlan};
 use super::relational::Leaf;
 use super::weighting_support::ConstraintWeight;
@@ -37,6 +38,7 @@ use crate::constraint::relational::{
 /// - `B` - Complement entity type (e.g., Employee)
 /// - `K` - Group key type
 /// - `EA` - Extractor for A entities
+/// - `Fi` - Filter on A entities, from the stream the group was built on
 /// - `EB` - Extractor for B entities (complement source)
 /// - `KA` - Key function for A (returns `Option<K>` to allow filtering)
 /// - `KB` - Key function for B
@@ -109,11 +111,12 @@ use crate::constraint::relational::{
 /// // Employee 0: 2, Employee 1: 0, Employee 2: 0 → Total: -2
 /// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 /// ```
-pub struct ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
+pub struct ComplementedConstraintStream<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, Sc>
 where
     Sc: Score,
 {
     extractor_a: EA,
+    filter: Fi,
     extractor_b: EB,
     key_a: KA,
     key_b: KB,
@@ -131,14 +134,15 @@ where
     )>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
-    ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
+impl<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, Sc>
+    ComplementedConstraintStream<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, Sc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
+    Fi: UniFilter<S, A>,
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
@@ -154,12 +158,13 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, W, Sc>
     where
         W: Fn(&K, &R) -> Sc + Send + Sync,
     {
         ComplementedConstraintBuilder {
             extractor_a: self.extractor_a,
+            filter: self.filter,
             extractor_b: self.extractor_b,
             key_a: self.key_a,
             key_b: self.key_b,
@@ -175,6 +180,7 @@ where
     /// Creates a new complemented constraint stream.
     pub(crate) fn new(
         extractor_a: EA,
+        filter: Fi,
         extractor_b: EB,
         key_a: KA,
         key_b: KB,
@@ -183,6 +189,7 @@ where
     ) -> Self {
         Self {
             extractor_a,
+            filter,
             extractor_b,
             key_a,
             key_b,
@@ -206,6 +213,7 @@ where
         B,
         K,
         EA,
+        Fi,
         EB,
         KA,
         KB,
@@ -242,6 +250,7 @@ where
         B,
         K,
         EA,
+        Fi,
         EB,
         KA,
         KB,
@@ -265,8 +274,8 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc: Score> std::fmt::Debug
-    for ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
+impl<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, Sc: Score> std::fmt::Debug
+    for ComplementedConstraintStream<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ComplementedConstraintStream").finish()
@@ -274,11 +283,12 @@ impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc: Score> std::fmt::Debug
 }
 
 /// Zero-erasure builder for finalizing a complemented constraint.
-pub struct ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+pub struct ComplementedConstraintBuilder<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     Sc: Score,
 {
     extractor_a: EA,
+    filter: Fi,
     extractor_b: EB,
     key_a: KA,
     key_b: KB,
@@ -299,14 +309,15 @@ where
     )>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
-    ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+impl<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    ComplementedConstraintBuilder<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     A: std::fmt::Debug + Send + Sync + 'static,
     B: std::fmt::Debug + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + 'static,
+    Fi: UniFilter<S, A> + 'static,
     EB: CollectionExtract<S, Item = B> + 'static,
     KA: Fn(&A) -> Option<K> + Send + Sync + 'static,
     KB: Fn(&B) -> K + Send + Sync + Clone + 'static,
@@ -330,7 +341,7 @@ where
             S,
             CollectionNode<S, EB>,
             GroupNode<
-                CollectionNode<S, EA>,
+                FilterNode<CollectionNode<S, EA>, LeafFilter<S, A, Fi>>,
                 impl for<'l> Fn(&Leaf<'l, A>) -> Option<K> + Send + Sync,
                 LeafCollector<C, V, R, Acc>,
                 Option<K>,
@@ -350,7 +361,10 @@ where
         let key_b = self.key_b;
         let default_fn = self.default_fn;
         let group = GroupNode::new(
-            CollectionNode::new(self.extractor_a, 0),
+            FilterNode::new(
+                CollectionNode::new(self.extractor_a, 0),
+                LeafFilter::new(self.filter),
+            ),
             leaf_key(key_a),
             LeafCollector::new(self.collector),
         );
@@ -374,8 +388,8 @@ where
     // Finalizes the builder into a `Grouped`.
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc: Score> std::fmt::Debug
-    for ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+impl<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, W, Sc: Score> std::fmt::Debug
+    for ComplementedConstraintBuilder<S, A, B, K, EA, Fi, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ComplementedConstraintBuilder")

@@ -903,7 +903,7 @@ further joins); low-level constructors are `new_self_join()` and
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over a `ComplementNode` + `GroupNode` tree. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over a `ComplementNode` + `GroupNode` tree. The group reads the source stream through its accumulated filter (type parameter `Fi`, after `EA`), so rows a `.filter(..)` before `.group_by(..)` rejects are never grouped. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
 
 **`stream::projected::ComplementedGrouped/Builder`** — Projected grouped complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over `ComplementNode(CollectionNode, GroupNode)`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
 

@@ -61,13 +61,14 @@ pub use forager::{AcceptedCountForagerConfig, ForagerConfig, ScoreTieBreak};
 pub use move_selector::{
     CartesianProductConfig, ChangeMoveConfig, CompoundConflictRepairMoveSelectorConfig,
     ConflictRepairMoveSelectorConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig,
-    LimitedNeighborhoodConfig, ListChangeMoveConfig, ListPermuteMoveConfig,
-    ListPrecedenceMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig,
-    ListSwapMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
-    NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
-    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SelectionOrder, SublistChangeMoveConfig,
-    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
-    UnionWeighting, VariableTargetConfig,
+    LimitedNeighborhoodConfig, ListChangeMoveConfig, ListGroupChangeMoveConfig,
+    ListGroupSwapMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
+    ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig,
+    NearbyChangeMoveConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
+    NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
+    RuinRecreateMoveSelectorConfig, SelectionOrder, SublistChangeMoveConfig, SublistSwapMoveConfig,
+    SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder, UnionWeighting,
+    VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,

@@ -104,6 +104,11 @@ fn signatures(
             RuntimeListRecipe::MultiSwap { coordinates, .. } => {
                 RecipeSignature::MultiSwap(coordinates.into_vec())
             }
+            RuntimeListRecipe::GroupChange { .. }
+            | RuntimeListRecipe::GroupSwap { .. }
+            | RuntimeListRecipe::GroupRuin { .. } => {
+                unreachable!("parity fixtures declare no element groups")
+            }
         };
         signatures.push(signature);
     }

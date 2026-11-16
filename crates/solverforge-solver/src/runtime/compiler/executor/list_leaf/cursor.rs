@@ -1,5 +1,6 @@
 //! One streamed cursor for every compiled runtime list neighborhood.
 
+mod groups;
 mod probe;
 mod slot;
 

@@ -12,6 +12,8 @@
 mod crew;
 #[path = "readme_examples/nurses/mod.rs"]
 mod nurses;
+#[path = "list_element_groups/domain/mod.rs"]
+mod pickup_delivery;
 #[path = "readme_examples/routes/mod.rs"]
 mod routes;
 #[path = "readme_examples/shop/mod.rs"]
@@ -74,6 +76,10 @@ const SOURCES: &[(&str, &str)] = &[
         include_str!("readme_examples/configured.rs"),
     ),
     ("crew/plan.rs", include_str!("readme_examples/crew/plan.rs")),
+    (
+        "list_element_groups/domain/vehicle.rs",
+        include_str!("list_element_groups/domain/vehicle.rs"),
+    ),
     ("manager.rs", include_str!("readme_examples/manager.rs")),
     (
         "night_shift.rs",

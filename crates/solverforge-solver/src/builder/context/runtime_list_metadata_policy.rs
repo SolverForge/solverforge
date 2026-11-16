@@ -2,7 +2,9 @@
 
 use std::fmt;
 
-use super::runtime_list_policy::{ConstructionOrderPolicy, OwnershipPolicy, PrecedencePolicy};
+use super::runtime_list_policy::{
+    ConstructionOrderPolicy, ElementGroupPolicy, OwnershipPolicy, PrecedencePolicy,
+};
 use super::ListVariableSlot;
 
 fn declared_unrestricted<S, V>(_: &S, _: &V) -> Option<usize> {
@@ -32,10 +34,14 @@ pub(crate) struct StaticListMetadataBindings<S, V> {
     pub(super) ownership_policy: OwnershipPolicy,
     pub(super) construction_order_policy: ConstructionOrderPolicy,
     pub(super) precedence_policy: PrecedencePolicy,
+    pub(super) element_group_policy: ElementGroupPolicy,
     pub(super) element_owner: fn(&S, &V) -> Option<usize>,
     pub(super) construction_order: fn(&S, V) -> i64,
     pub(super) precedence_duration: fn(&S, V) -> usize,
-    pub(super) precedence_successors: fn(&S, V, &mut Vec<V>),
+    /// Precedence successors under a precedence policy with successors, the
+    /// element group hook under an explicit group policy; the two exclude
+    /// each other.
+    pub(super) element_relation: fn(&S, V, &mut Vec<V>),
 }
 
 impl<S, V> fmt::Debug for StaticListMetadataBindings<S, V> {
@@ -47,6 +53,10 @@ impl<S, V> fmt::Debug for StaticListMetadataBindings<S, V> {
                 &self.construction_order_policy.trace_label(),
             )
             .field("precedence_policy", &self.precedence_policy.trace_label())
+            .field(
+                "element_group_policy",
+                &self.element_group_policy.trace_label(),
+            )
             .finish()
     }
 }
@@ -78,7 +88,7 @@ impl<S, V> StaticListMetadataBindings<S, V> {
             PrecedencePolicy,
             fn(&S, V) -> usize,
             fn(&S, V, &mut Vec<V>),
-        ) = match (slot.precedence_duration_fn, slot.precedence_successors_fn) {
+        ) = match (slot.precedence_duration_fn, slot.precedence_successors_fn()) {
             (Some(duration), Some(successors)) => {
                 (PrecedencePolicy::Explicit, duration, successors)
             }
@@ -93,14 +103,20 @@ impl<S, V> StaticListMetadataBindings<S, V> {
                 unavailable_precedence_successors::<S, V>,
             ),
         };
+        let (element_group_policy, element_relation): (ElementGroupPolicy, fn(&S, V, &mut Vec<V>)) =
+            match slot.element_group_fn() {
+                Some(element_group) => (ElementGroupPolicy::ExplicitStaticProvider, element_group),
+                None => (ElementGroupPolicy::Absent, precedence_successors),
+            };
         Self {
             ownership_policy,
             construction_order_policy,
             precedence_policy,
+            element_group_policy,
             element_owner,
             construction_order,
             precedence_duration,
-            precedence_successors,
+            element_relation,
         }
     }
 }

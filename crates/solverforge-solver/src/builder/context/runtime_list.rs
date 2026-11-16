@@ -19,6 +19,7 @@ use super::{
     ListVariableSlot,
 };
 
+mod groups;
 mod meter;
 
 /// Element payload carried by a runtime list move.
@@ -364,7 +365,7 @@ where
                     ));
                 }
                 let mut values = Vec::new();
-                (metadata_bindings.precedence_successors)(
+                (metadata_bindings.element_relation)(
                     solution,
                     static_element(element),
                     &mut values,

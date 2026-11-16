@@ -69,6 +69,8 @@ pub(crate) struct DefaultLocalSearchComponents {
 /// The default selector family, in canonical execution order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DefaultLocalSearchSelectorFamily {
+    ListGroupChange,
+    ListGroupSwap,
     ListPrecedence,
     ListPermute,
     NearbyListChange,
@@ -92,6 +94,8 @@ pub(crate) enum DefaultLocalSearchSelectorFamily {
 impl DefaultLocalSearchSelectorFamily {
     pub(crate) fn trace_label(self) -> &'static str {
         match self {
+            Self::ListGroupChange => "list_group_change",
+            Self::ListGroupSwap => "list_group_swap",
             Self::ListPrecedence => "list_precedence",
             Self::ListPermute => "list_permute",
             Self::NearbyListChange => "nearby_list_change",

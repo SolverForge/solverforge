@@ -114,5 +114,6 @@ fn list_capability_label(capability: ListAccessCapability) -> &'static str {
         ListAccessCapability::Route => "route",
         ListAccessCapability::Savings => "savings",
         ListAccessCapability::SavingsNeighbors => "savings_neighbors",
+        ListAccessCapability::ElementGroups => "element_groups",
     }
 }

@@ -1,18 +1,21 @@
 use std::fmt;
 
 use smallvec::SmallVec;
+use std::num::NonZeroU8;
+
 use solverforge_config::MoveSelectorConfig;
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::r#move::list_kernel::{
-    ChangeCoordinates, MultiSwapCoordinates, PermuteCoordinates, ReverseCoordinates, RuinSources,
-    SwapCoordinates,
+    ChangeCoordinates, GroupChangeCoordinates, GroupRuinPlan, GroupSwapCoordinates,
+    MultiSwapCoordinates, PermuteCoordinates, ReverseCoordinates, RuinSources, SwapCoordinates,
 };
 use crate::heuristic::r#move::{
     k_opt_reconnection::{enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS},
     CutPoint, MAX_LIST_PERMUTE_WINDOW_SIZE,
 };
 use crate::heuristic::r#move::{SegmentRelocationCoords, SegmentSwapCoords};
+use crate::list_groups::JointBounds;
 use crate::runtime::compiler::graph::ListLeafKind;
 use crate::runtime::compiler::types::CompiledListSlot;
 
@@ -80,7 +83,13 @@ pub(super) enum RuntimeListNeighborhoodSpec {
         moves_per_step: usize,
         max_source_list_len: Option<usize>,
         skip_empty_destinations: bool,
+        /// Joint placement bounds for recreating element groups.
+        bounds: JointBounds,
     },
+    GroupChange {
+        max_member_distance: Option<NonZeroU8>,
+    },
+    GroupSwap,
 }
 
 /// One owned move recipe emitted by the common list cursor.
@@ -128,6 +137,18 @@ pub(crate) enum RuntimeListRecipe<S, V> {
         access: RuntimeListMoveAccess<S, V>,
         coordinates: MultiSwapCoordinates,
         require_score_improvement: bool,
+    },
+    GroupChange {
+        access: RuntimeListMoveAccess<S, V>,
+        coordinates: GroupChangeCoordinates,
+    },
+    GroupSwap {
+        access: RuntimeListMoveAccess<S, V>,
+        coordinates: GroupSwapCoordinates,
+    },
+    GroupRuin {
+        access: RuntimeListMoveAccess<S, V>,
+        plan: GroupRuinPlan,
     },
 }
 
@@ -245,7 +266,20 @@ impl RuntimeListNeighborhoodSpec {
                     moves_per_step: config.moves_per_step.unwrap_or(10),
                     max_source_list_len: config.max_source_list_len,
                     skip_empty_destinations: config.skip_empty_destinations,
+                    bounds: JointBounds::from_config(
+                        config.max_member_distance,
+                        config.max_group_owners,
+                    ),
                 }
+            }
+            (
+                ListLeafKind::GroupChange,
+                MoveSelectorConfig::ListGroupChangeMoveSelector(config),
+            ) => Self::GroupChange {
+                max_member_distance: config.max_member_distance,
+            },
+            (ListLeafKind::GroupSwap, MoveSelectorConfig::ListGroupSwapMoveSelector(_)) => {
+                Self::GroupSwap
             }
             _ => return Err(RuntimeListNeighborhoodPlanError::ConfigFamilyMismatch { kind }),
         };

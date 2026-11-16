@@ -24,6 +24,7 @@ mod builder;
 mod constraint_weights;
 mod descriptor;
 mod heuristic;
+mod list_groups;
 mod list_placement;
 mod manager;
 mod model_support;

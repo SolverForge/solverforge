@@ -41,6 +41,10 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for RuntimeListSlot<S, V,
                     "precedence_policy",
                     &metadata_bindings.precedence_policy.trace_label(),
                 )
+                .field(
+                    "element_group_policy",
+                    &metadata_bindings.element_group_policy.trace_label(),
+                )
                 .finish(),
             Self::Dynamic(slot) => f
                 .debug_struct("RuntimeListSlot::Dynamic")

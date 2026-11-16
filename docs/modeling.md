@@ -276,6 +276,67 @@ from the manifest root module. Construction, Clarke-Wright construction,
 ruin/recreate and owner-changing list neighborhoods honor the hook. Moves that
 only reorder within one owner stay available.
 
+### Element groups
+
+Some elements must travel together: the pick-up and drop-off of one job, or
+every stop of a multi-stop job. Declare them with
+`#[planning_list_variable(element_collection = "...", element_group_fn = "...")]`.
+The hook has the signature `fn(&Solution, usize, &mut Vec<usize>)` and appends
+the members of the element's group, in order and including the element, or
+nothing for an element without a group:
+
+```rust
+/// A vehicle that drives to its stops in list order.
+#[planning_entity]
+pub struct Vehicle {
+    /// Stable vehicle id.
+    #[planning_id]
+    pub id: usize,
+
+    /// The stops the vehicle makes, in order.
+    #[planning_list_variable(element_collection = "stops", element_group_fn = "job_stops")]
+    pub stops: Vec<usize>,
+}
+
+/// A job's pick-up and drop-off, in that order; a single stop has no group.
+pub(super) fn job_stops(plan: &super::Deliveries, stop: usize, members: &mut Vec<usize>) {
+    if let Some(job) = plan.stops[stop].job {
+        members.extend([2 * job, 2 * job + 1]);
+    }
+}
+```
+
+Only groups of two or more members count, and every member must report the
+same group; a conflicting answer panics. Groups are read once per step and
+once per construction phase.
+
+A group's members share one owner and keep their declared order. Other
+elements may sit between them, as a shared ride needs:
+
+- `list_group_change_move_selector` moves a whole group to positions of one
+  owner, its own included; `max_member_distance` caps the positions from
+  one member to the next.
+- `list_group_swap_move_selector` exchanges two groups of the same size on
+  different owners, member slot for member slot.
+- `list_ruin_move_selector` ruins whole groups and recreates each group
+  jointly, choosing all of its members' positions together.
+- `list_cheapest_insertion` and `list_regret_insertion` place a group as one
+  unit. A member is never placed alone; members already assigned pin the rest
+  of their group to that owner.
+- The single-element list moves keep a grouped element on its owner, so they
+  can still reorder it within its route but never split a group.
+
+A group moves only to an owner that every member allows under
+`element_owner_fn` and that is not pinned. Joint placement of a group of `m`
+members tries O(L^m) position tuples per owner; `max_member_distance` and
+`max_group_owners` (an owner shortlist, by best contiguous fit) bound it. See
+[Configuration](configuration.md#element-groups) for the defaults.
+
+`element_group_fn` cannot be combined with precedence hooks, and
+`list_round_robin`, `list_clarke_wright` and the global `first_fit` and
+`cheapest_insertion` construction reject a list with groups, since they place
+elements one at a time. A list without the hook compiles none of this.
+
 ### Source identity in list construction
 
 Cheapest insertion, regret insertion and Clarke-Wright key every declared

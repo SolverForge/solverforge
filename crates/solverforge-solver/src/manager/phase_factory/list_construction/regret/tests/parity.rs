@@ -208,6 +208,7 @@ fn run_runtime(slot: Slot) -> (Vec<Vec<usize>>, CandidateTraceTelemetry) {
         &slot,
         &source_index,
         &unassigned,
+        crate::list_groups::JointBounds::default(),
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )
@@ -245,6 +246,7 @@ fn compiled_regret_refreshes_current_assignment_before_a_second_execution() {
         &slot,
         &source_index,
         &unassigned,
+        crate::list_groups::JointBounds::default(),
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )
@@ -257,6 +259,7 @@ fn compiled_regret_refreshes_current_assignment_before_a_second_execution() {
         &slot,
         &source_index,
         &unassigned,
+        crate::list_groups::JointBounds::default(),
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )

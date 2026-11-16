@@ -1,0 +1,13 @@
+error: #[planning_list_variable] cannot combine `element_group_fn` with precedence hooks: group moves and joint construction do not follow precedence routes
+ --> tests/ui/fail/element_groups_with_precedence/domain/mod.rs
+  |
+  | / solverforge::planning_model! {
+  | |     root = "crates/solverforge-macros/tests/ui/fail/element_groups_with_precedence/domain";
+  | |
+  | |     mod plan;
+... |
+  | |     pub use stop::Stop;
+  | | }
+  | |_^
+  |
+  = note: this error originates in the macro `solverforge::planning_model` (in Nightly builds, run with -Z macro-backtrace for more info)

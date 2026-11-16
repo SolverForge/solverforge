@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroU8};
 
 use serde::{Deserialize, Serialize};
 
@@ -70,6 +70,19 @@ pub struct ConstructionHeuristicConfig {
     /// every pair is scored. Zero does not parse; other heuristics reject it.
     pub savings_neighbors: Option<NonZeroU32>,
 
+    /// With element groups: most positions from one member of a group placed
+    /// jointly by `list_cheapest_insertion` or `list_regret_insertion` to the
+    /// next; `1` keeps members adjacent. Omitted: every placement. Other
+    /// heuristics, and lists without groups, reject it.
+    pub max_member_distance: Option<NonZeroU8>,
+
+    /// With element groups: tries every placement of a group on at most this
+    /// many owners, the ones where it fits best contiguously, in
+    /// `list_cheapest_insertion` or `list_regret_insertion`. Omitted: every
+    /// owner the group allows. Other heuristics, and lists without groups,
+    /// reject it.
+    pub max_group_owners: Option<NonZeroU8>,
+
     /// Phase termination configuration.
     pub termination: Option<TerminationConfig>,
 }
@@ -85,6 +98,8 @@ impl Default for ConstructionHeuristicConfig {
             group_name: None,
             group_candidate_limit: None,
             savings_neighbors: None,
+            max_member_distance: None,
+            max_group_owners: None,
             termination: None,
         }
     }

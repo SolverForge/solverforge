@@ -57,8 +57,19 @@ where
         }
     }
 
-    fn move_from_recipe(&self, recipe: RuntimeListRecipe<S, V>) -> RuntimeListMove<S, V, DM, IDM> {
+    pub(super) fn move_from_recipe(
+        &self,
+        recipe: RuntimeListRecipe<S, V>,
+    ) -> RuntimeListMove<S, V, DM, IDM> {
         RuntimeListMove::new(recipe)
+    }
+
+    pub(super) fn move_access(&self) -> &RuntimeListMoveAccess<S, V> {
+        &self.move_access
+    }
+
+    pub(super) fn skip_empty_destinations(&self) -> bool {
+        self.skip_empty_destinations
     }
 }
 

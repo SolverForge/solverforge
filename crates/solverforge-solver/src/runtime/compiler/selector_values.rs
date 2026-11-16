@@ -94,6 +94,26 @@ fn validate_construction(
             "applies only to `list_clarke_wright` construction".to_string(),
         ));
     }
+    if !matches!(
+        config.construction_heuristic_type,
+        ConstructionHeuristicType::ListCheapestInsertion
+            | ConstructionHeuristicType::ListRegretInsertion
+    ) {
+        for (field, set) in [
+            ("max_member_distance", config.max_member_distance.is_some()),
+            ("max_group_owners", config.max_group_owners.is_some()),
+        ] {
+            if set {
+                return Err(invalid(
+                    path,
+                    field,
+                    "applies only to `list_cheapest_insertion` and `list_regret_insertion` \
+                     construction"
+                        .to_string(),
+                ));
+            }
+        }
+    }
     positive_limit(path, "value_candidate_limit", config.value_candidate_limit)?;
     positive_limit(path, "group_candidate_limit", config.group_candidate_limit)
 }
@@ -197,6 +217,8 @@ fn validate_selector(config: &MoveSelectorConfig, path: &str) -> Result<(), Runt
             config.max_moves_per_step,
         ),
         MoveSelectorConfig::SwapMoveSelector(_)
+        | MoveSelectorConfig::ListGroupChangeMoveSelector(_)
+        | MoveSelectorConfig::ListGroupSwapMoveSelector(_)
         | MoveSelectorConfig::ListChangeMoveSelector(_)
         | MoveSelectorConfig::ListSwapMoveSelector(_)
         | MoveSelectorConfig::ListPrecedenceMoveSelector(_)

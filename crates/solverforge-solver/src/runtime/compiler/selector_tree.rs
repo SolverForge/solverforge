@@ -221,6 +221,28 @@ where
             descriptor,
             model,
         )?),
+        MoveSelectorConfig::ListGroupChangeMoveSelector(selector) => {
+            builder.push(compile_list_leaf(
+                ListLeafKind::GroupChange,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                descriptor,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::ListGroupSwapMoveSelector(selector) => builder.push(compile_list_leaf(
+            ListLeafKind::GroupSwap,
+            config,
+            candidate_order,
+            candidate_metric.clone(),
+            &selector.target,
+            path,
+            descriptor,
+            model,
+        )?),
         MoveSelectorConfig::GroupedScalarMoveSelector(grouped) => {
             compile_grouped_or_provider_selector(
                 config,

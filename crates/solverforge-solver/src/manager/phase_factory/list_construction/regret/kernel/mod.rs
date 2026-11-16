@@ -10,10 +10,12 @@ mod choice;
 mod evaluation;
 mod execute;
 mod fallback;
+mod grouped;
 mod precedence;
 
 pub(crate) use super::super::ScoredListConstructionAccess as RegretAccess;
 pub(crate) use execute::run_regret;
+pub(crate) use grouped::run_regret_grouped;
 
 use budgets::{OWNER_RESTRICTED_BEST_INSERTION_WORK_BUDGET, OWNER_RESTRICTED_REGRET_TRIAL_BUDGET};
 use choice::{

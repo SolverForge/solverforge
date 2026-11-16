@@ -114,6 +114,33 @@ where
             | ListConstructionKind::CheapestInsertion
             | ListConstructionKind::RegretInsertion => {}
         }
+        let grouped = slots
+            .iter()
+            .any(|slot| slot.element_group_policy().is_explicit());
+        match kind {
+            ListConstructionKind::RoundRobin | ListConstructionKind::ClarkeWright if grouped => {
+                return Err(grouped_list_construction(path, heuristic));
+            }
+            ListConstructionKind::CheapestInsertion | ListConstructionKind::RegretInsertion
+                if !grouped =>
+            {
+                for (field, set) in [
+                    ("max_member_distance", config.max_member_distance.is_some()),
+                    ("max_group_owners", config.max_group_owners.is_some()),
+                ] {
+                    if set {
+                        return Err(construction_shape(
+                            path,
+                            format!(
+                                "`{field}` bounds joint placement of element groups, and no \
+                                 targeted list variable declares `element_group_fn`"
+                            ),
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
         return Ok(CompiledConstruction::List {
             kind,
             config: config.clone(),
@@ -135,6 +162,12 @@ where
             require_scalar_capability(&scalar_slots, RuntimeCapability::ScalarCandidates, path)?;
         }
         let list_slots = matching_list_slots(model, descriptor, &config.target, path)?;
+        if list_slots
+            .iter()
+            .any(|slot| slot.element_group_policy().is_explicit())
+        {
+            return Err(grouped_list_construction(path, heuristic));
+        }
         if scalar_slots.is_empty()
             && list_slots.is_empty()
             && (!model.variables().is_empty()
@@ -310,6 +343,21 @@ pub(super) fn grouped_requires_value_order(heuristic: ConstructionHeuristicType)
             | ConstructionHeuristicType::WeakestFitDecreasing
             | ConstructionHeuristicType::StrongestFit
             | ConstructionHeuristicType::StrongestFitDecreasing
+    )
+}
+
+/// Heuristics that place list elements one at a time would split a group.
+fn grouped_list_construction(
+    path: &str,
+    heuristic: ConstructionHeuristicType,
+) -> RuntimeCompileError {
+    construction_shape(
+        path,
+        format!(
+            "construction heuristic {heuristic:?} places list elements one at a time and would \
+             split element groups; a list variable with `element_group_fn` is constructed by \
+             `list_cheapest_insertion` or `list_regret_insertion`"
+        ),
     )
 }
 

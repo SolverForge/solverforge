@@ -68,7 +68,9 @@ pub(crate) fn final_positions_after_insertions(
     current_positions
 }
 
-fn final_positions_after_ordered_insertions(placements: &RuinUndo) -> SmallVec<[usize; 8]> {
+pub(super) fn final_positions_after_ordered_insertions(
+    placements: &RuinUndo,
+) -> SmallVec<[usize; 8]> {
     let mut current_positions = SmallVec::with_capacity(placements.len());
     for i in 0..placements.len() {
         let (entity, insert_position, _) = placements[i];
@@ -419,7 +421,7 @@ fn restore_remaining_elements<S, A, D>(
     restore_values(access, values, score_director);
 }
 
-fn restore_values<S, A, D>(
+pub(super) fn restore_values<S, A, D>(
     access: &A,
     mut values: SmallVec<[(usize, usize, A::Element); 8]>,
     score_director: &mut D,

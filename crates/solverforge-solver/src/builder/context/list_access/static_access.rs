@@ -137,7 +137,7 @@ where
         element: Self::Element,
         successors: &mut Vec<Self::Element>,
     ) -> Result<(), ListAccessError> {
-        let Some(successors_fn) = self.precedence_successors_fn else {
+        let Some(successors_fn) = self.precedence_successors_fn() else {
             return Err(typed_error(self, ListAccessCapability::Precedence));
         };
         successors_fn(solution, element, successors);

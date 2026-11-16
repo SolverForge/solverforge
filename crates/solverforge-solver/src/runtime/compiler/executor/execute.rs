@@ -15,6 +15,7 @@ use solverforge_scoring::Director;
 
 use crate::builder::context::{ListConstructionKernelError, RuntimeListElement, SourceElement};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::list_groups::JointBounds;
 use crate::phase::construction::{
     build_scalar_group_construction, record_scalar_assignment_remaining,
     scalar_group_work_remaining, FrozenRuntimeListConstructionSlot,
@@ -152,7 +153,16 @@ where
                         slots,
                         control_policy,
                         solver_scope,
-                        execute_runtime_list_cheapest_insertion,
+                        |slot, source_index, unassigned, control_policy, solver_scope| {
+                            execute_runtime_list_cheapest_insertion(
+                                slot,
+                                source_index,
+                                unassigned,
+                                joint_bounds(config),
+                                control_policy,
+                                solver_scope,
+                            )
+                        },
                     )
                 },
             )
@@ -168,7 +178,16 @@ where
                         slots,
                         control_policy,
                         solver_scope,
-                        execute_runtime_list_regret_insertion,
+                        |slot, source_index, unassigned, control_policy, solver_scope| {
+                            execute_runtime_list_regret_insertion(
+                                slot,
+                                source_index,
+                                unassigned,
+                                joint_bounds(config),
+                                control_policy,
+                                solver_scope,
+                            )
+                        },
                     )
                 },
             )
@@ -440,4 +459,9 @@ where
         ran = true;
     }
     Ok(ran)
+}
+
+/// Joint placement bounds a list construction phase gives element groups.
+fn joint_bounds(config: &ConstructionHeuristicConfig) -> JointBounds {
+    JointBounds::from_config(config.max_member_distance, config.max_group_owners)
 }

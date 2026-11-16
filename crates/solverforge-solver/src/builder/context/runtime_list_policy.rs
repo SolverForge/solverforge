@@ -186,3 +186,24 @@ impl PrecedencePolicy {
         }
     }
 }
+
+/// Source of a list variable's element groups.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ElementGroupPolicy {
+    /// No group hook: every element moves alone.
+    Absent,
+    ExplicitStaticProvider,
+}
+
+impl ElementGroupPolicy {
+    pub(crate) const fn is_explicit(self) -> bool {
+        matches!(self, Self::ExplicitStaticProvider)
+    }
+
+    pub(crate) const fn trace_label(self) -> &'static str {
+        match self {
+            Self::Absent => "absent",
+            Self::ExplicitStaticProvider => "explicit",
+        }
+    }
+}

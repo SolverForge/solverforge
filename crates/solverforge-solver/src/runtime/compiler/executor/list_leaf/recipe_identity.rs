@@ -7,7 +7,9 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::list_kernel::{
-    change_candidate_trace_identity, change_tabu_signature, k_opt_tabu_signature,
+    change_candidate_trace_identity, change_tabu_signature, group_change_candidate_trace_identity,
+    group_change_tabu_signature, group_ruin_candidate_trace_identity, group_ruin_tabu_signature,
+    group_swap_candidate_trace_identity, group_swap_tabu_signature, k_opt_tabu_signature,
     multi_swap_tabu_signature, permute_candidate_trace_identity, permute_tabu_signature,
     reverse_candidate_trace_identity, reverse_tabu_signature, ruin_tabu_signature,
     sublist_change_candidate_trace_identity, sublist_change_tabu_signature,
@@ -84,6 +86,17 @@ where
             coordinates,
             ..
         } => multi_swap_tabu_signature(access, coordinates, entity_indices, score_director),
+        RuntimeListRecipe::GroupChange {
+            access,
+            coordinates,
+        } => group_change_tabu_signature(access, coordinates, score_director),
+        RuntimeListRecipe::GroupSwap {
+            access,
+            coordinates,
+        } => group_swap_tabu_signature(access, coordinates, score_director),
+        RuntimeListRecipe::GroupRuin { access, plan } => {
+            group_ruin_tabu_signature(access, plan, score_director)
+        }
     }
 }
 
@@ -164,6 +177,17 @@ where
                 .iter()
                 .flat_map(|&(entity, first, second)| [entity, first, second]),
         ),
+        RuntimeListRecipe::GroupChange {
+            access,
+            coordinates,
+        } => group_change_candidate_trace_identity(access, coordinates),
+        RuntimeListRecipe::GroupSwap {
+            access,
+            coordinates,
+        } => group_swap_candidate_trace_identity(access, coordinates),
+        RuntimeListRecipe::GroupRuin { access, plan } => {
+            group_ruin_candidate_trace_identity(access, plan)
+        }
     };
     Some(identity)
 }

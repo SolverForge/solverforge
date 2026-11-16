@@ -233,14 +233,24 @@ pub(crate) fn selector_config_signature(config: &MoveSelectorConfig) -> String {
             target_signature(&config.target)
         ),
         MoveSelectorConfig::ListRuinMoveSelector(config) => format!(
-            "list_ruin(min_ruin_count={},max_ruin_count={},moves_per_step={:?},max_source_list_len={:?},skip_empty_destinations={},target={})",
+            "list_ruin(min_ruin_count={},max_ruin_count={},moves_per_step={:?},max_source_list_len={:?},skip_empty_destinations={},max_member_distance={:?},max_group_owners={:?},target={})",
             config.min_ruin_count,
             config.max_ruin_count,
             config.moves_per_step,
             config.max_source_list_len,
             config.skip_empty_destinations,
+            config.max_member_distance,
+            config.max_group_owners,
             target_signature(&config.target)
         ),
+        MoveSelectorConfig::ListGroupChangeMoveSelector(config) => format!(
+            "list_group_change(max_member_distance={:?},target={})",
+            config.max_member_distance,
+            target_signature(&config.target)
+        ),
+        MoveSelectorConfig::ListGroupSwapMoveSelector(config) => {
+            format!("list_group_swap(target={})", target_signature(&config.target))
+        }
         MoveSelectorConfig::LimitedNeighborhood(config) => format!(
             "limited(selected_count_limit={},selector={})",
             config.selected_count_limit,

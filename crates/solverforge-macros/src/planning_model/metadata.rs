@@ -100,6 +100,7 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
     let mut list_construction_element_order_key = None;
     let mut list_precedence_duration_fn = None;
     let mut list_precedence_successors_fn = None;
+    let mut list_element_group_fn = None;
     for field in fields {
         if has_attribute(&field.attrs, "planning_variable") {
             let Some(field_ident) = field.ident.as_ref() else {
@@ -202,6 +203,17 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
                 parse_hook_path(attr, "precedence_duration_fn", &module.ident, field)?;
             list_precedence_successors_fn =
                 parse_hook_path(attr, "precedence_successors_fn", &module.ident, field)?;
+            list_element_group_fn =
+                parse_hook_path(attr, "element_group_fn", &module.ident, field)?;
+            if list_element_group_fn.is_some()
+                && (list_precedence_duration_fn.is_some() || list_precedence_successors_fn.is_some())
+            {
+                return Err(Error::new_spanned(
+                    field,
+                    "#[planning_list_variable] cannot combine `element_group_fn` with precedence \
+                     hooks: group moves and joint construction do not follow precedence routes",
+                ));
+            }
         }
     }
 
@@ -214,6 +226,7 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
         list_construction_element_order_key,
         list_precedence_duration_fn,
         list_precedence_successors_fn,
+        list_element_group_fn,
     })
 }
 

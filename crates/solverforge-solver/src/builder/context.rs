@@ -37,8 +37,8 @@ pub(crate) use provider::{
 };
 pub(crate) use runtime_list::{RuntimeListElement, RuntimeListSlot};
 pub(crate) use runtime_list_policy::{
-    ConstructionOrderPolicy, OwnershipPolicy, PrecedencePolicy, RouteFeasibilityPolicy,
-    RouteReadPolicy, RouteReplacePolicy, SavingsMetricClassPolicy,
+    ConstructionOrderPolicy, ElementGroupPolicy, OwnershipPolicy, PrecedencePolicy,
+    RouteFeasibilityPolicy, RouteReadPolicy, RouteReplacePolicy, SavingsMetricClassPolicy,
 };
 pub(crate) use runtime_list_source::{
     bind_runtime_list_source, unassigned_from_current_assignment, ListConstructionKernelError,

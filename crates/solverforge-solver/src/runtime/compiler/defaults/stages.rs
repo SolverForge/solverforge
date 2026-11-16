@@ -66,6 +66,9 @@ pub(crate) enum DefaultConstructionStepKind {
 /// The model fact that selected a default construction step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DefaultConstructionReason {
+    /// The list slot declares element groups, which only joint insertion
+    /// keeps together.
+    ElementGroupsDeclared,
     /// The list slot declares savings hooks.
     SavingsDeclared,
     /// Precedence, construction order and ownership are all declared.
@@ -87,6 +90,7 @@ pub(crate) enum DefaultConstructionReason {
 impl DefaultConstructionReason {
     pub(crate) fn trace_label(self) -> &'static str {
         match self {
+            Self::ElementGroupsDeclared => "element_groups_declared",
             Self::SavingsDeclared => "savings_hooks_declared",
             Self::PrecedenceOrderAndOwnership => {
                 "precedence_construction_order_and_ownership_declared"
@@ -229,7 +233,11 @@ where
         construction: CompiledConstruction::List {
             kind: ListConstructionKind::from_heuristic(heuristic)
                 .expect("default list construction must map to a compiled list kind"),
-            config: list_config(heuristic, &target),
+            config: ConstructionHeuristicConfig {
+                max_group_owners: (reason == DefaultConstructionReason::ElementGroupsDeclared)
+                    .then_some(crate::list_groups::DEFAULT_GROUP_OWNERS),
+                ..list_config(heuristic, &target)
+            },
             slots: vec![slot.clone()],
         },
         required_only: false,
@@ -303,7 +311,12 @@ fn default_list_construction_heuristic<S, V, DM, IDM>(
 ) -> (ConstructionHeuristicType, DefaultConstructionReason) {
     use crate::builder::context::list_access::ListAccessCapability;
 
-    if slot.supports(ListAccessCapability::Savings) {
+    if slot.element_group_policy().is_explicit() {
+        (
+            ConstructionHeuristicType::ListCheapestInsertion,
+            DefaultConstructionReason::ElementGroupsDeclared,
+        )
+    } else if slot.supports(ListAccessCapability::Savings) {
         (
             ConstructionHeuristicType::ListClarkeWright,
             DefaultConstructionReason::SavingsDeclared,

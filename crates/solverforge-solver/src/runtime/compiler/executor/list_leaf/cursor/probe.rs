@@ -11,11 +11,19 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::precedence_route::{
     build_precedence_route_graph, PrecedenceRouteGraph,
 };
+use crate::list_groups::ListElementGroups;
 use crate::list_placement::OwnerRestriction;
 
 /// Immutable nearby probe over the one compiled list carrier.
+///
+/// `groups` holds the slot's element groups for this step: a grouped element
+/// stays on its current owner, because only group moves relocate a group.
 pub(super) struct RuntimeNearbyProbe<'a, S, V, DM, IDM> {
     slot: &'a RuntimeListSlot<S, V, DM, IDM>,
+    groups: Option<Box<ListElementGroups>>,
+    /// Whether candidates carry an owner restriction: an owner hook or
+    /// element groups. Frozen at construction, read per candidate.
+    owner_binding: bool,
 }
 
 /// Intra-route metric probe borrowed from the immutable selector declaration.
@@ -43,9 +51,20 @@ where
     }
 }
 
-impl<'a, S, V, DM, IDM> RuntimeNearbyProbe<'a, S, V, DM, IDM> {
-    pub(super) fn new(slot: &'a RuntimeListSlot<S, V, DM, IDM>) -> Self {
-        Self { slot }
+impl<'a, S, V, DM, IDM> RuntimeNearbyProbe<'a, S, V, DM, IDM>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
+    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+{
+    pub(super) fn new(slot: &'a RuntimeListSlot<S, V, DM, IDM>, solution: &S) -> Self {
+        let groups = slot.element_groups(solution).map(Box::new);
+        Self {
+            slot,
+            owner_binding: slot.ownership_policy().is_explicit() || groups.is_some(),
+            groups,
+        }
     }
 }
 
@@ -75,16 +94,52 @@ where
         entity: usize,
         position: usize,
     ) -> Option<OwnerRestriction> {
-        if !self.slot.ownership_policy().is_explicit() {
+        if !self.owner_binding {
             return None;
         }
+        let explicit = self.slot.ownership_policy().is_explicit();
         let element = ListAccess::list_get(self.slot, solution, entity, position)?;
-        Some(owner_restriction(
+        let restriction = if explicit {
+            owner_restriction(self.slot, solution, entity_count, &element)
+        } else {
+            OwnerRestriction::Unrestricted
+        };
+        Some(pin_grouped(
             self.slot,
             solution,
-            entity_count,
+            self.groups.as_deref(),
+            restriction,
+            entity,
             &element,
         ))
+    }
+}
+
+/// A grouped element keeps its current owner: only a group move may take a
+/// group to another owner.
+fn pin_grouped<S, V, DM, IDM>(
+    slot: &RuntimeListSlot<S, V, DM, IDM>,
+    solution: &S,
+    groups: Option<&ListElementGroups>,
+    restriction: OwnerRestriction,
+    entity: usize,
+    element: &<RuntimeListSlot<S, V, DM, IDM> as ListAccess<S>>::Element,
+) -> OwnerRestriction
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
+    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+{
+    match groups {
+        Some(groups)
+            if groups
+                .group_of_key(ListAccess::element_source_key(slot, solution, element))
+                .is_some() =>
+        {
+            restriction.and(OwnerRestriction::Fixed(entity))
+        }
+        _ => restriction,
     }
 }
 
@@ -116,7 +171,7 @@ where
     }
 
     fn has_owner_binding(&self) -> bool {
-        self.slot.ownership_policy().is_explicit()
+        self.owner_binding
     }
 
     fn owner_restriction(
@@ -157,7 +212,7 @@ where
     }
 
     fn has_owner_binding(&self) -> bool {
-        self.slot.ownership_policy().is_explicit()
+        self.owner_binding
     }
 
     fn owner_restriction(
@@ -183,7 +238,9 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    if !slot.ownership_policy().is_explicit() {
+    let explicit = slot.ownership_policy().is_explicit();
+    let groups = slot.element_groups(solution);
+    if !explicit && groups.is_none() {
         return SelectedListOwners::Absent;
     }
     let entity_count = ListAccess::entity_count(slot, solution);
@@ -195,7 +252,21 @@ where
             (0..route_len)
                 .map(|position| {
                     let restriction = ListAccess::list_get(slot, solution, entity, position)
-                        .map(|element| owner_restriction(slot, solution, entity_count, &element))
+                        .map(|element| {
+                            let restriction = if explicit {
+                                owner_restriction(slot, solution, entity_count, &element)
+                            } else {
+                                OwnerRestriction::Unrestricted
+                            };
+                            pin_grouped(
+                                slot,
+                                solution,
+                                groups.as_ref(),
+                                restriction,
+                                entity,
+                                &element,
+                            )
+                        })
                         .unwrap_or(OwnerRestriction::Invalid);
                     fixed_to_current &=
                         matches!(restriction, OwnerRestriction::Fixed(owner) if owner == entity);

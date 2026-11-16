@@ -1,7 +1,8 @@
 //! The explicit list capability-policy table for omitted local search.
 
 use solverforge_config::{
-    KOptMoveSelectorConfig, ListChangeMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
+    KOptMoveSelectorConfig, ListChangeMoveConfig, ListGroupChangeMoveConfig,
+    ListGroupSwapMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
     ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig,
     NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SelectionOrder, SublistChangeMoveConfig,
     SublistSwapMoveConfig, VariableTargetConfig,
@@ -9,6 +10,7 @@ use solverforge_config::{
 
 use crate::builder::context::list_access::ListAccessCapability;
 use crate::builder::RuntimeScalarSlotId;
+use crate::list_groups::{DEFAULT_GROUP_MEMBER_DISTANCE, DEFAULT_GROUP_OWNERS};
 
 use super::super::super::types::CompiledListSlot;
 use super::super::{
@@ -21,7 +23,8 @@ const DEFAULT_LIST_NEARBY_LIMIT: usize = 20;
 /// Typed and dynamic slots consume these rows in exactly this order. A named
 /// reduced-capability row is legal only when it is a distinct selector with
 /// its own immutable provenance.
-const LIST_POLICY_TABLE: [DefaultListPolicyRule; 8] = [
+const LIST_POLICY_TABLE: [DefaultListPolicyRule; 9] = [
+    DefaultListPolicyRule::GroupPair,
     DefaultListPolicyRule::PrecedencePair,
     DefaultListPolicyRule::NearbyChange,
     DefaultListPolicyRule::NearbySwap,
@@ -34,6 +37,7 @@ const LIST_POLICY_TABLE: [DefaultListPolicyRule; 8] = [
 
 #[derive(Clone, Copy, Debug)]
 enum DefaultListPolicyRule {
+    GroupPair,
     PrecedencePair,
     NearbyChange,
     NearbySwap,
@@ -59,6 +63,36 @@ fn append_rule<S, V, DM, IDM>(
     declarations: &mut Vec<DefaultLocalSearchSelectorDeclaration>,
 ) {
     match rule {
+        DefaultListPolicyRule::GroupPair => {
+            for slot in list_slots
+                .iter()
+                .filter(|slot| slot.supports(ListAccessCapability::ElementGroups))
+            {
+                let target = target_for(&slot.identity());
+                push_list(
+                    declarations,
+                    DefaultLocalSearchSelectorFamily::ListGroupChange,
+                    DefaultSelectorCapabilityPolicy::DeclaredCapabilities,
+                    MoveSelectorConfig::ListGroupChangeMoveSelector(ListGroupChangeMoveConfig {
+                        selection_order: Some(SelectionOrder::Random),
+                        target: target.clone(),
+                        ..ListGroupChangeMoveConfig::default()
+                    }),
+                    vec![slot.identity()],
+                );
+                push_list(
+                    declarations,
+                    DefaultLocalSearchSelectorFamily::ListGroupSwap,
+                    DefaultSelectorCapabilityPolicy::DeclaredCapabilities,
+                    MoveSelectorConfig::ListGroupSwapMoveSelector(ListGroupSwapMoveConfig {
+                        selection_order: Some(SelectionOrder::Random),
+                        target,
+                        ..ListGroupSwapMoveConfig::default()
+                    }),
+                    vec![slot.identity()],
+                );
+            }
+        }
         DefaultListPolicyRule::PrecedencePair => {
             for slot in list_slots
                 .iter()
@@ -189,6 +223,28 @@ fn append_rule<S, V, DM, IDM>(
                         && !slot.supports(ListAccessCapability::IntraPositionDistance)
                 }),
             );
+        }
+        DefaultListPolicyRule::Ruin
+            if list_slots
+                .iter()
+                .any(|slot| slot.supports(ListAccessCapability::ElementGroups)) =>
+        {
+            // One ruin per list, so grouped lists get bounded joint recreate.
+            for slot in list_slots {
+                let grouped = slot.supports(ListAccessCapability::ElementGroups);
+                push_list(
+                    declarations,
+                    DefaultLocalSearchSelectorFamily::ListRuin,
+                    DefaultSelectorCapabilityPolicy::DeclaredCapabilities,
+                    MoveSelectorConfig::ListRuinMoveSelector(ListRuinMoveSelectorConfig {
+                        max_member_distance: grouped.then_some(DEFAULT_GROUP_MEMBER_DISTANCE),
+                        max_group_owners: grouped.then_some(DEFAULT_GROUP_OWNERS),
+                        target: target_for(&slot.identity()),
+                        ..ListRuinMoveSelectorConfig::default()
+                    }),
+                    vec![slot.identity()],
+                );
+            }
         }
         DefaultListPolicyRule::Ruin => push_list_if_any(
             declarations,

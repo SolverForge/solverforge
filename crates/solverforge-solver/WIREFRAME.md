@@ -44,6 +44,9 @@ src/
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model/solution validation, and shadow updates
 ├── pinning.rs                           — Internal descriptor-backed pin checks for solver-generated moves and entity mutations
 ├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and list selectors; detects all-selected-elements-fixed-to-current so intra-owner reordering still streams while cross-owner moves are filtered
+├── list_groups.rs                       — Private element-group module root for list variables with `element_group_fn`
+├── list_groups/index.rs                 — Per-step group index (groups of two or more members, in declared order) and member placement lookup
+├── list_groups/joint.rs                 — Bounded joint placement of a group's members on one owner (`max_member_distance`, owner shortlist) and its search
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/
 │   ├── bindings.rs                      — Scalar-variable binding module root and public/internal re-exports
@@ -119,7 +122,7 @@ src/
 │   │   ├── composite/preview.rs         — Internal owned preview director for read-only sequential checks and ordinary Cartesian selectors
 │   │   ├── list_union.rs               — ListMoveUnion<S, V> enum
 │   │   ├── list_multi_swap.rs          — ListMultiSwapMove<S, V> for independent same-step intra-list swaps
-│   │   ├── list_kernel/                — Shared typed/dynamic list mutation kernels used by public moves and the compiled executor
+│   │   ├── list_kernel/                — Shared typed/dynamic list mutation kernels used by public moves and the compiled executor, including group change (`group.rs`), group swap (`group/swap.rs`) and grouped ruin with joint recreate (`group_ruin.rs`)
 │   │   └── tests/                       — Additional test modules
 │   │       ├── mod.rs
 │   │       ├── change.rs
@@ -166,7 +169,7 @@ src/
 │       ├── nearby_list_support.rs      — Private selected-entity snapshots and bounded stable top-k nearby candidate ordering
 │       ├── nearby_list_swap.rs         — Test-only NearbyListSwapMoveSelector oracle
 │       ├── nearby_support.rs           — Shared nearest-candidate ordering and bounded stable top-k helpers for nearby neighborhoods
-│       ├── list_kernel/                — Shared list candidate enumeration/emission kernels, including precedence and k-opt
+│       ├── list_kernel/                — Shared list candidate enumeration/emission kernels, including precedence, k-opt, and group change/swap cursors
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── cartesian_product.rs    — Test-only CartesianProductCursor<S, M> and CartesianProductSelector<S, M, Left, Right> oracles
@@ -337,13 +340,15 @@ src/
 │   │   ├── mod.rs                       — Re-exports
 │   │   ├── list_construction.rs        — Re-exports
 │   │   ├── list_construction/access.rs — Source-indexed scored-list access shared by cheapest and regret kernels
+│   │   ├── list_construction/groups.rs — Construction units of a list with element groups, joint trials, and group commits
 │   │   ├── list_construction/round_robin.rs — Explicit-source-key public facade for mandatory-construction round robin
 │   │   ├── list_construction/round_robin/kernel.rs — Canonical round-robin enumeration shared by public/static/dynamic adapters
 │   │   ├── list_construction/cheapest.rs — Explicit-source-key public facade for canonical cheapest insertion
 │   │   ├── list_construction/cheapest/kernel.rs — Source-indexed cheapest candidate ordering, precedence, and owner filtering
 │   │   ├── list_construction/cheapest/live.rs — Live score/trace/commit observer for the one cheapest kernel
+│   │   ├── list_construction/cheapest/grouped.rs — Cheapest insertion placing each element group jointly
 │   │   ├── list_construction/regret.rs — Explicit-source-key public facade for canonical regret insertion
-│   │   ├── list_construction/regret/kernel/ — Source-indexed regret evaluation, precedence, fallback, and execution kernel (`budgets.rs` work budgets, `choice.rs` regret values and comparisons)
+│   │   ├── list_construction/regret/kernel/ — Source-indexed regret evaluation, precedence, fallback, and execution kernel (`budgets.rs` work budgets, `choice.rs` regret values and comparisons, `grouped.rs` regret insertion of whole element groups)
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright/kernel.rs — Canonical savings merge and route assignment (savings.rs generates and sorts savings) shared by public/static/dynamic adapters
 │   │   ├── list_clarke_wright/tests.rs — Tests
@@ -1050,7 +1055,15 @@ Runtime helpers:
   starts absent and is attached with `with_savings_neighbors_fn(...)`; it is
   the nearest-neighbour source bounded Clarke-Wright (`savings_neighbors`)
   requires, and the compiler rejects a bounded `ListClarkeWright` on a slot
-  without it. `ListVariableSlot` carries the same fields and builders.
+  without it. `ListVariableSlot` carries the same fields and builders. Its
+  precedence-successor and element-group hooks share one private field, read
+  through `precedence_successors_fn()` and `element_group_fn()`; they are set
+  with `with_precedence_hooks(...)` and `with_element_group_fn(...)`, which
+  panic when both are declared. The group hook appends the members of an
+  element's group, in order and including the element; a list with it gets
+  group change, group swap, grouped ruin and joint cheapest/regret
+  construction, and its single-element moves keep grouped elements on their
+  owner.
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `runtime/compiler/` — compiles one value-owned `RuntimeModel` into an immutable graph, prepares solve-owned sources, and runs every configured or default phase through `CompiledRuntimePhaseRunner`
 - `PlanningModelSupport` — `#[doc(hidden)]` support trait (and `#[doc(hidden)]`

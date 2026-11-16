@@ -8,6 +8,7 @@ mod change;
 #[cfg(test)]
 mod dynamic_change_emission;
 mod emission;
+mod group;
 mod k_opt;
 #[cfg(test)]
 mod native_ruin_emission;
@@ -31,6 +32,9 @@ pub(crate) use dynamic_change_emission::DynamicChangeEmitter;
 pub(crate) use emission::{ChangeEmitter, SwapEmitter};
 #[cfg(test)]
 pub(crate) use emission::{NativeChangeEmitter, NativeSwapEmitter};
+pub(crate) use group::{
+    GroupChangeCursor, GroupChangeEmitter, GroupSnapshot, GroupSwapCursor, GroupSwapEmitter,
+};
 #[cfg(test)]
 pub(crate) use k_opt::NativeKOptEmitter;
 pub(crate) use k_opt::{KOptCursor, KOptDistanceProbe, KOptEmitter, NearbyKOptCursor};

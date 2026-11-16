@@ -115,6 +115,7 @@ Each list slot gets the first construction whose declarations it has:
 
 | Slot declares | Construction | Reported `reason` |
 |---|---|---|
+| element groups (`element_group_fn`) | `ListCheapestInsertion` with `max_group_owners = 4` | `element_groups_declared` |
 | savings hooks (`domain = "cvrp"` or `savings_hooks`) | `ListClarkeWright` | `savings_hooks_declared` |
 | precedence, construction order and ownership | `ListRegretInsertion` | `precedence_construction_order_and_ownership_declared` |
 | precedence and construction order | `ListRoundRobin` | `precedence_and_construction_order_declared` |
@@ -153,15 +154,17 @@ neighborhoods:
   scalar selector. Generic scalar selectors and conflict-repair defaults leave
   group-owned slots alone.
 - **List slots** get capability-matched families in a fixed order:
-  1. precedence repair plus list permutation, when the complete precedence move
+  1. group change plus group swap, when the slot declares element groups;
+  2. precedence repair plus list permutation, when the complete precedence move
      bundle exists;
-  2. nearby change, plus nearby swap when set access exists, with a limit of
+  3. nearby change, plus nearby swap when set access exists, with a limit of
      20, when a cross-position metric exists;
-  3. otherwise plain change, plus plain swap when set access exists;
-  4. sublist, reverse and k-opt families, only when their required operations
+  4. otherwise plain change, plus plain swap when set access exists;
+  5. sublist, reverse and k-opt families, only when their required operations
      are declared. K-opt uses the nearby metric when available and the
      unbounded form otherwise;
-  5. list ruin for every bound list slot.
+  6. list ruin for every bound list slot; a slot with element groups gets its
+     own ruin with `max_member_distance = 7` and `max_group_owners = 4`.
 - **Mixed models** declare list families first, then nearby scalar, grouped
   scalar, compound conflict-repair and ordinary scalar families.
 
@@ -223,13 +226,13 @@ type = "change_move_selector"
 
 | Area | What ships (selectors by their `type` key in `solver.toml`) |
 |------|------------|
-| Construction | `FirstFit` and `CheapestInsertion` through one compiled runtime graph: scalar-only targets use its descriptor-placement schedule, mixed and list-bearing targets its declaration-order global scan. Specialized list phases: `ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, owner-aware `ListClarkeWright`, `ListKOpt` |
+| Construction | `FirstFit` and `CheapestInsertion` through one compiled runtime graph: scalar-only targets use its descriptor-placement schedule, mixed and list-bearing targets its declaration-order global scan. Specialized list phases: `ListRoundRobin`, `ListCheapestInsertion` and `ListRegretInsertion` (both placing element groups jointly), owner-aware `ListClarkeWright`, `ListKOpt` |
 | Grouped scalar construction | Named `ScalarGroup` declarations, candidate-backed compound edits, assignment-backed nullable construction with required-slot handling, capacity repair and ordering hooks |
 | Local search | `acceptor_forager` with Hill Climbing, Simulated Annealing (level-aware), Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing or Diversified Late Acceptance; or `variable_neighborhood_descent` with ordered neighborhoods |
 | Exhaustive search | Exact search over small finite scalar spaces |
 | Partitioned search | Explicit user-defined decomposition with optional Rayon parallelism, see [Extend the solver](extend-solver.md#partitioned-search) |
 | Scalar selectors | `change_move_selector`, `swap_move_selector`, `nearby_change_move_selector`, `nearby_swap_move_selector`, `pillar_change_move_selector`, `pillar_swap_move_selector`, `ruin_recreate_move_selector`, `grouped_scalar_move_selector`, `conflict_repair_move_selector`, `compound_conflict_repair_move_selector` |
-| List selectors | `list_change_move_selector`, `nearby_list_change_move_selector`, `list_swap_move_selector`, `nearby_list_swap_move_selector`, `list_permute_move_selector`, `list_precedence_move_selector`, `sublist_change_move_selector`, `sublist_swap_move_selector`, `list_reverse_move_selector`, `k_opt_move_selector`, `list_ruin_move_selector` |
+| List selectors | `list_change_move_selector`, `nearby_list_change_move_selector`, `list_swap_move_selector`, `nearby_list_swap_move_selector`, `list_permute_move_selector`, `list_precedence_move_selector`, `sublist_change_move_selector`, `sublist_swap_move_selector`, `list_reverse_move_selector`, `k_opt_move_selector`, `list_ruin_move_selector`, `list_group_change_move_selector`, `list_group_swap_move_selector` |
 | Composition | `union_move_selector`, `cartesian_product_move_selector`, `limited_neighborhood`; native and host-backed compound scalar moves; nearby selection for scalar and list neighborhoods |
 
 ### Bounded Clarke-Wright savings
@@ -254,6 +257,32 @@ stays linear in the stops; see [Modeling](modeling.md#vehicle-routing-cvrp-profi
 Without the setting, savings, their order and the merges are unchanged, and a
 bound of at least the element count minus one gives the same routes as no
 bound.
+
+### Element groups
+
+A list variable with `element_group_fn` (see
+[Modeling](modeling.md#element-groups)) is constructed by
+`list_cheapest_insertion` by default, with `max_group_owners = 4`. Both
+insertion heuristics accept the joint-placement bounds:
+
+```toml
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "list_regret_insertion"
+max_member_distance = 5
+max_group_owners = 6
+```
+
+`max_member_distance` caps the positions from one member of a group to the
+next (`1` keeps members adjacent), and `max_group_owners` tries every
+placement only on that many owners, the ones where the group fits best
+contiguously. Both take 1 to 255; omitted, each is unbounded.
+Other heuristics, and lists without groups, reject both keys.
+
+Local search moves groups through `list_group_change_move_selector`
+(`max_member_distance`) and `list_group_swap_move_selector`, and
+`list_ruin_move_selector` takes the same two bounds for its joint recreate.
+These selectors, and ruin bounds, require a targeted list with element groups.
 
 The configuration surface also covers bounded candidate tracing, per-selector
 ordering and host metrics, weighted union scheduling, score tie-breaking, and

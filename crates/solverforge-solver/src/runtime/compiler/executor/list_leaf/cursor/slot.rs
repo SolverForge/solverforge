@@ -6,9 +6,9 @@ use solverforge_core::score::Score;
 use crate::builder::context::{list_access::ListAccess, RuntimeListSlot};
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::selector::list_kernel::{
-    ChangeCursor, KOptCursor, NearbyChangeCursor, NearbyKOptCursor, NearbySwapCursor,
-    PermuteCursor, PrecedenceCursor, ReverseCursor, RuinCursor, SublistChangeCursor,
-    SublistSwapCursor, SwapCursor, DYNAMIC_CHANGE_SALTS, STATIC_CHANGE_SALTS,
+    ChangeCursor, GroupChangeCursor, GroupSwapCursor, KOptCursor, NearbyChangeCursor,
+    NearbyKOptCursor, NearbySwapCursor, PermuteCursor, PrecedenceCursor, ReverseCursor, RuinCursor,
+    SublistChangeCursor, SublistSwapCursor, SwapCursor, DYNAMIC_CHANGE_SALTS, STATIC_CHANGE_SALTS,
     STATIC_NEARBY_CHANGE_ENTITY_SALT, STATIC_NEARBY_CHANGE_SOURCE_SALT,
     STATIC_NEARBY_SWAP_ENTITY_SALT, STATIC_NEARBY_SWAP_SOURCE_SALT, STATIC_REVERSE_ENTITY_SALT,
     STATIC_SUBLIST_CHANGE_SALTS, STATIC_SUBLIST_SWAP_ENTITY_SALT, STATIC_SWAP_SALTS,
@@ -19,8 +19,10 @@ use crate::heuristic::selector::move_selector::{
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 use super::super::emission::RuntimeListEmitter;
+use super::super::group_emission::GroupedRuinEmitter;
 use super::super::spec::RuntimeListNeighborhoodSpec;
 use super::super::RuntimeListMove;
+use super::groups::{runtime_group_snapshots, runtime_grouped_ruin_emitter};
 use super::probe::{
     runtime_precedence_analysis, runtime_precedence_graph, runtime_ruin_source_pool,
     runtime_selected_owners, RuntimeKOptProbe, RuntimeNearbyProbe,
@@ -68,6 +70,9 @@ where
         >,
     ),
     Ruin(RuinCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
+    GroupRuin(RuinCursor<S, GroupedRuinEmitter<S, V, DM, IDM>>),
+    GroupChange(GroupChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
+    GroupSwap(GroupSwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     Empty,
 }
 
@@ -93,6 +98,9 @@ where
             Self::KOpt(cursor) => cursor.next_owned_candidate(solution),
             Self::NearbyKOpt(cursor) => cursor.next_owned_candidate(solution),
             Self::Ruin(cursor) => cursor.next_owned_candidate(solution),
+            Self::GroupRuin(cursor) => cursor.next_owned_candidate(solution),
+            Self::GroupChange(cursor) => cursor.next_owned_candidate(solution),
+            Self::GroupSwap(cursor) => cursor.next_owned_candidate(solution),
             Self::Empty => None,
         }
     }
@@ -121,6 +129,9 @@ where
             Self::KOpt(cursor) => cursor.next_candidate(solution),
             Self::NearbyKOpt(cursor) => cursor.next_candidate(solution),
             Self::Ruin(cursor) => cursor.next_candidate(solution),
+            Self::GroupRuin(cursor) => cursor.next_candidate(solution),
+            Self::GroupChange(cursor) => cursor.next_candidate(solution),
+            Self::GroupSwap(cursor) => cursor.next_candidate(solution),
             Self::Empty => None,
         }
     }
@@ -142,6 +153,9 @@ where
             Self::KOpt(cursor) => cursor.candidate(id),
             Self::NearbyKOpt(cursor) => cursor.candidate(id),
             Self::Ruin(cursor) => cursor.candidate(id),
+            Self::GroupRuin(cursor) => cursor.candidate(id),
+            Self::GroupChange(cursor) => cursor.candidate(id),
+            Self::GroupSwap(cursor) => cursor.candidate(id),
             Self::Empty => None,
         }
     }
@@ -160,6 +174,9 @@ where
             Self::KOpt(cursor) => cursor.take_candidate(id),
             Self::NearbyKOpt(cursor) => cursor.take_candidate(id),
             Self::Ruin(cursor) => cursor.take_candidate(id),
+            Self::GroupRuin(cursor) => cursor.take_candidate(id),
+            Self::GroupChange(cursor) => cursor.take_candidate(id),
+            Self::GroupSwap(cursor) => cursor.take_candidate(id),
             Self::Empty => panic!("empty runtime list slot has no candidate to take"),
         }
     }
@@ -182,6 +199,9 @@ where
             Self::KOpt(cursor) => cursor.release_candidate(id),
             Self::NearbyKOpt(cursor) => cursor.release_candidate(id),
             Self::Ruin(cursor) => cursor.release_candidate(id),
+            Self::GroupRuin(cursor) => cursor.release_candidate(id),
+            Self::GroupChange(cursor) => cursor.release_candidate(id),
+            Self::GroupSwap(cursor) => cursor.release_candidate(id),
             Self::Empty => false,
         }
     }

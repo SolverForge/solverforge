@@ -89,7 +89,7 @@ impl<S, V> RuntimeListMoveAccess<S, V> {
                 sublist_remove: slot.sublist_remove,
                 sublist_insert: slot.sublist_insert,
                 element_owner: slot.element_owner_fn,
-                precedence_successors: slot.precedence_successors_fn,
+                precedence_successors: slot.precedence_successors_fn(),
             }),
             RuntimeListSlot::Dynamic(dynamic) => Self::Dynamic {
                 slot: (**dynamic).clone(),

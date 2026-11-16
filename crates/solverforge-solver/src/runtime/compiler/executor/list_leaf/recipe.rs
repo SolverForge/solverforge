@@ -29,7 +29,10 @@ pub(super) fn recipe_access<S, V>(
         | RuntimeListRecipe::SublistSwap { access, .. }
         | RuntimeListRecipe::KOpt { access, .. }
         | RuntimeListRecipe::Ruin { access, .. }
-        | RuntimeListRecipe::MultiSwap { access, .. } => access,
+        | RuntimeListRecipe::MultiSwap { access, .. }
+        | RuntimeListRecipe::GroupChange { access, .. }
+        | RuntimeListRecipe::GroupSwap { access, .. }
+        | RuntimeListRecipe::GroupRuin { access, .. } => access,
     }
 }
 
@@ -62,6 +65,9 @@ pub(super) fn recipe_entity_indices<S, V>(
         RuntimeListRecipe::MultiSwap { coordinates, .. } => {
             multi_swap_entity_indices(coordinates).into_iter().collect()
         }
+        RuntimeListRecipe::GroupChange { coordinates, .. } => coordinates.entities(),
+        RuntimeListRecipe::GroupSwap { coordinates, .. } => coordinates.entities(),
+        RuntimeListRecipe::GroupRuin { plan, .. } => plan.entities(),
     };
     entities.sort_unstable();
     entities.dedup();
@@ -79,5 +85,8 @@ pub(super) fn recipe_family<S, V>(recipe: &RuntimeListRecipe<S, V>) -> &'static 
         RuntimeListRecipe::KOpt { .. } => "k_opt",
         RuntimeListRecipe::Ruin { .. } => "ruin",
         RuntimeListRecipe::MultiSwap { .. } => "multi_swap",
+        RuntimeListRecipe::GroupChange { .. } => "group_change",
+        RuntimeListRecipe::GroupSwap { .. } => "group_swap",
+        RuntimeListRecipe::GroupRuin { .. } => "group_ruin",
     }
 }

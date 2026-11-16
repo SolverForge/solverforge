@@ -295,9 +295,23 @@ pub(super) fn config(kind: ListLeafKind) -> MoveSelectorConfig {
                 moves_per_step: Some(3),
                 max_source_list_len: None,
                 skip_empty_destinations: false,
+                max_member_distance: None,
+                max_group_owners: None,
                 target,
             })
         }
+        ListLeafKind::GroupChange => MoveSelectorConfig::ListGroupChangeMoveSelector(
+            solverforge_config::ListGroupChangeMoveConfig {
+                target,
+                ..Default::default()
+            },
+        ),
+        ListLeafKind::GroupSwap => MoveSelectorConfig::ListGroupSwapMoveSelector(
+            solverforge_config::ListGroupSwapMoveConfig {
+                target,
+                ..Default::default()
+            },
+        ),
     }
 }
 

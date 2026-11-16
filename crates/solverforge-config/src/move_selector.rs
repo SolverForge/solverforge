@@ -10,7 +10,8 @@ pub use composite::{
     UnionSelectionOrder, UnionWeighting,
 };
 pub use list::{
-    KOptMoveSelectorConfig, ListChangeMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
+    KOptMoveSelectorConfig, ListChangeMoveConfig, ListGroupChangeMoveConfig,
+    ListGroupSwapMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
     ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
     NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SublistChangeMoveConfig,
     SublistSwapMoveConfig,
@@ -129,6 +130,14 @@ pub enum MoveSelectorConfig {
     /// List ruin move selector (LNS) — removes elements for reinsertion.
     ListRuinMoveSelector(ListRuinMoveSelectorConfig),
 
+    /// List group change move selector — moves a whole element group to
+    /// joint positions of one owner.
+    ListGroupChangeMoveSelector(ListGroupChangeMoveConfig),
+
+    /// List group swap move selector — exchanges two equally sized element
+    /// groups on different owners.
+    ListGroupSwapMoveSelector(ListGroupSwapMoveConfig),
+
     /// Neighborhood that limits the number of yielded candidates from a child selector while
     /// preserving selector order.
     LimitedNeighborhood(LimitedNeighborhoodConfig),
@@ -172,6 +181,8 @@ impl MoveSelectorConfig {
             Self::ListReverseMoveSelector(config) => config.selection_order,
             Self::KOptMoveSelector(config) => config.selection_order,
             Self::ListRuinMoveSelector(config) => config.selection_order,
+            Self::ListGroupChangeMoveSelector(config) => config.selection_order,
+            Self::ListGroupSwapMoveSelector(config) => config.selection_order,
             Self::ConflictRepairMoveSelector(config) => config.selection_order,
             Self::CompoundConflictRepairMoveSelector(config) => config.selection_order,
             Self::LimitedNeighborhood(_)
@@ -203,6 +214,8 @@ impl MoveSelectorConfig {
             Self::ListReverseMoveSelector(config) => config.selection_metric.as_deref(),
             Self::KOptMoveSelector(config) => config.selection_metric.as_deref(),
             Self::ListRuinMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListGroupChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListGroupSwapMoveSelector(config) => config.selection_metric.as_deref(),
             Self::ConflictRepairMoveSelector(config) => config.selection_metric.as_deref(),
             Self::CompoundConflictRepairMoveSelector(config) => config.selection_metric.as_deref(),
             Self::LimitedNeighborhood(_)

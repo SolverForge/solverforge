@@ -6,7 +6,7 @@ mod kernel;
 
 #[cfg(test)]
 pub(crate) use facade::ListRegretInsertionPhase;
-pub(crate) use kernel::run_regret;
+pub(crate) use kernel::{run_regret, run_regret_grouped};
 
 #[cfg(test)]
 #[path = "regret/tests.rs"]

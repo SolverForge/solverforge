@@ -97,6 +97,7 @@ struct EntityMetadata {
     list_construction_element_order_key: Option<syn::Path>,
     list_precedence_duration_fn: Option<syn::Path>,
     list_precedence_successors_fn: Option<syn::Path>,
+    list_element_group_fn: Option<syn::Path>,
 }
 
 struct SolutionCollection {

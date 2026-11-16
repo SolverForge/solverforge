@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use super::*;
 
 /// Configuration for `ListChangeMoveSelector`.
@@ -316,6 +318,14 @@ pub struct ListRuinMoveSelectorConfig {
     /// Whether recreate should skip currently empty destination lists.
     #[serde(default)]
     pub skip_empty_destinations: bool,
+    /// With element groups: most positions from one member of a jointly
+    /// recreated group to the next; `1` keeps members adjacent. Omitted:
+    /// every placement.
+    pub max_member_distance: Option<NonZeroU8>,
+    /// With element groups: tries every placement of a recreated group on at
+    /// most this many owners, the ones where it fits best contiguously.
+    /// Omitted: every owner the group allows.
+    pub max_group_owners: Option<NonZeroU8>,
     /// Restricts the selector to one planning variable through the top-level
     /// `entity_class` and `variable_name` keys; both omitted means every matching
     /// variable.
@@ -333,7 +343,50 @@ impl Default for ListRuinMoveSelectorConfig {
             moves_per_step: None,
             max_source_list_len: None,
             skip_empty_destinations: false,
+            max_member_distance: None,
+            max_group_owners: None,
             target: VariableTargetConfig::default(),
         }
     }
+}
+
+/// Configuration for `ListGroupChangeMoveSelector`: moves a whole element
+/// group, keeping its members' order, to positions of one owner.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ListGroupChangeMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
+    pub selection_metric: Option<String>,
+    /// Most positions from one member of a moved group to the next; `1`
+    /// keeps members adjacent. Omitted: every placement.
+    pub max_member_distance: Option<NonZeroU8>,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+/// Configuration for `ListGroupSwapMoveSelector`: exchanges two element
+/// groups of the same size on different owners, member slot for member slot.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct ListGroupSwapMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
+    pub selection_metric: Option<String>,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
 }

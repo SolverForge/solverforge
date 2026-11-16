@@ -182,7 +182,9 @@ Internal module responsibilities:
   `precedence_duration_fn = "path"` and `precedence_successors_fn = "path"`
   declare plain `fn(&Solution, element) -> usize` and
   `fn(&Solution, element, &mut Vec<usize>)` hooks for stock list-precedence
-  scoring/selectors.
+  scoring/selectors. Optional `element_group_fn = "path"` declares a
+  `fn(&Solution, element, &mut Vec<usize>)` hook appending an element's group
+  members in order; it cannot be combined with the precedence hooks.
 - `#[planning_pin]` — boolean field preserving an entity's input genuine variables during solving. Pinned required scalars must already be assigned; optional unassigned scalars may stay unassigned. A pinned list owner retains its input list.
 - `#[inverse_relation_shadow_variable(source_variable_name = "field")]` — inverse relation shadow
 - `#[index_shadow_variable(source_variable_name = "field")]` — list index shadow
@@ -258,6 +260,7 @@ arguments are compile errors.
 - `construction_element_order_key = "path"` — optional list-construction ordering hook, `fn(&Solution, element) -> i64`; it flows through existing generated list metadata and runtime list slots
 - `precedence_duration_fn = "path"` — optional precedence duration hook, `fn(&Solution, element) -> usize`; paired with `precedence_successors_fn`
 - `precedence_successors_fn = "path"` — optional fixed-precedence successor hook, `fn(&Solution, element, &mut Vec<usize>)`; paired with `precedence_duration_fn`
+- `element_group_fn = "path"` — optional element-group hook, `fn(&Solution, element, &mut Vec<usize>)`; appends the members of the element's group in order, including the element, or nothing; groups of two or more members move and are constructed as units; rejected together with the precedence hooks
 
 When `domain = "cvrp"` is present, the profiled defaults above must be used as a
 coherent stock bundle. Overriding `distance_meter`, `intra_distance_meter`,

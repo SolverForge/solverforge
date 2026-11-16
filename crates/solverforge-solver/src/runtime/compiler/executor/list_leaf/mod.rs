@@ -8,6 +8,7 @@
 mod compiled_leaf;
 mod cursor;
 mod emission;
+mod group_emission;
 mod r#move;
 mod move_access;
 mod recipe;

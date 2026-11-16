@@ -50,6 +50,7 @@ pub(crate) enum RuntimeCapability {
     ListRoute,
     ListSavings,
     ListSavingsNeighbors,
+    ListElementGroups,
 }
 
 impl fmt::Display for RuntimeCapability {
@@ -69,6 +70,7 @@ impl fmt::Display for RuntimeCapability {
             Self::ListRoute => "route bundle (read/replace/depot/distance/feasible)",
             Self::ListSavings => "savings bundle (replace/depot/metric_class/distance/feasible)",
             Self::ListSavingsNeighbors => "savings neighbour source (savings_neighbors_fn)",
+            Self::ListElementGroups => "list element groups (element_group_fn)",
         };
         f.write_str(name)
     }

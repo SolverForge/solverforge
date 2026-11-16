@@ -1,4 +1,5 @@
 use super::*;
+use crate::list_groups::member_gap;
 
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn open_slot_cursor<'a, S, V, DM, IDM>(
@@ -64,7 +65,7 @@ where
             RuntimeListSlotCursor::NearbyChange(
                 NearbyChangeCursor::new(
                     RuntimeListEmitter::new(slot, false),
-                    RuntimeNearbyProbe::new(slot),
+                    RuntimeNearbyProbe::new(slot, solution),
                     entities,
                     route_lens,
                     entity_count,
@@ -149,7 +150,7 @@ where
             RuntimeListSlotCursor::NearbySwap(
                 NearbySwapCursor::new(
                     RuntimeListEmitter::new(slot, false),
-                    RuntimeNearbyProbe::new(slot),
+                    RuntimeNearbyProbe::new(slot, solution),
                     entities,
                     route_lens,
                     entity_count,
@@ -275,11 +276,24 @@ where
             moves_per_step,
             max_source_list_len,
             skip_empty_destinations,
+            bounds,
         } => {
             let Some(seed) = ruin_seed else {
                 return RuntimeListSlotCursor::Empty;
             };
             let source_pool = runtime_ruin_source_pool(slot, solution, max_source_list_len);
+            if let Some(emitter) =
+                runtime_grouped_ruin_emitter(slot, solution, skip_empty_destinations, bounds)
+            {
+                return RuntimeListSlotCursor::GroupRuin(RuinCursor::new(
+                    emitter,
+                    SmallRng::seed_from_u64(seed),
+                    source_pool,
+                    moves_per_step,
+                    min_ruin_count,
+                    max_ruin_count,
+                ));
+            }
             RuntimeListSlotCursor::Ruin(RuinCursor::new(
                 RuntimeListEmitter::new(slot, skip_empty_destinations),
                 SmallRng::seed_from_u64(seed),
@@ -287,6 +301,29 @@ where
                 moves_per_step,
                 min_ruin_count,
                 max_ruin_count,
+            ))
+        }
+        RuntimeListNeighborhoodSpec::GroupChange {
+            max_member_distance,
+        } => {
+            let entity_lens = (0..ListAccess::entity_count(slot, solution))
+                .map(|entity| ListAccess::list_len(slot, solution, entity))
+                .collect();
+            RuntimeListSlotCursor::GroupChange(GroupChangeCursor::new(
+                RuntimeListEmitter::new(slot, false),
+                runtime_group_snapshots(slot, solution),
+                entity_lens,
+                context,
+                max_member_distance.map(member_gap),
+                descriptor_index,
+            ))
+        }
+        RuntimeListNeighborhoodSpec::GroupSwap => {
+            RuntimeListSlotCursor::GroupSwap(GroupSwapCursor::new(
+                RuntimeListEmitter::new(slot, false),
+                runtime_group_snapshots(slot, solution),
+                context,
+                descriptor_index,
             ))
         }
     }

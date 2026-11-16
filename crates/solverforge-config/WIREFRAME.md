@@ -144,6 +144,8 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `group_name` | `Option<String>` | `None` |
 | `group_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set; requires `group_name`; list heuristics reject it |
 | `savings_neighbors` | `Option<NonZeroU32>` | `None` (every pair scored); `0` does not parse; `ListClarkeWright` only, which then scores a pair only when one element is among the other's `savings_neighbors` nearest; other heuristics reject it |
+| `max_member_distance` | `Option<NonZeroU8>` | `None` (every placement); `0` does not parse; `ListCheapestInsertion` and `ListRegretInsertion` on a list with element groups only, capping the positions from one member of a jointly placed group to the next (`1` keeps members adjacent); other heuristics and lists without groups reject it |
+| `max_group_owners` | `Option<NonZeroU8>` | `None` (every allowed owner); `0` does not parse; same heuristics and lists as `max_member_distance`, trying every placement of a group only on that many owners, best contiguous fit first |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 `target` is flattened in serde, so configuration files still use top-level
@@ -560,8 +562,41 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `moves_per_step` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `max_source_list_len` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `skip_empty_destinations` | `bool` | `false` |
+| `max_member_distance` | `Option<NonZeroU8>` | `None` (every placement); `0` does not parse; with element groups, most positions from one member of a jointly recreated group to the next |
+| `max_group_owners` | `Option<NonZeroU8>` | `None` (every allowed owner); `0` does not parse; with element groups, owners tried per recreated group, best contiguous fit first |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
+
+Either group bound requires a targeted list variable with `element_group_fn`.
+
+### `ListGroupChangeMoveConfig`
+
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `selection_order` | `Option<SelectionOrder>` | `None` |
+| `max_member_distance` | `Option<NonZeroU8>` | `None` (every placement); `0` does not parse |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+`list_group_change_move_selector` moves a whole element group, keeping its
+members' order, to positions of one owner. It requires a list variable with
+`element_group_fn`.
+
+### `ListGroupSwapMoveConfig`
+
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `selection_order` | `Option<SelectionOrder>` | `None` |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+`list_group_swap_move_selector` exchanges two element groups of the same size
+on different owners, member slot for member slot. It requires a list variable
+with `element_group_fn`.
 
 ### `RecreateHeuristicType`
 
@@ -888,6 +923,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `ListReverseMoveSelector` | `ListReverseMoveConfig` |
 | `KOptMoveSelector` | `KOptMoveSelectorConfig` |
 | `ListRuinMoveSelector` | `ListRuinMoveSelectorConfig` |
+| `ListGroupChangeMoveSelector` | `ListGroupChangeMoveConfig` |
+| `ListGroupSwapMoveSelector` | `ListGroupSwapMoveConfig` |
 | `ConflictRepairMoveSelector` | `ConflictRepairMoveSelectorConfig` |
 | `CompoundConflictRepairMoveSelector` | `CompoundConflictRepairMoveSelectorConfig` |
 | `LimitedNeighborhood` | `LimitedNeighborhoodConfig` |

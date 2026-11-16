@@ -98,9 +98,18 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     pub construction_element_order_key: Option<fn(&S, V) -> i64>,
     /// Duration of an element for precedence-aware list moves.
     pub precedence_duration_fn: Option<fn(&S, V) -> usize>,
-    /// Appends the precedence successors of an element to the buffer.
-    pub precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
+    /// The precedence-successor or element-group hook; the two exclude each
+    /// other, so they share one field read through `element_relation`.
+    element_relation_fn: Option<fn(&S, V, &mut Vec<V>)>,
+    element_relation: ElementRelation,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+}
+
+/// Which relation the shared element-relation hook of a slot declares.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ElementRelation {
+    Precedence,
+    Groups,
 }
 
 impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
@@ -140,7 +149,8 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             element_owner_fn: self.element_owner_fn,
             construction_element_order_key: self.construction_element_order_key,
             precedence_duration_fn: self.precedence_duration_fn,
-            precedence_successors_fn: self.precedence_successors_fn,
+            element_relation_fn: self.element_relation_fn,
+            element_relation: self.element_relation,
             _phantom: PhantomData,
         }
     }
@@ -217,7 +227,8 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             element_owner_fn: None,
             construction_element_order_key: None,
             precedence_duration_fn: None,
-            precedence_successors_fn: None,
+            element_relation_fn: None,
+            element_relation: ElementRelation::Precedence,
             _phantom: PhantomData,
         }
     }
@@ -262,9 +273,47 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         duration_fn: Option<fn(&S, V) -> usize>,
         successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
     ) -> Self {
+        assert!(
+            successors_fn.is_none() || self.element_group_fn().is_none(),
+            "a list variable cannot combine precedence successors with element groups"
+        );
         self.precedence_duration_fn = duration_fn;
-        self.precedence_successors_fn = successors_fn;
+        if successors_fn.is_some() || self.element_relation == ElementRelation::Precedence {
+            self.element_relation_fn = successors_fn;
+            self.element_relation = ElementRelation::Precedence;
+        }
         self
+    }
+
+    /// Sets the element group hook: it appends the members of an element's
+    /// group, in order and including the element, and nothing for an element
+    /// without a group. Members of one group move together and share one
+    /// owner.
+    pub fn with_element_group_fn(
+        mut self,
+        element_group_fn: Option<fn(&S, V, &mut Vec<V>)>,
+    ) -> Self {
+        assert!(
+            element_group_fn.is_none() || self.precedence_successors_fn().is_none(),
+            "a list variable cannot combine element groups with precedence successors"
+        );
+        if element_group_fn.is_some() || self.element_relation == ElementRelation::Groups {
+            self.element_relation_fn = element_group_fn;
+            self.element_relation = ElementRelation::Groups;
+        }
+        self
+    }
+
+    /// The hook appending an element's precedence successors, if declared.
+    pub fn precedence_successors_fn(&self) -> Option<fn(&S, V, &mut Vec<V>)> {
+        self.element_relation_fn
+            .filter(|_| self.element_relation == ElementRelation::Precedence)
+    }
+
+    /// The hook appending an element's group members, if declared.
+    pub fn element_group_fn(&self) -> Option<fn(&S, V, &mut Vec<V>)> {
+        self.element_relation_fn
+            .filter(|_| self.element_relation == ElementRelation::Groups)
     }
 
     /// Whether this slot matches the given entity class and variable name;
@@ -310,7 +359,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
 
     /// Whether both precedence hooks are present.
     pub fn supports_precedence_moves(&self) -> bool {
-        self.precedence_duration_fn.is_some() && self.precedence_successors_fn.is_some()
+        self.precedence_duration_fn.is_some() && self.precedence_successors_fn().is_some()
     }
 }
 

@@ -59,6 +59,8 @@ pub(crate) enum ListLeafKind {
     Reverse,
     KOpt,
     Ruin,
+    GroupChange,
+    GroupSwap,
 }
 
 /// Exhaustive compiled list-construction family.

@@ -176,6 +176,31 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 }
             });
         }
+
+        if let (Some(variable_name), Some(path)) =
+            (&entity.list_variable_name, &entity.list_element_group_fn)
+        {
+            let runtime_helper = format_ident!(
+                "__solverforge_runtime_list_element_group_{}",
+                entity_field
+            );
+            list_runtime_helpers.push(quote! {
+                fn #runtime_helper(
+                    solution: &#solution_path,
+                    element: usize,
+                    members: &mut ::std::vec::Vec<usize>,
+                ) {
+                    #path(solution, element, members)
+                }
+            });
+            list_runtime_attachments.push(quote! {
+                if slot.descriptor_index == #descriptor_index
+                    && slot.variable_name == #variable_name
+                {
+                    slot = slot.with_element_group_fn(::core::option::Option::Some(#runtime_helper));
+                }
+            });
+        }
     }
 
     let ScalarHookTokens {

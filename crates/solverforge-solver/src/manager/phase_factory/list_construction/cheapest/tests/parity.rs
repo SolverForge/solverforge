@@ -208,6 +208,7 @@ fn run_runtime(slot: Slot) -> (Vec<Vec<usize>>, CandidateTraceTelemetry) {
         &slot,
         &source_index,
         &unassigned,
+        crate::list_groups::JointBounds::default(),
         crate::scope::StepControlPolicy::ObserveConfigLimits,
         &mut scope,
     )

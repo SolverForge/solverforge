@@ -10,8 +10,8 @@ use super::list_access::ListAccessCapability;
 use super::runtime_list_metadata_policy::StaticListMetadataBindings;
 use super::runtime_list_route_policy::{RuntimeDynamicListSlot, StaticRouteBindings};
 use super::{
-    ConstructionOrderPolicy, ListVariableSlot, OwnershipPolicy, PrecedencePolicy,
-    RouteFeasibilityPolicy, RouteReadPolicy, RouteReplacePolicy, RuntimeListSlot,
+    ConstructionOrderPolicy, ElementGroupPolicy, ListVariableSlot, OwnershipPolicy,
+    PrecedencePolicy, RouteFeasibilityPolicy, RouteReadPolicy, RouteReplacePolicy, RuntimeListSlot,
     RuntimeScalarSlotId, SavingsMetricClassPolicy,
 };
 
@@ -115,6 +115,16 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
         }
     }
 
+    /// Element groups are a typed list feature: dynamic slots declare none.
+    pub(crate) fn element_group_policy(&self) -> ElementGroupPolicy {
+        match self {
+            Self::Static {
+                metadata_bindings, ..
+            } => metadata_bindings.element_group_policy,
+            Self::Dynamic(_) => ElementGroupPolicy::Absent,
+        }
+    }
+
     pub(crate) fn identity(&self) -> RuntimeScalarSlotId {
         match self {
             Self::Static {
@@ -166,6 +176,9 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
                 ListAccessCapability::Route => route_bindings.supports_route(),
                 ListAccessCapability::Savings => route_bindings.supports_savings(),
                 ListAccessCapability::SavingsNeighbors => self.savings_neighbors_fn().is_some(),
+                ListAccessCapability::ElementGroups => {
+                    metadata_bindings.element_group_policy.is_explicit()
+                }
             },
             Self::Dynamic(slot) => {
                 let access = slot.access_capabilities();
@@ -193,7 +206,8 @@ impl<S, V, DM, IDM> RuntimeListSlot<S, V, DM, IDM> {
                             && metadata.savings
                             && slot.savings_metric_class_policy().is_dynamic_explicit()
                     }
-                    ListAccessCapability::SavingsNeighbors => false,
+                    ListAccessCapability::SavingsNeighbors
+                    | ListAccessCapability::ElementGroups => false,
                 }
             }
         }

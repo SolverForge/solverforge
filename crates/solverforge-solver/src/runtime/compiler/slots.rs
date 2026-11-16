@@ -267,6 +267,7 @@ pub(super) fn require_list_capability<S, V, DM, IDM>(
         RuntimeCapability::ListRoute => ListAccessCapability::Route,
         RuntimeCapability::ListSavings => ListAccessCapability::Savings,
         RuntimeCapability::ListSavingsNeighbors => ListAccessCapability::SavingsNeighbors,
+        RuntimeCapability::ListElementGroups => ListAccessCapability::ElementGroups,
         _ => unreachable!("list capability validation received a scalar capability"),
     };
     if let Some(slot) = slots.iter().find(|slot| !slot.supports(access_capability)) {
@@ -346,7 +347,17 @@ where
     )?;
     let mut required = Vec::new();
     match kind {
-        ListLeafKind::Change | ListLeafKind::Ruin => {}
+        ListLeafKind::Change => {}
+        ListLeafKind::Ruin => {
+            if let MoveSelectorConfig::ListRuinMoveSelector(ruin) = config {
+                if ruin.max_member_distance.is_some() || ruin.max_group_owners.is_some() {
+                    required.push(RuntimeCapability::ListElementGroups);
+                }
+            }
+        }
+        ListLeafKind::GroupChange | ListLeafKind::GroupSwap => {
+            required.push(RuntimeCapability::ListElementGroups)
+        }
         ListLeafKind::NearbyChange => {
             required.push(RuntimeCapability::ListCrossPositionDistance);
         }

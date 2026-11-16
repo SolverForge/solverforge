@@ -9,12 +9,15 @@ use solverforge_scoring::Director;
 
 use crate::builder::context::RuntimeListElement;
 use crate::heuristic::r#move::list_kernel::{
-    change_do_move, change_is_doable, change_undo_move, k_opt_do_move, k_opt_do_move_into,
-    k_opt_is_doable, k_opt_undo_move, multi_swap_do_move, multi_swap_is_doable,
-    multi_swap_undo_move, permute_do_move, permute_is_doable, permute_undo_move, reverse_do_move,
-    reverse_is_doable, ruin_do_move, ruin_is_doable, ruin_undo_move, sublist_change_do_move,
-    sublist_change_is_doable, sublist_change_undo_move, sublist_swap_do_move,
-    sublist_swap_is_doable, sublist_swap_undo_move, swap_do_move, swap_is_doable, ListMoveAccess,
+    change_do_move, change_is_doable, change_undo_move, group_change_do_move,
+    group_change_is_doable, group_change_undo_move, group_ruin_do_move, group_ruin_is_doable,
+    group_ruin_undo_move, group_swap_do_move, group_swap_is_doable, group_swap_undo_move,
+    k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_undo_move, multi_swap_do_move,
+    multi_swap_is_doable, multi_swap_undo_move, permute_do_move, permute_is_doable,
+    permute_undo_move, reverse_do_move, reverse_is_doable, ruin_do_move, ruin_is_doable,
+    ruin_undo_move, sublist_change_do_move, sublist_change_is_doable, sublist_change_undo_move,
+    sublist_swap_do_move, sublist_swap_is_doable, sublist_swap_undo_move, swap_do_move,
+    swap_is_doable, ListMoveAccess,
 };
 use crate::heuristic::r#move::{ListUndoJournal, Move, MoveTabuSignature};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -181,6 +184,17 @@ where
                 coordinates,
                 ..
             } => multi_swap_is_doable(access, coordinates, score_director),
+            RuntimeListRecipe::GroupChange {
+                access,
+                coordinates,
+            } => group_change_is_doable(access, coordinates, score_director),
+            RuntimeListRecipe::GroupSwap {
+                access,
+                coordinates,
+            } => group_swap_is_doable(access, coordinates, score_director),
+            RuntimeListRecipe::GroupRuin { access, plan } => {
+                group_ruin_is_doable(access, plan, score_director)
+            }
         }
     }
 
@@ -290,6 +304,23 @@ where
                 multi_swap_do_move(access, coordinates, &self.entity_indices, score_director);
                 RuntimeListMoveUndo::None
             }
+            RuntimeListRecipe::GroupChange {
+                access,
+                coordinates,
+            } => {
+                group_change_do_move(access, coordinates, score_director);
+                RuntimeListMoveUndo::None
+            }
+            RuntimeListRecipe::GroupSwap {
+                access,
+                coordinates,
+            } => {
+                group_swap_do_move(access, coordinates, score_director);
+                RuntimeListMoveUndo::None
+            }
+            RuntimeListRecipe::GroupRuin { access, plan } => {
+                RuntimeListMoveUndo::Ruin(group_ruin_do_move(access, plan, score_director))
+            }
         }
     }
 
@@ -360,6 +391,23 @@ where
                 },
                 RuntimeListMoveUndo::None,
             ) => multi_swap_undo_move(access, coordinates, &self.entity_indices, score_director),
+            (
+                RuntimeListRecipe::GroupChange {
+                    access,
+                    coordinates,
+                },
+                RuntimeListMoveUndo::None,
+            ) => group_change_undo_move(access, coordinates, score_director),
+            (
+                RuntimeListRecipe::GroupSwap {
+                    access,
+                    coordinates,
+                },
+                RuntimeListMoveUndo::None,
+            ) => group_swap_undo_move(access, coordinates, score_director),
+            (RuntimeListRecipe::GroupRuin { access, plan }, RuntimeListMoveUndo::Ruin(undo)) => {
+                group_ruin_undo_move(access, plan, undo, score_director)
+            }
             _ => panic!("runtime list move undo shape must match recipe"),
         }
     }
@@ -387,6 +435,9 @@ where
             RuntimeListRecipe::KOpt { .. } => "runtime_k_opt",
             RuntimeListRecipe::Ruin { .. } => "runtime_list_ruin",
             RuntimeListRecipe::MultiSwap { .. } => "runtime_list_multi_swap",
+            RuntimeListRecipe::GroupChange { .. } => "runtime_list_group_change",
+            RuntimeListRecipe::GroupSwap { .. } => "runtime_list_group_swap",
+            RuntimeListRecipe::GroupRuin { .. } => "runtime_list_group_ruin",
         }
     }
 

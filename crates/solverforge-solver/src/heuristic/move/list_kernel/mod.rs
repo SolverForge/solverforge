@@ -6,6 +6,8 @@
 
 mod access;
 mod change;
+mod group;
+mod group_ruin;
 mod k_opt;
 mod multi_swap;
 mod permute;
@@ -25,6 +27,16 @@ pub(crate) use access::{StaticListChangeAccess, StaticListSwapAccess};
 pub(crate) use change::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
     change_undo_move, ChangeCoordinates,
+};
+pub(crate) use group::{
+    group_change_candidate_trace_identity, group_change_do_move, group_change_is_doable,
+    group_change_tabu_signature, group_change_undo_move, group_swap_candidate_trace_identity,
+    group_swap_do_move, group_swap_is_doable, group_swap_tabu_signature, group_swap_undo_move,
+    GroupChangeCoordinates, GroupSwapCoordinates, MemberCoordinates,
+};
+pub(crate) use group_ruin::{
+    group_ruin_candidate_trace_identity, group_ruin_do_move, group_ruin_is_doable,
+    group_ruin_tabu_signature, group_ruin_undo_move, GroupRuinPlan,
 };
 pub(crate) use k_opt::{
     k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move,

@@ -159,7 +159,9 @@ type StartCost = IncrementalUniConstraint<
 >;
 
 // Each task costs its start, with its position and machine folded in so a
-// stale previous pointer would also show; an unset start costs 1000.
+// stale previous pointer would also show. An unset start costs 1000 in no
+// list and 5000 on a machine (a dependency cycle), so a row retracted after
+// its machine was written would also show.
 fn start_cost() -> StartCost {
     fn tasks(shop: &Shop) -> &[Task] {
         &shop.tasks
@@ -174,6 +176,7 @@ fn start_cost() -> StartCost {
                     + task.machine.map_or(0, |machine| machine as i64 + 1)
                     + task.previous.map_or(0, |previous| previous as i64 * 100),
             ),
+            None if task.machine.is_some() => SoftScore::of(5000),
             None => SoftScore::of(1000),
         }
     }

@@ -14,9 +14,12 @@ struct CascadeContext<'a> {
 fn validate_cascade_config(config: &ShadowConfig) -> Result<()> {
     let error = |message: &str| Err(Error::new(proc_macro2::Span::call_site(), message));
     if config.cascading_field.is_none() {
-        if config.cascading_compute.is_some() || config.cascading_dependencies.is_some() {
+        if config.cascading_compute.is_some()
+            || config.cascading_dependencies.is_some()
+            || config.cascading_peers.is_some()
+        {
             return error(
-                "#[shadow_variable_updates(...)] `cascading_compute` and `cascading_dependencies` require `cascading_field = \"element_field\"`",
+                "#[shadow_variable_updates(...)] `cascading_compute`, `cascading_dependencies` and `cascading_peers` require `cascading_field = \"element_field\"`",
             );
         }
         return Ok(());
@@ -65,6 +68,14 @@ fn generate_cascade_hooks(config: &ShadowConfig, context: &CascadeContext<'_>) -
             quote! { dependencies.extend(solution.#method(element)); }
         })
         .unwrap_or_default();
+    let peers = config
+        .cascading_peers
+        .as_deref()
+        .map(|method| {
+            let method = Ident::new(method, span);
+            quote! { peers.extend(solution.#method(element)); }
+        })
+        .unwrap_or_default();
     quote! {
         fn cascading_element_count(solution: &Self) -> usize {
             #solution_path::#element_accessor(solution).len()
@@ -85,6 +96,11 @@ fn generate_cascade_hooks(config: &ShadowConfig, context: &CascadeContext<'_>) -
             dependencies: &mut ::std::vec::Vec<usize>,
         ) {
             #dependencies
+        }
+
+        #[allow(unused_variables)]
+        fn cascading_peers(solution: &Self, element: usize, peers: &mut ::std::vec::Vec<usize>) {
+            #peers
         }
 
         fn cascading_unset(solution: &Self, element: usize) -> bool {

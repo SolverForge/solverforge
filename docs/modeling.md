@@ -171,6 +171,9 @@ impl Shop {
   `Option<usize>`, a slice, a `Vec`). Dependencies are problem facts; moves
   never change them, and a problem change that does is applied through a
   reset.
+- `cascading_peers` (optional) names a solution method returning the
+  elements computed together with `element`, as any
+  `IntoIterator<Item = usize>`. See [Joint groups](#joint-groups).
 - `inverse_field`, `previous_field` and `next_field` are required.
   `cascading_listener`, `post_update_listener`, `entity_aggregate` and
   `entity_compute` cannot be combined with a cascading shadow: they run per
@@ -185,6 +188,77 @@ element in no list, or on a dependency cycle a move creates (a task that
 waits on a task queued after it), is unset (`None`), which constraints can
 penalize. Models without a cascading shadow compile none of this into their
 move path.
+
+#### Joint groups
+
+Some elements in different lists must be timed together: a job that needs
+two technicians starts when the later of them arrives, so each technician's
+visit waits on the other's arrival. Declaring that as two dependencies would
+be a cycle. Declare the visits peers instead:
+
+```rust
+#[planning_solution]
+#[shadow_variable_updates(
+    list_owner = "technicians",
+    inverse_field = "technician",
+    previous_field = "previous",
+    next_field = "next",
+    cascading_field = "start",
+    cascading_compute = "compute_start",
+    cascading_peers = "visit_partners"
+)]
+pub struct Crew {
+    #[planning_entity_collection]
+    pub technicians: Vec<Technician>,
+
+    #[problem_fact_collection]
+    pub visits: Vec<Visit>,
+
+    #[planning_score]
+    pub score: Option<HardSoftScore>,
+}
+
+impl Crew {
+    // When the technician can be at the visit.
+    fn arrival(&self, visit: usize) -> Option<i64> {
+        match self.visits[visit].previous {
+            Some(previous) => {
+                let left = self.visits[previous].start? + self.visits[previous].duration;
+                Some(left + self.visits[visit].travel_from[previous])
+            }
+            None => Some(0),
+        }
+    }
+
+    // When the last assigned technician of the job arrives.
+    pub fn compute_start(&self, visit: usize) -> Option<i64> {
+        let mut start = self.arrival(visit)?;
+        for &partner in &self.visits[visit].partners {
+            if self.visits[partner].technician.is_some() {
+                start = start.max(self.arrival(partner)?);
+            }
+        }
+        Some(start)
+    }
+
+    pub fn visit_partners(&self, visit: usize) -> Vec<usize> {
+        self.visits[visit].partners.clone()
+    }
+}
+```
+
+Peers are joined transitively into a joint group, and propagation treats
+the group as one node: it waits until the previous element and every
+dependency of every member hold their final values, then computes the
+members once each, in ascending element order. A member's compute may read
+those inputs of its peers; it must not read a peer's cascading value, which
+is being computed in the same step. Peers are problem facts, like
+dependencies.
+
+A group whose members wait on each other through their lists (two
+members on one route, or a member after an element that waits on its peer)
+is a cycle, and its members are unset. A model without peers maps every
+element to its own node and pays nothing for the feature.
 
 ### Fixed element owners
 

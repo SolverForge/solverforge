@@ -8,6 +8,8 @@
 // Documented code is shown as written: shadowed `let`s, ignored results.
 #![allow(dead_code, unused_variables, unused_must_use, unused_mut)]
 
+#[path = "readme_examples/crew/mod.rs"]
+mod crew;
 #[path = "readme_examples/nurses/mod.rs"]
 mod nurses;
 #[path = "readme_examples/routes/mod.rs"]
@@ -71,6 +73,7 @@ const SOURCES: &[(&str, &str)] = &[
         "configured.rs",
         include_str!("readme_examples/configured.rs"),
     ),
+    ("crew/plan.rs", include_str!("readme_examples/crew/plan.rs")),
     ("manager.rs", include_str!("readme_examples/manager.rs")),
     (
         "night_shift.rs",

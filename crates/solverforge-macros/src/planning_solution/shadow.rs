@@ -65,6 +65,13 @@ pub(super) fn generate_shadow_support(
             }
 
             #[inline]
+            fn cascading_peers(&self, element: usize, peers: &mut ::std::vec::Vec<usize>) {
+                <Self as ::solverforge::__internal::PlanningModelSupport>::cascading_peers(
+                    self, element, peers,
+                )
+            }
+
+            #[inline]
             fn cascading_unset(&self, element: usize) -> bool {
                 <Self as ::solverforge::__internal::PlanningModelSupport>::cascading_unset(self, element)
             }

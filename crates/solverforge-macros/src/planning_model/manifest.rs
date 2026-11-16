@@ -132,6 +132,7 @@ struct ShadowConfig {
     cascading_field: Option<String>,
     cascading_compute: Option<String>,
     cascading_dependencies: Option<String>,
+    cascading_peers: Option<String>,
     post_update_listener: Option<String>,
     entity_aggregates: Vec<String>,
     entity_computes: Vec<String>,

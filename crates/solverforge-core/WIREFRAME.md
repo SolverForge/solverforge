@@ -50,6 +50,9 @@ src/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId
 │   ├── cascade.rs                         — CascadePropagation: cascading list shadow propagation across list owners
+│   ├── cascade/
+│   │   ├── cycles.rs                      — Dependency cycles among the nodes of a stalled propagation
+│   │   └── groups.rs                      — Joint groups: peers joined into nodes computed together
 │   ├── dynamic.rs                         — DynamicModelBackend, scalar/list access contracts, explicit list access/metadata capabilities
 │   ├── dynamic/
 │   │   ├── assignment.rs                  — Dynamic scalar-assignment metadata contract and structural capabilities
@@ -157,6 +160,7 @@ Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domai
 | `cascading_assigned` | `fn cascading_assigned(&self, element: usize) -> bool` | Default: `false`; whether a list holds `element` |
 | `cascading_next` | `fn cascading_next(&self, element: usize) -> Option<usize>` | Default: `None`; the element after `element` in its list |
 | `cascading_dependencies` | `fn cascading_dependencies(&self, element: usize, dependencies: &mut Vec<usize>)` | Default: none; appends the elements `element` waits on besides its previous element. Dependencies are problem facts |
+| `cascading_peers` | `fn cascading_peers(&self, element: usize, peers: &mut Vec<usize>)` | Default: none; appends the elements computed together with `element`. Peers join transitively into a joint group that propagation computes as one node. Peers are problem facts |
 | `cascading_unset` | `fn cascading_unset(&self, element: usize) -> bool` | Default: `true`; whether the cascading value is unset |
 | `update_cascading_shadow` | `fn update_cascading_shadow<W: FnOnce(&Self)>(&mut self, element: usize, computable: bool, before_write: W) -> bool` | Default: `false`; recomputes (or, when `computable` is `false`, unsets) the value, calls `before_write` before writing a changed value, returns whether it changed |
 | `update_list_structure_shadows` | `fn update_list_structure_shadows(&mut self, descriptor_index: usize, entity_index: usize)` | Default: `update_entity_shadows`; refreshes one owner's inverse, index, previous and next shadows without the cascading shadow |
@@ -341,12 +345,14 @@ Derives: `Debug, Clone`
 
 Reusable propagation state for a solution's cascading list shadow (see
 `PlanningSolution::HAS_CASCADING_SHADOWS`): the reverse index of the declared
-dependencies plus per-element scratch. `Default`.
+dependencies, the joint groups of declared peers, plus per-node scratch.
+Propagation works on nodes: a joint group, or an element of none; without
+peers every element is its own node. `Default`.
 
-- `new<S: PlanningSolution>(&S) -> Self` — state with the dependency index built.
-- `rebuild_dependencies<S: PlanningSolution>(&mut self, &S)` — rebuilds the index and resizes scratch; panics on a dependency to a missing element.
+- `new<S: PlanningSolution>(&S) -> Self` — state with the dependency index and groups built.
+- `rebuild_dependencies<S: PlanningSolution>(&mut self, &S)` — rebuilds the index and the groups and resizes scratch; panics on a dependency or peer to a missing element.
 - `refresh_all<S: PlanningSolution>(&mut S)` — recomputes every cascading value.
-- `propagate<S, I, W>(&mut self, &mut S, changed: I, before_write: W)` with `I: IntoIterator<Item = usize>`, `W: FnMut(&S, usize)` — recomputes the downstream cone of the `changed` elements in dependency order: each element at most once, after its inputs in the cone, and only when it is changed, an input changed value, or it is held by a list but unset; elements on a dependency cycle are unset. `before_write` sees the solution before each write.
+- `propagate<S, I, W>(&mut self, &mut S, changed: I, before_write: W)` with `I: IntoIterator<Item = usize>`, `W: FnMut(&S, usize)` — recomputes the downstream cone of the nodes of the `changed` elements in dependency order: each node at most once, after the inputs of all its members in the cone, its members in ascending element order, and only when a member is changed, an input changed value, or a member is held by a list but unset; elements on a dependency cycle are unset. `before_write` sees the solution before each write.
 
 #### `EntityCollectionExtractor<S, E>`
 

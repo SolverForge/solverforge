@@ -149,6 +149,14 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
     /// problem facts: moves never change them.
     fn cascading_dependencies(&self, _element: usize, _dependencies: &mut Vec<usize>) {}
 
+    /// Appends the peers of `element` to `peers`: elements computed together
+    /// with it, joined transitively into a joint group. A member's value is
+    /// computed after the previous elements and dependencies of every member
+    /// hold their final values, so it may read them; it must not read
+    /// another member's cascading value. Peers are problem facts: moves
+    /// never change them.
+    fn cascading_peers(&self, _element: usize, _peers: &mut Vec<usize>) {}
+
     /// Whether `element`'s cascading value is unset.
     fn cascading_unset(&self, _element: usize) -> bool {
         true

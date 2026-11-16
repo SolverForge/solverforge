@@ -177,10 +177,11 @@ impl ListShadowRows {
         cascade.open_changes += 1;
     }
 
-    /// Refreshes one owner's list structure for a cascading move and inserts
-    /// the owner's row; element rows stay retracted until the move's last
-    /// owner is refreshed, when the cascading values are propagated and every
-    /// pending element is inserted once.
+    /// Retracts the owner's arrivals from no list, refreshes its list
+    /// structure for a cascading move and inserts the owner's row; element
+    /// rows stay retracted until the move's last owner is refreshed, when the
+    /// cascading values are propagated and every pending element is inserted
+    /// once.
     pub(super) fn refresh_cascading_owner<S, C>(
         &mut self,
         solution: &mut S,
@@ -193,8 +194,8 @@ impl ListShadowRows {
         C: RowDeltas<S, S::Score>,
     {
         let mut delta = S::Score::zero();
-        solution.update_list_structure_shadows(owner_descriptor, owner_index);
-        delta = delta + constraints.insert_row(solution, owner_index, owner_descriptor);
+        // The list already holds its arrivals; their structure shadows are
+        // rewritten only below, so their rows are retracted first.
         if let Some((source, elements)) =
             solution.list_shadow_elements(owner_descriptor, owner_index)
         {
@@ -222,6 +223,8 @@ impl ListShadowRows {
                 }
             }
         }
+        solution.update_list_structure_shadows(owner_descriptor, owner_index);
+        delta = delta + constraints.insert_row(solution, owner_index, owner_descriptor);
         let cascade = self
             .cascade
             .as_mut()

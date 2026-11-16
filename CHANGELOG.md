@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.30.1](https://github.com/SolverForge/solverforge/compare/v0.30.0...v0.30.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **scoring:** retract cascading list arrivals before their structure shadows change ([25f3442](https://github.com/SolverForge/solverforge/commit/25f34420c650402b3d21318842ea14f901b09187))
+
+
 ## [0.30.0](https://github.com/SolverForge/solverforge/compare/v0.29.0...v0.30.0) (2026-11-15)
 
 

@@ -254,3 +254,42 @@ fn the_documented_cascading_shadow_follows_a_dependency_across_machines() {
     let starts: Vec<_> = plan.tasks.iter().map(|task| task.start).collect();
     assert_eq!(starts, vec![Some(0), Some(4), Some(0)]);
 }
+
+#[test]
+fn the_documented_joint_cascade_starts_partner_visits_together() {
+    use crew::{Crew, Technician, Visit};
+    use solverforge::PlanningSolution;
+    let visit = |id, duration, travel_from: Vec<i64>, partners: Vec<usize>| Visit {
+        id,
+        duration,
+        travel_from,
+        partners,
+        technician: None,
+        previous: None,
+        next: None,
+        start: None,
+    };
+    let mut crew = Crew {
+        technicians: vec![
+            Technician {
+                id: 0,
+                visits: vec![0, 2],
+            },
+            Technician {
+                id: 1,
+                visits: vec![1, 3],
+            },
+        ],
+        visits: vec![
+            visit(0, 2, vec![0, 0, 0, 0], vec![]),
+            visit(1, 7, vec![0, 0, 0, 0], vec![]),
+            visit(2, 1, vec![3, 0, 0, 0], vec![3]),
+            visit(3, 1, vec![0, 1, 0, 0], vec![2]),
+        ],
+        score: None,
+    };
+    crew.update_all_shadows();
+    let starts: Vec<_> = crew.visits.iter().map(|visit| visit.start).collect();
+    // Visit 2 is reachable at 5 and visit 3 at 8: both start at 8.
+    assert_eq!(starts, vec![Some(0), Some(0), Some(8), Some(8)]);
+}

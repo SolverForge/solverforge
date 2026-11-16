@@ -112,6 +112,7 @@ const SHADOW_UPDATES_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("cascading_field"),
     AttributeArgSpec::string("cascading_compute"),
     AttributeArgSpec::string("cascading_dependencies"),
+    AttributeArgSpec::string("cascading_peers"),
     AttributeArgSpec::string("post_update_listener"),
     AttributeArgSpec::repeated_string("entity_aggregate"),
     AttributeArgSpec::repeated_string("entity_compute"),

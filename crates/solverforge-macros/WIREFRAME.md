@@ -242,6 +242,7 @@ arguments are compile errors.
 - `cascading_field = "field"` — `Option<_>` element field computed from the previous element in its list and the element's dependencies, propagated across list owners; requires `cascading_compute`, `inverse_field`, `previous_field` and `next_field`, and rejects `cascading_listener`, `post_update_listener`, `entity_aggregate` and `entity_compute`
 - `cascading_compute = "method"` — solution method `fn(&self, element: usize) -> Option<_>` computing the cascading value of an element held by a list
 - `cascading_dependencies = "method"` — solution method returning the elements an element waits on, as `IntoIterator<Item = usize>`; optional
+- `cascading_peers = "method"` — solution method returning the elements computed together with an element (a joint group, joined transitively), as `IntoIterator<Item = usize>`; optional
 
 **`#[planning_list_variable]` parameters:**
 - `element_collection = "field"` — solution field with all list elements

@@ -105,6 +105,10 @@ pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     /// Appends the declared dependencies of `element`; none by default.
     fn cascading_dependencies(_solution: &Self, _element: usize, _dependencies: &mut Vec<usize>) {}
 
+    /// Appends the peers of `element`, the elements computed together with
+    /// it; none by default.
+    fn cascading_peers(_solution: &Self, _element: usize, _peers: &mut Vec<usize>) {}
+
     /// Whether `element`'s cascading value is unset; `true` by default.
     fn cascading_unset(_solution: &Self, _element: usize) -> bool {
         true

@@ -2,14 +2,20 @@
 //!
 //! A cascading value depends on the element's previous element in its list
 //! and on the elements it declares it depends on, which other owners' lists
-//! may hold. The dependency graph has an edge from an element's previous
-//! element and from each of its dependencies to the element. After list
+//! may hold. Elements that declare each other peers form a joint group,
+//! computed together: two technicians that start a visit together each wait
+//! on the other's arrival. Propagation works on nodes, a node being a joint
+//! group or an element of none. The graph has an edge to a node from the
+//! previous element and from each dependency of every member. After list
 //! changes, [`CascadePropagation::propagate`] visits the downstream cone of
-//! the changed elements and recomputes it in dependency order: an element is
+//! the changed elements and recomputes it in dependency order: a node is
 //! recomputed at most once, only after every input in the cone is final, and
-//! only when an input value changed (or it is a changed element itself), so
-//! propagation stops where a recomputed value equals the old one. Elements
-//! on a dependency cycle have no defined value and are unset.
+//! only when an input value changed (or a member is a changed element), so
+//! propagation stops where recomputed values equal the old ones. Elements on
+//! a dependency cycle have no defined value and are unset.
+
+mod cycles;
+mod groups;
 
 use super::PlanningSolution;
 
@@ -17,17 +23,24 @@ const UNVISITED: usize = usize::MAX;
 
 /// Reusable propagation state for one solution's cascading shadow.
 ///
-/// Holds the reverse index of the declared dependencies, built by
-/// [`rebuild_dependencies`](Self::rebuild_dependencies) and valid while the
-/// dependencies and the element count stay unchanged, plus per-element
-/// scratch that every propagation leaves cleared.
+/// Holds the reverse index of the declared dependencies and the joint
+/// groups, built by [`rebuild_dependencies`](Self::rebuild_dependencies) and
+/// valid while the dependencies, the peers and the element count stay
+/// unchanged, plus per-node scratch that every propagation leaves cleared.
 #[derive(Default)]
 pub struct CascadePropagation {
     // Elements that declare a dependency on each element, as compressed
     // rows: the dependents of `e` are `dependents[offsets[e]..offsets[e + 1]]`.
     offsets: Vec<usize>,
     dependents: Vec<usize>,
-    // Per-element scratch, cleared after each propagation.
+    // Joint groups, empty when no element declares peers. A group is the
+    // node of its lowest element, `node[e]`; its members are
+    // `members[member_offsets[n]..member_offsets[n + 1]]`, empty for an
+    // element that is not a node.
+    node: Vec<usize>,
+    member_offsets: Vec<usize>,
+    members: Vec<usize>,
+    // Per-node scratch, cleared after each propagation.
     in_cone: Vec<bool>,
     dirty: Vec<bool>,
     done: Vec<bool>,
@@ -50,13 +63,12 @@ impl CascadePropagation {
         propagation
     }
 
-    /// Rebuilds the reverse dependency index from `solution` and sizes the
-    /// per-element scratch to its element count.
+    /// Rebuilds the reverse dependency index and the joint groups from
+    /// `solution` and sizes the per-node scratch to its element count.
     ///
     /// # Panics
     ///
-    /// When an element declares a dependency on an element index that does
-    /// not exist.
+    /// When an element declares a dependency or a peer that does not exist.
     pub fn rebuild_dependencies<S: PlanningSolution>(&mut self, solution: &S) {
         let count = solution.cascading_element_count();
         self.offsets.clear();
@@ -87,6 +99,7 @@ impl CascadePropagation {
             }
         }
         self.scratch.clear();
+        self.rebuild_groups(solution, count);
         for flags in [
             &mut self.in_cone,
             &mut self.dirty,
@@ -115,33 +128,57 @@ impl CascadePropagation {
     /// Recomputes the cascading values downstream of `changed`, the elements
     /// whose list position or list membership changed.
     ///
-    /// Every element of `changed` is recomputed; another element of the
-    /// downstream cone is recomputed when one of its inputs changed value, or
-    /// when it is held by a list but unset (it may have left a dependency
-    /// cycle). Each element is recomputed at most once, after all of its
-    /// inputs in the cone. Before an element's value is written,
-    /// `before_write` is called with the solution still holding the old value
-    /// and the element index.
-    pub fn propagate<S, I, W>(&mut self, solution: &mut S, changed: I, mut before_write: W)
+    /// Every member of a node holding an element of `changed` is recomputed;
+    /// another node of the downstream cone is recomputed when one of its
+    /// inputs changed value, or when a member is held by a list but unset (it
+    /// may have left a dependency cycle). Each node is recomputed at most
+    /// once, after all of its inputs in the cone, its members in ascending
+    /// element order. Before an element's value is written, `before_write`
+    /// is called with the solution still holding the old value and the
+    /// element index.
+    pub fn propagate<S, I, W>(&mut self, solution: &mut S, changed: I, before_write: W)
     where
         S: PlanningSolution,
         I: IntoIterator<Item = usize>,
         W: FnMut(&S, usize),
     {
+        // A model without peers runs the element-per-node instance, which
+        // compiles the group lookups away.
+        if self.node.is_empty() {
+            self.propagate_nodes::<false, S, I, W>(solution, changed, before_write);
+        } else {
+            self.propagate_nodes::<true, S, I, W>(solution, changed, before_write);
+        }
+    }
+
+    fn propagate_nodes<const GROUPED: bool, S, I, W>(
+        &mut self,
+        solution: &mut S,
+        changed: I,
+        mut before_write: W,
+    ) where
+        S: PlanningSolution,
+        I: IntoIterator<Item = usize>,
+        W: FnMut(&S, usize),
+    {
         for element in changed {
-            self.dirty[element] = true;
-            if !self.in_cone[element] {
-                self.in_cone[element] = true;
-                self.cone.push(element);
-                self.stack.push(element);
+            let node = self.node_of::<GROUPED>(element);
+            self.dirty[node] = true;
+            if !self.in_cone[node] {
+                self.in_cone[node] = true;
+                self.cone.push(node);
+                self.stack.push(node);
             }
         }
-        while let Some(element) = self.stack.pop() {
-            if let Some(next) = solution.cascading_next(element) {
-                self.reach(next);
-            }
-            for position in self.offsets[element]..self.offsets[element + 1] {
-                self.reach(self.dependents[position]);
+        while let Some(node) = self.stack.pop() {
+            for index in 0..self.member_count::<GROUPED>(node) {
+                let member = self.member::<GROUPED>(node, index);
+                if let Some(next) = solution.cascading_next(member) {
+                    self.reach(self.node_of::<GROUPED>(next));
+                }
+                for position in self.offsets[member]..self.offsets[member + 1] {
+                    self.reach(self.node_of::<GROUPED>(self.dependents[position]));
+                }
             }
         }
 
@@ -149,179 +186,117 @@ impl CascadePropagation {
             self.cone
                 .iter()
                 .copied()
-                .filter(|&element| self.pending_inputs[element] == 0),
+                .filter(|&node| self.pending_inputs[node] == 0),
         );
         let mut finished = 0;
         loop {
-            while let Some(element) = self.ready.pop() {
-                self.done[element] = true;
+            while let Some(node) = self.ready.pop() {
+                self.done[node] = true;
                 finished += 1;
-                let assigned = solution.cascading_assigned(element);
-                if (self.dirty[element] || (assigned && solution.cascading_unset(element)))
-                    && solution.update_cascading_shadow(element, assigned, |solution| {
-                        before_write(solution, element)
-                    })
-                {
-                    self.mark_outputs_dirty(solution, element);
+                let stale = self.dirty[node]
+                    || (0..self.member_count::<GROUPED>(node)).any(|index| {
+                        let member = self.member::<GROUPED>(node, index);
+                        solution.cascading_assigned(member) && solution.cascading_unset(member)
+                    });
+                if stale {
+                    for index in 0..self.member_count::<GROUPED>(node) {
+                        let member = self.member::<GROUPED>(node, index);
+                        let assigned = solution.cascading_assigned(member);
+                        if solution.update_cascading_shadow(member, assigned, |solution| {
+                            before_write(solution, member)
+                        }) {
+                            self.mark_outputs_dirty::<GROUPED, S>(solution, member);
+                        }
+                    }
                 }
-                self.release_outputs(solution, element);
+                self.release_outputs::<GROUPED, S>(solution, node);
             }
             if finished == self.cone.len() {
                 break;
             }
-            // The remaining elements wait on a dependency cycle. Cycle
-            // members are unset; the elements downstream of them are then
-            // computed from the unset values.
+            // The remaining nodes wait on a dependency cycle. Cycle members
+            // are unset; the nodes downstream of them are then computed from
+            // the unset values.
             self.mark_cycles(solution);
-            for index in 0..self.cone.len() {
-                let element = self.cone[index];
-                if self.cycle[element] && !self.done[element] {
-                    self.done[element] = true;
+            for position in 0..self.cone.len() {
+                let node = self.cone[position];
+                if self.cycle[node] && !self.done[node] {
+                    self.done[node] = true;
                     finished += 1;
-                    if solution.update_cascading_shadow(element, false, |solution| {
-                        before_write(solution, element)
-                    }) {
-                        self.mark_outputs_dirty(solution, element);
+                    for index in 0..self.member_count::<GROUPED>(node) {
+                        let member = self.member::<GROUPED>(node, index);
+                        if solution.update_cascading_shadow(member, false, |solution| {
+                            before_write(solution, member)
+                        }) {
+                            self.mark_outputs_dirty::<GROUPED, S>(solution, member);
+                        }
                     }
                 }
             }
-            for index in 0..self.cone.len() {
-                let element = self.cone[index];
-                if self.cycle[element] {
-                    self.release_outputs(solution, element);
+            for position in 0..self.cone.len() {
+                let node = self.cone[position];
+                if self.cycle[node] {
+                    self.release_outputs::<GROUPED, S>(solution, node);
                 }
             }
         }
 
-        for &element in &self.cone {
-            self.in_cone[element] = false;
-            self.dirty[element] = false;
-            self.done[element] = false;
-            self.cycle[element] = false;
-            self.pending_inputs[element] = 0;
-            self.order[element] = UNVISITED;
-            self.low[element] = UNVISITED;
+        for &node in &self.cone {
+            self.in_cone[node] = false;
+            self.dirty[node] = false;
+            self.done[node] = false;
+            self.cycle[node] = false;
+            self.pending_inputs[node] = 0;
+            self.order[node] = UNVISITED;
+            self.low[node] = UNVISITED;
         }
         self.cone.clear();
     }
 
-    fn reach(&mut self, element: usize) {
-        self.pending_inputs[element] += 1;
-        if !self.in_cone[element] {
-            self.in_cone[element] = true;
-            self.cone.push(element);
-            self.stack.push(element);
+    fn reach(&mut self, node: usize) {
+        self.pending_inputs[node] += 1;
+        if !self.in_cone[node] {
+            self.in_cone[node] = true;
+            self.cone.push(node);
+            self.stack.push(node);
         }
     }
 
-    fn mark_outputs_dirty<S: PlanningSolution>(&mut self, solution: &S, element: usize) {
-        if let Some(next) = solution.cascading_next(element) {
-            self.dirty[next] = true;
-        }
-        for position in self.offsets[element]..self.offsets[element + 1] {
-            self.dirty[self.dependents[position]] = true;
-        }
-    }
-
-    fn release_outputs<S: PlanningSolution>(&mut self, solution: &S, element: usize) {
-        if let Some(next) = solution.cascading_next(element) {
-            self.release(next);
-        }
-        for position in self.offsets[element]..self.offsets[element + 1] {
-            self.release(self.dependents[position]);
-        }
-    }
-
-    fn release(&mut self, element: usize) {
-        self.pending_inputs[element] -= 1;
-        if self.pending_inputs[element] == 0 && !self.done[element] && !self.cycle[element] {
-            self.ready.push(element);
-        }
-    }
-
-    /// Marks the members of every dependency cycle among the unfinished
-    /// elements of the cone (strongly connected components with more than
-    /// one element, or an element that depends on itself). Runs only when
-    /// propagation stalls on a cycle.
-    #[cold]
-    fn mark_cycles<S: PlanningSolution>(&mut self, solution: &S) {
-        let mut next_order = 0;
-        let mut components = Vec::new();
-        // Each frame holds an element and its unfinished outputs still to visit.
-        let mut frames: Vec<(usize, Vec<usize>)> = Vec::new();
-        for index in 0..self.cone.len() {
-            let root = self.cone[index];
-            if self.done[root] || self.order[root] != UNVISITED {
-                continue;
-            }
-            self.enter(
-                solution,
-                root,
-                &mut next_order,
-                &mut components,
-                &mut frames,
-            );
-            while let Some((element, outputs)) = frames.last_mut() {
-                let element = *element;
-                if let Some(output) = outputs.pop() {
-                    if self.order[output] == UNVISITED {
-                        self.enter(
-                            solution,
-                            output,
-                            &mut next_order,
-                            &mut components,
-                            &mut frames,
-                        );
-                    } else if self.on_stack[output] {
-                        self.low[element] = self.low[element].min(self.order[output]);
-                    }
-                    continue;
-                }
-                frames.pop();
-                if let Some((parent, _)) = frames.last() {
-                    self.low[*parent] = self.low[*parent].min(self.low[element]);
-                }
-                if self.low[element] == self.order[element] {
-                    let start = components
-                        .iter()
-                        .rposition(|&member| member == element)
-                        .expect("component root is on the stack");
-                    let self_loop = self.depends_on_itself(solution, element);
-                    let is_cycle = components.len() - start > 1 || self_loop;
-                    for member in components.drain(start..) {
-                        self.on_stack[member] = false;
-                        self.cycle[member] = is_cycle;
-                    }
-                }
-            }
-        }
-    }
-
-    fn enter<S: PlanningSolution>(
+    fn mark_outputs_dirty<const GROUPED: bool, S: PlanningSolution>(
         &mut self,
         solution: &S,
         element: usize,
-        next_order: &mut usize,
-        components: &mut Vec<usize>,
-        frames: &mut Vec<(usize, Vec<usize>)>,
     ) {
-        self.order[element] = *next_order;
-        self.low[element] = *next_order;
-        *next_order += 1;
-        self.on_stack[element] = true;
-        components.push(element);
-        let mut outputs = Vec::new();
         if let Some(next) = solution.cascading_next(element) {
-            outputs.push(next);
+            let node = self.node_of::<GROUPED>(next);
+            self.dirty[node] = true;
         }
-        outputs
-            .extend_from_slice(&self.dependents[self.offsets[element]..self.offsets[element + 1]]);
-        outputs.retain(|&output| self.in_cone[output] && !self.done[output]);
-        frames.push((element, outputs));
+        for position in self.offsets[element]..self.offsets[element + 1] {
+            let node = self.node_of::<GROUPED>(self.dependents[position]);
+            self.dirty[node] = true;
+        }
     }
 
-    fn depends_on_itself<S: PlanningSolution>(&self, solution: &S, element: usize) -> bool {
-        solution.cascading_next(element) == Some(element)
-            || self.dependents[self.offsets[element]..self.offsets[element + 1]].contains(&element)
+    fn release_outputs<const GROUPED: bool, S: PlanningSolution>(
+        &mut self,
+        solution: &S,
+        node: usize,
+    ) {
+        for index in 0..self.member_count::<GROUPED>(node) {
+            let member = self.member::<GROUPED>(node, index);
+            if let Some(next) = solution.cascading_next(member) {
+                self.release(self.node_of::<GROUPED>(next));
+            }
+            for position in self.offsets[member]..self.offsets[member + 1] {
+                self.release(self.node_of::<GROUPED>(self.dependents[position]));
+            }
+        }
+    }
+
+    fn release(&mut self, node: usize) {
+        self.pending_inputs[node] -= 1;
+        if self.pending_inputs[node] == 0 && !self.done[node] && !self.cycle[node] {
+            self.ready.push(node);
+        }
     }
 }

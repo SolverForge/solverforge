@@ -32,14 +32,19 @@ use super::{DefaultAssignmentBinding, DefaultRuntimeBindings, DefaultScalarBindi
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DefaultPreconstructionStage {
     ListConstruction,
+    /// Places the list elements the primary list construction left
+    /// unassigned. Resolved by the executor, which knows each slot's
+    /// remaining source work.
+    ListCompletion,
     AssignmentRequired,
     AssignmentOptional,
     ScalarFirstFit,
 }
 
 impl DefaultPreconstructionStage {
-    pub(crate) const ORDERED: [Self; 4] = [
+    pub(crate) const ORDERED: [Self; 5] = [
         Self::ListConstruction,
+        Self::ListCompletion,
         Self::AssignmentRequired,
         Self::AssignmentOptional,
         Self::ScalarFirstFit,
@@ -57,6 +62,9 @@ pub(crate) enum DefaultConstructionStage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DefaultConstructionStepKind {
     ListConstruction(ConstructionHeuristicType),
+    /// List cheapest insertion over the elements the primary list
+    /// construction left unassigned.
+    ListCompletion,
     AssignmentRequired,
     AssignmentOptional,
     ScalarFirstFit,
@@ -77,6 +85,8 @@ pub(crate) enum DefaultConstructionReason {
     PrecedenceAndOrder,
     /// The list slot declares none of the specialized construction policies.
     NoSpecializedListPolicy,
+    /// List elements remain unassigned after the primary list construction.
+    ListElementsRemainUnassigned,
     /// The assignment group still has required rows unassigned.
     RequiredAssignmentsRemain,
     /// Every required row is assigned; optional rows remain.
@@ -97,6 +107,7 @@ impl DefaultConstructionReason {
             }
             Self::PrecedenceAndOrder => "precedence_and_construction_order_declared",
             Self::NoSpecializedListPolicy => "no_specialized_list_policy_declared",
+            Self::ListElementsRemainUnassigned => "list_elements_remain_unassigned",
             Self::RequiredAssignmentsRemain => "required_assignments_remain",
             Self::OnlyOptionalAssignmentsRemain => "only_optional_assignments_remain",
             Self::UngroupedScalarSlot => "scalar_slot_outside_assignment_groups",
@@ -154,6 +165,9 @@ where
             .iter()
             .map(list_construction_step)
             .collect(),
+        DefaultPreconstructionStage::ListCompletion => {
+            unreachable!("the executor resolves list completion from each slot's source work")
+        }
         DefaultPreconstructionStage::AssignmentRequired => bindings
             .assignment_groups
             .iter()
@@ -236,6 +250,7 @@ where
             config: ConstructionHeuristicConfig {
                 max_group_owners: (reason == DefaultConstructionReason::ElementGroupsDeclared)
                     .then_some(crate::list_groups::DEFAULT_GROUP_OWNERS),
+                savings_neighbors: default_savings_neighbors(slot, heuristic),
                 ..list_config(heuristic, &target)
             },
             slots: vec![slot.clone()],
@@ -304,6 +319,22 @@ where
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
     (0..slot.entity_count(solution)).any(|entity| slot.list_len(solution, entity) > 0)
+}
+
+/// Savings each element keeps in a default Clarke-Wright construction whose
+/// slot declares a savings neighbour source: the savings list then grows
+/// linearly with the element count instead of with its square.
+const DEFAULT_SAVINGS_NEIGHBORS: std::num::NonZeroU32 = std::num::NonZeroU32::new(40).unwrap();
+
+fn default_savings_neighbors<S, V, DM, IDM>(
+    slot: &CompiledListSlot<S, V, DM, IDM>,
+    heuristic: ConstructionHeuristicType,
+) -> Option<std::num::NonZeroU32> {
+    use crate::builder::context::list_access::ListAccessCapability;
+
+    (heuristic == ConstructionHeuristicType::ListClarkeWright
+        && slot.supports(ListAccessCapability::SavingsNeighbors))
+    .then_some(DEFAULT_SAVINGS_NEIGHBORS)
 }
 
 fn default_list_construction_heuristic<S, V, DM, IDM>(
@@ -395,7 +426,7 @@ fn scalar_first_fit_config(slot: &RuntimeScalarSlotId) -> ConstructionHeuristicC
     }
 }
 
-fn list_config(
+pub(super) fn list_config(
     heuristic: ConstructionHeuristicType,
     slot: &RuntimeScalarSlotId,
 ) -> ConstructionHeuristicConfig {
@@ -413,7 +444,7 @@ fn target_config(slot: &RuntimeScalarSlotId) -> VariableTargetConfig {
     }
 }
 
-fn list_policies<S, V, DM, IDM>(
+pub(super) fn list_policies<S, V, DM, IDM>(
     slot: &CompiledListSlot<S, V, DM, IDM>,
 ) -> DefaultListPolicyProvenance {
     DefaultListPolicyProvenance {

@@ -121,6 +121,21 @@ Each list slot gets the first construction whose declarations it has:
 | precedence and construction order | `ListRoundRobin` | `precedence_and_construction_order_declared` |
 | none of these | `ListCheapestInsertion` | `no_specialized_list_policy_declared` |
 
+The default `ListClarkeWright` keeps 40 savings per element when the slot
+declares a savings neighbour hook (the `domain = "cvrp"` profile does), so its
+memory grows linearly with the stop count; without the hook it scores every
+pair.
+
+Clarke-Wright builds its routes before it knows the fleet. When the savings
+hooks reject merges (capacity or time windows in custom `savings_hooks`) and
+the routes outnumber the vehicles that can take them, the routes that fit stay
+committed and the rest of their elements stay unassigned. The default
+construction then runs `ListCheapestInsertion` over those elements
+(`list_elements_remain_unassigned`), so a fixed fleet always ends construction
+with every element placed. An explicit `list_clarke_wright` phase does the
+same partial commit; follow it with a `list_cheapest_insertion` phase on a
+fixed fleet.
+
 After list construction, a slot with route hooks and a non-empty route runs
 `ListKOpt` (`route_hooks_declared_and_route_non_empty`).
 

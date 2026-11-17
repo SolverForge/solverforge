@@ -19,8 +19,10 @@ use super::default_local_search::{
 use super::slots::{matching_list_slots, resolved_scalar_bindings};
 use super::types::{CompiledListSlot, CompiledScalarSlot, RuntimeCompileError};
 
+mod list_completion;
 mod stages;
 
+pub(crate) use list_completion::resolve_default_list_completion;
 pub(crate) use stages::{
     resolve_default_postconstruction_kopt, resolve_default_preconstruction_stage,
 };

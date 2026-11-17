@@ -195,6 +195,26 @@ where
             .map(|unassigned| unassigned.len())
     }
 
+    /// The element count of a slot's source when a construction already
+    /// bound it; `None` while unbound.
+    pub(crate) fn bound_list_source_len(
+        &self,
+        phase_index: usize,
+        slot: &CompiledListSlot<S, V, DM, IDM>,
+    ) -> Result<Option<usize>, RuntimeInstantiationError> {
+        let target = slot.identity();
+        let catalog_index =
+            self.list_source_catalog
+                .index_for(slot)
+                .ok_or(RuntimeInstantiationError {
+                    phase_index,
+                    kind: super::RuntimeInstantiationErrorKind::MissingRegisteredSource { target },
+                })?;
+        Ok(self.list_source_indices[catalog_index]
+            .as_ref()
+            .map(|source_index| source_index.source_count()))
+    }
+
     /// Borrows an already-bound source without a map lookup or rebinding.
     pub(crate) fn bound_list_source(
         &self,

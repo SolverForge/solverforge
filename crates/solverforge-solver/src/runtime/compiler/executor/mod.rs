@@ -4,6 +4,7 @@
 //! the shared neighborhood kernels and executes the resulting phase sequence.
 
 mod completion;
+mod default_construction;
 mod execute;
 mod execution_record;
 pub(crate) mod list_construction;
@@ -17,7 +18,8 @@ mod trace;
 #[cfg(test)]
 mod trace_tests;
 
-pub(crate) use execute::{execute_prepared_construction, execute_prepared_default_construction};
+pub(crate) use default_construction::execute_prepared_default_construction;
+pub(crate) use execute::execute_prepared_construction;
 pub(crate) use execution_record::{
     ConstructionExecution, DefaultConstructionStageExecutionRecord,
     DefaultRuntimeConstructionExecution, ResolvedConstructionExecutionOutcome,

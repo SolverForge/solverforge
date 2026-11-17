@@ -1,6 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.31.0](https://github.com/SolverForge/solverforge/compare/v0.30.1...v0.31.0) (2026-11-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **list:** `ListVariableSlot::precedence_successors_fn` is now a method (`element_group_fn()` shares its private field). `ListRuinMoveSelectorConfig` and `ConstructionHeuristicConfig` gain `max_member_distance` and `max_group_owners`, and `MoveSelectorConfig` gains `ListGroupChangeMoveSelector` and `ListGroupSwapMoveSelector`. Update struct literals and exhaustive matches.
+
+### Features
+
+* **list:** move and construct list element groups as units ([b5ee4ff](https://github.com/SolverForge/solverforge/commit/b5ee4ffb2385fe5e3f02c59b8dc6285efd09e8fb)), closes #270
+* **shadows:** compute joint groups of cascading elements together ([28d45fd](https://github.com/SolverForge/solverforge/commit/28d45fd02dbb1ab4c3aa766ed0e958961b15628d)), closes #272
+
+
 ## [0.30.1](https://github.com/SolverForge/solverforge/compare/v0.30.0...v0.30.1) (2026-11-16)
 
 

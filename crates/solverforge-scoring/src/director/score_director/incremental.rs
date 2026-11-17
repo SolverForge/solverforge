@@ -208,19 +208,24 @@ where
             entity_index,
             descriptor_index,
         );
-        let element_delta = self.list_shadow_rows.retract_held(
-            &self.working_solution,
-            &mut ModeRows {
-                constraints: &mut self.constraints,
-                mode: &self.weight_mode,
-            },
-            descriptor_index,
-            entity_index,
-        );
-        if S::HAS_CASCADING_SHADOWS {
-            self.list_shadow_rows
-                .begin_cascading_change(&self.working_solution);
-        }
+        let element_delta = if S::HAS_CASCADING_SHADOWS {
+            self.list_shadow_rows.begin_cascading_change(
+                &self.working_solution,
+                descriptor_index,
+                entity_index,
+            );
+            S::Score::zero()
+        } else {
+            self.list_shadow_rows.retract_held(
+                &self.working_solution,
+                &mut ModeRows {
+                    constraints: &mut self.constraints,
+                    mode: &self.weight_mode,
+                },
+                descriptor_index,
+                entity_index,
+            )
+        };
         let mut score = ScoreSum::new();
         score.add(self.cached_score);
         score.add(delta);

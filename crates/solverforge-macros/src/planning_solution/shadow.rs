@@ -72,6 +72,27 @@ pub(super) fn generate_shadow_support(
             }
 
             #[inline]
+            fn list_structure_unchanged(
+                &self,
+                element: usize,
+                owner_descriptor: usize,
+                owner_index: usize,
+                index: usize,
+                previous: ::core::option::Option<usize>,
+                next: ::core::option::Option<usize>,
+            ) -> bool {
+                <Self as ::solverforge::__internal::PlanningModelSupport>::list_structure_unchanged(
+                    self,
+                    element,
+                    owner_descriptor,
+                    owner_index,
+                    index,
+                    previous,
+                    next,
+                )
+            }
+
+            #[inline]
             fn cascading_unset(&self, element: usize) -> bool {
                 <Self as ::solverforge::__internal::PlanningModelSupport>::cascading_unset(self, element)
             }

@@ -308,6 +308,7 @@ fn generate_list_shadow_update(
             config,
             &CascadeContext {
                 solution_path,
+                descriptor_index,
                 element_accessor: &element_accessor,
                 element_mut_accessor: &element_mut_accessor,
             },

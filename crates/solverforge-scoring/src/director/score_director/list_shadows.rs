@@ -18,13 +18,25 @@
 //! element count grows.
 //!
 //! A solution with a cascading shadow (`PlanningSolution::HAS_CASCADING_SHADOWS`)
-//! defers element rows to the end of the move instead: owners refresh only
-//! their list structure, and once every owner the move notified has been
-//! refreshed, the cascading values are propagated from the elements those
-//! owners held before or after the move. Each element written along the way is
-//! retracted before its write unless it is already pending, and every pending
-//! element is inserted exactly once at the end. Solutions without a cascading
-//! shadow never reach that code: the branch is on an associated constant.
+//! rescores only the elements whose shadows change, and defers their rows to
+//! the end of the move. Its element rows read nothing but the list structure
+//! (owner, previous, next and, when declared, index) and the cascading value,
+//! so an element keeps its row while those stay equal:
+//!
+//! - before an owner's list changes, the elements it holds are recorded, and
+//!   no row is retracted;
+//! - after the change, an element whose structure shadows differ from its new
+//!   place (`PlanningSolution::list_structure_unchanged`, read before the
+//!   structure is rewritten), including an arrival from no list, is retracted
+//!   while it still holds its old shadows, then the structure is rewritten;
+//! - once every owner the move notified has been refreshed, an element that
+//!   was held and is now in no list is retracted and cleared, the cascading
+//!   values are propagated from the retracted elements, each element whose
+//!   value changes is retracted before its write, and every retracted
+//!   element is inserted exactly once.
+//!
+//! Solutions without a cascading shadow never reach that code: the branch is
+//! on an associated constant.
 
 use solverforge_core::domain::{CascadePropagation, PlanningSolution};
 use solverforge_core::score::Score;
@@ -55,8 +67,11 @@ struct CascadeRows {
     open_changes: usize,
     // The change source of element rows.
     source: usize,
-    // Elements a refreshed owner holds after the move.
+    // Elements a refreshed owner holds after the move, and the list of them.
     held: Vec<bool>,
+    held_elements: Vec<usize>,
+    // Elements the notified owners held before the move.
+    recorded: Vec<usize>,
     // The elements propagation starts from, reused across moves.
     seeds: Vec<usize>,
 }
@@ -163,25 +178,42 @@ impl ListShadowRows {
         delta
     }
 
-    /// Opens one owner notification of a cascading move.
-    pub(super) fn begin_cascading_change<S: PlanningSolution>(&mut self, solution: &S) {
+    /// Opens one owner notification of a cascading move and records the
+    /// elements the owner holds before it changes. No row is retracted yet:
+    /// only the elements whose structure the change rewrites are.
+    pub(super) fn begin_cascading_change<S: PlanningSolution>(
+        &mut self,
+        solution: &S,
+        owner_descriptor: usize,
+        owner_index: usize,
+    ) {
         let cascade = self.cascade.get_or_insert_with(|| {
+            let count = solution.cascading_element_count();
             Box::new(CascadeRows {
                 propagation: CascadePropagation::new(solution),
                 open_changes: 0,
                 source: 0,
-                held: vec![false; solution.cascading_element_count()],
+                held: vec![false; count],
+                held_elements: Vec::new(),
+                recorded: Vec::new(),
                 seeds: Vec::new(),
             })
         });
         cascade.open_changes += 1;
+        let Some((source, elements)) = solution.list_shadow_elements(owner_descriptor, owner_index)
+        else {
+            return;
+        };
+        cascade.source = source;
+        cascade.recorded.extend_from_slice(elements);
     }
 
-    /// Retracts the owner's arrivals from no list, refreshes its list
-    /// structure for a cascading move and inserts the owner's row; element
-    /// rows stay retracted until the move's last owner is refreshed, when the
-    /// cascading values are propagated and every pending element is inserted
-    /// once.
+    /// Retracts the rows of the owner's elements whose structure changes
+    /// (moved, re-linked, or arrived from no list), refreshes the owner's
+    /// list structure for a cascading move and inserts the owner's row;
+    /// element rows stay retracted until the move's last owner is refreshed,
+    /// when the cascading values are propagated and every pending element is
+    /// inserted once.
     pub(super) fn refresh_cascading_owner<S, C>(
         &mut self,
         solution: &mut S,
@@ -194,8 +226,6 @@ impl ListShadowRows {
         C: RowDeltas<S, S::Score>,
     {
         let mut delta = S::Score::zero();
-        // The list already holds its arrivals; their structure shadows are
-        // rewritten only below, so their rows are retracted first.
         if let Some((source, elements)) =
             solution.list_shadow_elements(owner_descriptor, owner_index)
         {
@@ -204,23 +234,36 @@ impl ListShadowRows {
                 .as_mut()
                 .expect("a cascading change was opened");
             cascade.source = source;
-            for &element in elements {
-                cascade.held[element] = true;
-                if !self.is_pending.get(element).copied().unwrap_or(false) {
-                    // An arrival from no list: its row still holds the
-                    // shadows it was inserted with.
-                    delta = delta + constraints.retract_row(solution, element, source);
-                    if element >= self.is_pending.len() {
-                        self.is_pending.resize(element + 1, false);
-                    }
-                    self.is_pending[element] = true;
-                    self.pending.push(PendingElement {
+            for (index, &element) in elements.iter().enumerate() {
+                if !cascade.held[element] {
+                    cascade.held[element] = true;
+                    cascade.held_elements.push(element);
+                }
+                if self.is_pending.get(element).copied().unwrap_or(false)
+                    || solution.list_structure_unchanged(
                         element,
-                        source,
                         owner_descriptor,
                         owner_index,
-                    });
+                        index,
+                        index.checked_sub(1).map(|previous| elements[previous]),
+                        elements.get(index + 1).copied(),
+                    )
+                {
+                    continue;
                 }
+                // The structure is rewritten below: an element that is not
+                // pending still holds the structure its row was inserted with.
+                delta = delta + constraints.retract_row(solution, element, source);
+                if element >= self.is_pending.len() {
+                    self.is_pending.resize(element + 1, false);
+                }
+                self.is_pending[element] = true;
+                self.pending.push(PendingElement {
+                    element,
+                    source,
+                    owner_descriptor,
+                    owner_index,
+                });
             }
         }
         solution.update_list_structure_shadows(owner_descriptor, owner_index);
@@ -246,21 +289,39 @@ impl ListShadowRows {
             .cascade
             .as_mut()
             .expect("a cascading change was opened");
-        // Elements that left their owner and joined no refreshed owner are in
-        // no list.
-        for entry in &self.pending {
-            if !cascade.held[entry.element] {
-                solution.clear_list_shadows(entry.element);
-            }
-        }
         let CascadeRows {
             propagation,
             source,
             held,
+            held_elements,
+            recorded,
             seeds,
             ..
         } = &mut **cascade;
         let source = *source;
+        // Elements that left their owner and joined no refreshed owner are in
+        // no list: their rows still hold their old structure.
+        for &element in recorded.iter() {
+            if !held[element] && !self.is_pending.get(element).copied().unwrap_or(false) {
+                delta = delta + constraints.retract_row(solution, element, source);
+                if element >= self.is_pending.len() {
+                    self.is_pending.resize(element + 1, false);
+                }
+                self.is_pending[element] = true;
+                self.pending.push(PendingElement {
+                    element,
+                    source,
+                    owner_descriptor: usize::MAX,
+                    owner_index: usize::MAX,
+                });
+            }
+        }
+        recorded.clear();
+        for entry in &self.pending {
+            if !held[entry.element] {
+                solution.clear_list_shadows(entry.element);
+            }
+        }
         seeds.clear();
         seeds.extend(self.pending.iter().map(|entry| entry.element));
         let pending = &mut self.pending;
@@ -283,8 +344,11 @@ impl ListShadowRows {
         for entry in self.pending.drain(..) {
             delta = delta + constraints.insert_row(solution, entry.element, entry.source);
             self.is_pending[entry.element] = false;
-            held[entry.element] = false;
         }
+        for &element in held_elements.iter() {
+            held[element] = false;
+        }
+        held_elements.clear();
         delta
     }
 }

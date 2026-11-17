@@ -157,6 +157,28 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
     /// never change them.
     fn cascading_peers(&self, _element: usize, _peers: &mut Vec<usize>) {}
 
+    /// Whether `element`'s list structure shadows already describe the place
+    /// `owner_descriptor`/`owner_index`, position `index`, between `previous`
+    /// and `next`: its owner, previous and next shadows (and index shadow,
+    /// when declared) hold those values.
+    ///
+    /// A score director with a cascading shadow asks this before rewriting an
+    /// owner's structure and keeps the stream row of an element that answers
+    /// `true` and whose cascading value does not change. `false` (the default)
+    /// rescores the element. `#[shadow_variable_updates(cascading_field =
+    /// ...)]` generates it from the configured structure fields.
+    fn list_structure_unchanged(
+        &self,
+        _element: usize,
+        _owner_descriptor: usize,
+        _owner_index: usize,
+        _index: usize,
+        _previous: Option<usize>,
+        _next: Option<usize>,
+    ) -> bool {
+        false
+    }
+
     /// Whether `element`'s cascading value is unset.
     fn cascading_unset(&self, _element: usize) -> bool {
         true

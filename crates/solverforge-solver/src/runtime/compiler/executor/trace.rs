@@ -168,7 +168,8 @@ fn default_step_plan(step: &ResolvedConstructionExecutionStep) -> CandidateTrace
                     policies.savings_metric_class.to_string(),
                 ),
             ]),
-            DefaultConstructionStepKind::ListConstruction(_) => attributes.extend([
+            DefaultConstructionStepKind::ListConstruction(_)
+            | DefaultConstructionStepKind::ListCompletion => attributes.extend([
                 (
                     "construction_order".to_string(),
                     policies.construction_order.to_string(),
@@ -271,6 +272,9 @@ fn default_stage_label(stage: DefaultConstructionStage) -> &'static str {
             crate::runtime::compiler::DefaultPreconstructionStage::ListConstruction,
         ) => "list_construction",
         DefaultConstructionStage::Preconstruction(
+            crate::runtime::compiler::DefaultPreconstructionStage::ListCompletion,
+        ) => "list_completion",
+        DefaultConstructionStage::Preconstruction(
             crate::runtime::compiler::DefaultPreconstructionStage::AssignmentRequired,
         ) => "assignment_required",
         DefaultConstructionStage::Preconstruction(
@@ -296,6 +300,7 @@ fn default_step_kind_label(kind: DefaultConstructionStepKind) -> &'static str {
             solverforge_config::ConstructionHeuristicType::ListClarkeWright => "list_clarke_wright",
             other => panic!("default list construction retained invalid heuristic {other:?}"),
         },
+        DefaultConstructionStepKind::ListCompletion => "list_completion_cheapest_insertion",
         DefaultConstructionStepKind::AssignmentRequired => "assignment_required",
         DefaultConstructionStepKind::AssignmentOptional => "assignment_optional",
         DefaultConstructionStepKind::ScalarFirstFit => "scalar_first_fit",
@@ -317,6 +322,9 @@ fn default_step_kind_trace_name(kind: DefaultConstructionStepKind) -> &'static s
         DefaultConstructionStepKind::ListConstruction(
             solverforge_config::ConstructionHeuristicType::ListRegretInsertion,
         ) => "solverforge.runtime.construction.regret_insertion",
+        DefaultConstructionStepKind::ListCompletion => {
+            "solverforge.runtime.construction.cheapest_insertion"
+        }
         DefaultConstructionStepKind::AssignmentRequired
         | DefaultConstructionStepKind::AssignmentOptional => {
             "solverforge.runtime.construction.grouped_scalar"

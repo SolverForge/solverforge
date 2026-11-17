@@ -30,10 +30,8 @@ use super::list_construction::{
     execute_runtime_list_round_robin,
 };
 use super::{
-    ConstructionExecution, DefaultConstructionStageExecutionRecord,
-    DefaultRuntimeConstructionExecution, PreparedConstruction, PreparedDefaultRuntime,
-    PreparedListSlot, PreparedRuntimeExecution, ResolvedConstructionExecutionOutcome,
-    ResolvedConstructionExecutionStep, RuntimeInstantiationError,
+    ConstructionExecution, PreparedConstruction, PreparedListSlot, PreparedRuntimeExecution,
+    RuntimeInstantiationError,
 };
 
 /// Executes one explicitly prepared construction node.
@@ -293,112 +291,6 @@ where
         } else {
             Ok(ConstructionExecution::skipped_no_work())
         }
-    })
-}
-
-/// Executes the staged omitted-construction profile through the same prepared
-/// dispatcher as an explicitly configured construction phase.
-///
-/// Each boundary is resolved against the current working solution. Structural
-/// list declarations were registered before phase execution, but a reached
-/// source-backed child binds and validates its source before deciding whether
-/// work remains. Stage resolution can therefore choose Clarke-Wright,
-/// assignment, or K-opt without rebuilding model metadata. In particular, the
-/// post-construction K-opt boundary observes routes only after preceding
-/// construction stages.
-pub(crate) fn execute_prepared_default_construction<S, V, DM, IDM, Extension, D, ProgressCb>(
-    execution: &mut PreparedRuntimeExecution<S, V, DM, IDM, Extension>,
-    default: &PreparedDefaultRuntime<S, V, DM, IDM>,
-    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-) -> Result<DefaultRuntimeConstructionExecution, RuntimeInstantiationError>
-where
-    S: PlanningSolution + Clone + Send + Sync + 'static,
-    S::Score: Score + Copy + Ord + ParseableScore,
-    V: Clone + PartialEq + Into<usize> + Send + Sync + fmt::Debug + 'static,
-    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-{
-    let mut record = DefaultRuntimeConstructionExecution::default();
-    for stage in crate::runtime::compiler::DefaultPreconstructionStage::ORDERED {
-        let resolved = super::super::defaults::resolve_default_preconstruction_stage(
-            &default.bindings,
-            stage,
-            solver_scope.working_solution(),
-        );
-        record.push(execute_resolved_default_construction_plan(
-            execution,
-            default,
-            &resolved,
-            solver_scope,
-        )?);
-    }
-
-    let resolved = super::super::defaults::resolve_default_postconstruction_kopt(
-        &default.bindings,
-        solver_scope.working_solution(),
-    );
-    record.push(execute_resolved_default_construction_plan(
-        execution,
-        default,
-        &resolved,
-        solver_scope,
-    )?);
-    Ok(record)
-}
-
-fn execute_resolved_default_construction_plan<S, V, DM, IDM, Extension, D, ProgressCb>(
-    execution: &mut PreparedRuntimeExecution<S, V, DM, IDM, Extension>,
-    default: &PreparedDefaultRuntime<S, V, DM, IDM>,
-    resolved: &crate::runtime::compiler::ResolvedDefaultConstructionPlan<S, V, DM, IDM>,
-    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-) -> Result<DefaultConstructionStageExecutionRecord, RuntimeInstantiationError>
-where
-    S: PlanningSolution + Clone + Send + Sync + 'static,
-    S::Score: Score + Copy + Ord + ParseableScore,
-    V: Clone + PartialEq + Into<usize> + Send + Sync + fmt::Debug + 'static,
-    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-{
-    let mut steps = Vec::with_capacity(resolved.steps.len());
-    for step in &resolved.steps {
-        let construction =
-            execution.prepare_resolved_construction(default.phase_index, &step.construction)?;
-        let execution = execute_prepared_construction(
-            execution,
-            &construction,
-            step.required_only,
-            solver_scope,
-        )?;
-        steps.push(ResolvedConstructionExecutionStep {
-            kind: step.kind,
-            reason: step.reason,
-            required_only: step.required_only,
-            target: step.target.clone(),
-            list_policies: step.list_policies.clone(),
-            outcome: execution.outcome,
-        });
-    }
-    let outcome = if steps
-        .iter()
-        .any(|step| step.outcome == ResolvedConstructionExecutionOutcome::Executed)
-    {
-        ResolvedConstructionExecutionOutcome::Executed
-    } else if steps
-        .iter()
-        .any(|step| step.outcome == ResolvedConstructionExecutionOutcome::SkippedTerminated)
-    {
-        ResolvedConstructionExecutionOutcome::SkippedTerminated
-    } else {
-        ResolvedConstructionExecutionOutcome::SkippedNoWork
-    };
-    Ok(DefaultConstructionStageExecutionRecord {
-        stage: resolved.stage,
-        outcome,
-        steps,
     })
 }
 

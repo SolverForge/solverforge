@@ -423,16 +423,16 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         };
 
     if matched_count < assignable_routes.len() && completion_routes.is_none() {
-        tracing::warn!(
+        // The matched routes stay: a route the fleet cannot take leaves its
+        // elements unassigned for a completing construction, instead of
+        // discarding every route that did fit.
+        tracing::info!(
             constructed_routes = constructed_route_count,
             owner_ineligible_routes,
             available_slots = available_entity_slots.len(),
             matched_routes = matched_count,
-            "ListClarkeWright could not match every constructed route to a feasible empty entity"
+            "ListClarkeWright committed the routes it could match to a feasible empty entity"
         );
-        pending_move_telemetry.record_discarded(phase_scope);
-        phase_scope.calculate_score();
-        return;
     }
 
     if let Some(completed_routes) = completion_routes {

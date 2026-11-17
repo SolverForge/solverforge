@@ -120,6 +120,7 @@ where
 pub(crate) fn lower_default_selector_union<S, V, DM, IDM>(
     solver_config: &SolverConfig,
     selection_order: UnionSelectionOrder,
+    family_weights: Option<Vec<u64>>,
     graphs: Vec<CompiledSelectorGraph<S, V, DM, IDM>>,
 ) -> Result<RuntimeNeighborhoodState<S, V, DM, IDM>, RuntimeLocalSearchLoweringError>
 where
@@ -145,8 +146,12 @@ where
         .collect::<Result<Vec<_>, _>>()?;
     composition.push(SelectorCompositionNode::Union {
         selection_order,
-        weighting: solverforge_config::UnionWeighting::Equal,
-        weights: Vec::new(),
+        weighting: if family_weights.is_some() {
+            solverforge_config::UnionWeighting::Fixed
+        } else {
+            solverforge_config::UnionWeighting::Equal
+        },
+        weights: family_weights.unwrap_or_default(),
         children,
     });
     Ok(SelectorCompositionState::new(composition))

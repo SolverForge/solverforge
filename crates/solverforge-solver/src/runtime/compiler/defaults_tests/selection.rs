@@ -217,7 +217,12 @@ fn equivalent_typed_and_dynamic_cvrp_capabilities_freeze_the_same_default_local_
     );
     assert_eq!(
         typed.components.forager,
-        DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 256 }
+        DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 4 }
+    );
+    assert_eq!(
+        typed.family_weights(),
+        Some(vec![4, 4, 4, 4, 4, 4, 1]),
+        "ruin keeps its family but draws a quarter as often"
     );
     let typed_excluded = typed
         .excluded

@@ -75,6 +75,7 @@ where
                     let selector = lower_default_selector_union(
                         solver_config,
                         plan.selection_order,
+                        plan.family_weights(),
                         std::mem::take(&mut mandatory_bindings.local_search_nodes),
                     )
                     .map_err(|error| lowering_error(phase_index, error))?;
@@ -151,6 +152,7 @@ where
                         lower_default_selector_union(
                             solver_config,
                             plan.selection_order,
+                            plan.family_weights(),
                             std::mem::take(&mut mandatory.local_search_nodes),
                         )
                         .map_err(|error| lowering_error(phase_index, error))?,

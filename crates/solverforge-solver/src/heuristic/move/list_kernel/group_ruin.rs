@@ -1,11 +1,10 @@
 //! Ruin and recreate of whole element groups.
 //!
 //! A ruin removes every member of each selected group, wherever it sits.
-//! Recreate then inserts one unit at a time, greedily: each round scores
-//! every remaining unit's bounded joint placements on every owner all its
-//! members allow, and commits the best. Units are whole groups or single
-//! ungrouped elements; members of a unit always land on one owner, in
-//! declared order.
+//! Recreate then inserts the units in the plan's order, each at its best
+//! bounded joint placement on the owners all its members allow, given the
+//! units placed before it. Units are whole groups or single ungrouped
+//! elements; members of a unit always land on one owner, in declared order.
 
 use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
@@ -164,121 +163,181 @@ where
         score_director.after_variable_changed(descriptor_index, entity);
     }
 
-    let units: SmallVec<[std::ops::Range<usize>; 8]> = plan.units().collect();
-    let mut placed: SmallVec<[bool; 8]> = smallvec![false; units.len()];
+    // One pass in the plan's unit order: each unit takes its best bounded
+    // joint placement given the units placed before it.
     let mut placements = RuinUndo::new();
-    while placed.iter().any(|done| !done) {
-        let mut best: Option<(usize, usize, SmallVec<[usize; 4]>, S::Score)> = None;
-        for (unit_index, unit) in units.iter().enumerate() {
-            if placed[unit_index] {
-                continue;
-            }
-            let owners: SmallVec<[usize; 16]> = (0..entity_count)
-                .filter(|&destination| {
-                    restrictions[unit_index].allows(destination)
-                        && !crate::pinning::entity_is_pinned(
-                            score_director,
-                            descriptor_index,
-                            destination,
-                        )
-                        && !(plan.skip_empty_destinations
-                            && !access.has_owner_binding()
-                            && access.list_len(score_director.working_solution(), destination) == 0)
-                })
-                .collect();
-            let lens: SmallVec<[usize; 16]> = (0..entity_count)
-                .map(|entity| access.list_len(score_director.working_solution(), entity))
-                .collect();
-            let mut members: SmallVec<[A::Element; 4]> = values[unit.clone()]
+    for (unit_index, unit) in plan.units().enumerate() {
+        let owners: SmallVec<[usize; 16]> = (0..entity_count)
+            .filter(|&destination| {
+                restrictions[unit_index].allows(destination)
+                    && !crate::pinning::entity_is_pinned(
+                        score_director,
+                        descriptor_index,
+                        destination,
+                    )
+                    && !(plan.skip_empty_destinations
+                        && !access.has_owner_binding()
+                        && access.list_len(score_director.working_solution(), destination) == 0)
+            })
+            .collect();
+        let lens: SmallVec<[usize; 16]> = (0..entity_count)
+            .map(|entity| access.list_len(score_director.working_solution(), entity))
+            .collect();
+        let mut trial = JointTrial::new(
+            values[unit.clone()]
                 .iter_mut()
                 .map(|value| value.take().expect("an unplaced member is held"))
-                .collect();
-            let search = search_joint_placement(
-                &owners,
-                members.len(),
-                |entity| lens[entity],
-                plan.bounds,
-                |entity, positions| {
-                    Some(score_joint_trial(
-                        access,
-                        &mut members,
-                        entity,
-                        positions,
-                        score_director,
-                    ))
-                },
-            );
-            for (slot, member) in values[unit.clone()].iter_mut().zip(members) {
-                *slot = Some(member);
-            }
-            let JointSearch::Done {
-                best: Some(choice), ..
-            } = search
-            else {
-                continue;
-            };
-            if best
-                .as_ref()
-                .is_none_or(|(_, _, _, best_score)| choice.score > *best_score)
-            {
-                best = Some((unit_index, choice.entity, choice.positions, choice.score));
-            }
+                .collect(),
+        );
+        let search = search_joint_placement(
+            &owners,
+            unit.len(),
+            |entity| lens[entity],
+            plan.bounds,
+            |entity, positions| Some(trial.score(access, entity, positions, score_director)),
+        );
+        for (slot, member) in values[unit.clone()]
+            .iter_mut()
+            .zip(trial.into_members(access, score_director))
+        {
+            *slot = Some(member);
         }
-        let Some((unit_index, entity, positions, _)) = best else {
+        let JointSearch::Done {
+            best: Some(choice), ..
+        } = search
+        else {
             restore_unplaced(access, plan, &placements, &mut values, score_director);
             return RuinUndo::new();
         };
-        let unit = units[unit_index].clone();
-        score_director.before_variable_changed(descriptor_index, entity);
-        for (removed_index, &position) in unit.clone().zip(positions.iter()) {
+        score_director.before_variable_changed(descriptor_index, choice.entity);
+        for (removed_index, &position) in unit.zip(choice.positions.iter()) {
             access.list_insert(
                 score_director.working_solution_mut(),
-                entity,
+                choice.entity,
                 position,
                 values[removed_index]
                     .take()
-                    .expect("the winning unit's members are held"),
+                    .expect("the placed unit's members are held"),
             );
-            placements.push((entity, position, removed_index));
+            placements.push((choice.entity, position, removed_index));
         }
-        score_director.after_variable_changed(descriptor_index, entity);
-        placed[unit_index] = true;
+        score_director.after_variable_changed(descriptor_index, choice.entity);
     }
     placements
 }
 
-/// Inserts `members` at `positions` of `entity`, scores, and takes them back.
-fn score_joint_trial<S, A, D>(
-    access: &A,
-    members: &mut SmallVec<[A::Element; 4]>,
-    entity: usize,
-    positions: &[usize],
-    score_director: &mut D,
-) -> S::Score
-where
-    S: PlanningSolution,
-    A: ListRuinAccess<S>,
-    D: Director<S>,
-{
-    let descriptor_index = access.descriptor_index();
-    score_director.before_variable_changed(descriptor_index, entity);
-    for (member, &position) in std::mem::take(members).into_iter().zip(positions) {
-        access.list_insert(
-            score_director.working_solution_mut(),
-            entity,
-            position,
-            member,
-        );
+/// The members of one unit while its joint placements are scored.
+///
+/// Members stay in the list between trials: the search enumerates an
+/// owner's placements in lexicographic order of positions, so consecutive
+/// placements usually share the positions of their first members, and only
+/// the members after the shared prefix are taken out and put back, in one
+/// owner change per trial.
+struct JointTrial<E> {
+    // Each member, or `None` while it sits in `entity`'s list.
+    members: SmallVec<[Option<E>; 4]>,
+    entity: Option<usize>,
+    // Positions of the inserted members, a prefix of the unit.
+    positions: SmallVec<[usize; 4]>,
+}
+
+impl<E> JointTrial<E> {
+    fn new(members: SmallVec<[E; 4]>) -> Self {
+        Self {
+            members: members.into_iter().map(Some).collect(),
+            entity: None,
+            positions: SmallVec::new(),
+        }
     }
-    score_director.after_variable_changed(descriptor_index, entity);
-    let score = score_director.calculate_score();
-    score_director.before_variable_changed(descriptor_index, entity);
-    for &position in positions.iter().rev() {
-        members.push(access.list_remove(score_director.working_solution_mut(), entity, position));
+
+    /// Places the members at `positions` of `entity` and scores the result.
+    fn score<S, A, D>(
+        &mut self,
+        access: &A,
+        entity: usize,
+        positions: &[usize],
+        score_director: &mut D,
+    ) -> S::Score
+    where
+        S: PlanningSolution,
+        A: ListRuinAccess<S, Element = E>,
+        D: Director<S>,
+    {
+        if self.entity != Some(entity) {
+            self.take_out(access, score_director);
+        }
+        let shared = self
+            .positions
+            .iter()
+            .zip(positions)
+            .take_while(|(inserted, wanted)| inserted == wanted)
+            .count();
+        let descriptor_index = access.descriptor_index();
+        score_director.before_variable_changed(descriptor_index, entity);
+        // Later members sit at higher positions, so they leave first.
+        for member in (shared..self.positions.len()).rev() {
+            self.members[member] = Some(access.list_remove(
+                score_director.working_solution_mut(),
+                entity,
+                self.positions[member],
+            ));
+        }
+        self.positions.truncate(shared);
+        for (member, &position) in positions.iter().enumerate().skip(shared) {
+            access.list_insert(
+                score_director.working_solution_mut(),
+                entity,
+                position,
+                self.members[member]
+                    .take()
+                    .expect("a member outside the list is held"),
+            );
+            self.positions.push(position);
+        }
+        score_director.after_variable_changed(descriptor_index, entity);
+        self.entity = Some(entity);
+        score_director.calculate_score()
     }
-    members.reverse();
-    score_director.after_variable_changed(descriptor_index, entity);
-    score
+
+    /// Takes every inserted member out of the list.
+    fn take_out<S, A, D>(&mut self, access: &A, score_director: &mut D)
+    where
+        S: PlanningSolution,
+        A: ListRuinAccess<S, Element = E>,
+        D: Director<S>,
+    {
+        let Some(entity) = self.entity.take() else {
+            return;
+        };
+        if self.positions.is_empty() {
+            return;
+        }
+        let descriptor_index = access.descriptor_index();
+        score_director.before_variable_changed(descriptor_index, entity);
+        for member in (0..self.positions.len()).rev() {
+            self.members[member] = Some(access.list_remove(
+                score_director.working_solution_mut(),
+                entity,
+                self.positions[member],
+            ));
+        }
+        score_director.after_variable_changed(descriptor_index, entity);
+        self.positions.clear();
+    }
+
+    /// Takes every member out of the list and hands them back in order.
+    fn into_members<S, A, D>(mut self, access: &A, score_director: &mut D) -> SmallVec<[E; 4]>
+    where
+        S: PlanningSolution,
+        A: ListRuinAccess<S, Element = E>,
+        D: Director<S>,
+    {
+        self.take_out(access, score_director);
+        self.members
+            .into_iter()
+            .map(|member| member.expect("every member is out of the list"))
+            .collect()
+    }
 }
 
 /// Takes back the placements already made, then restores every removed

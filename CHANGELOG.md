@@ -1,6 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.31.2](https://github.com/SolverForge/solverforge/compare/v0.31.1...v0.31.2) (2026-11-17)
+
+
+### Features
+
+* **policy:** keep local search's share of a time-limited budget ([4a2a8c4](https://github.com/SolverForge/solverforge/commit/4a2a8c4fd58b895191325f15b0031854ec1a14c1)), closes #253
+* **policy:** measure default search effort and weight families by candidate cost ([998597f](https://github.com/SolverForge/solverforge/commit/998597f5b826008a85533d47d2c5d401ed919c76)), references #253
+
+
+### Bug Fixes
+
+* **construction:** complete fixed fleets after Clarke-Wright and bound default savings ([3018659](https://github.com/SolverForge/solverforge/commit/30186598b78d5e44016b0502a77259ea04fe74ff)), references #253
+
+
 ## [0.31.1](https://github.com/SolverForge/solverforge/compare/v0.31.0...v0.31.1) (2026-11-17)
 
 

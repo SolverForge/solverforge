@@ -183,7 +183,11 @@ impl Shop {
 After each move the score director recomputes the downstream cone of the
 changed elements in dependency order: each element once, after its inputs,
 and only when an input changed, so propagation stops where a value is
-unchanged. Every element whose value changes is rescored exactly once. An
+unchanged. Every element whose value changes is rescored exactly once, and
+so is every element whose owner, previous or next element changes (or whose
+index changes, when `index_field` is configured); the other elements keep
+their stream rows, so a change near the end of a long route rescores only
+what it touches. An
 element in no list, or on a dependency cycle a move creates (a task that
 waits on a task queued after it), is unset (`None`), which constraints can
 penalize. Models without a cascading shadow compile none of this into their

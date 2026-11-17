@@ -250,7 +250,7 @@ src/
 │   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc,M> (zero-erasure incremental)
 │   │   ├── score_director/constructors.rs          — ScoreDirector constructors, weighted constructors, replica-forking constructors, into_weight_mode
 │   │   ├── score_director/descriptor.rs            — DirectorDescriptor (owned or borrowed SolutionDescriptor)
-│   │   ├── score_director/list_shadows.rs          — Retract/insert of list-shadowed element rows around owner shadow updates
+│   │   ├── score_director/list_shadows.rs          — Retract/insert of list-shadowed element rows around owner shadow updates; with a cascading shadow, only rows whose structure or cascading value changes
 │   │   ├── score_director/weight_mode.rs           — WeightMode (sealed), UnweightedMode, WeightedMode, requires_weighted_mode, static per-mode scoring dispatch
 │   │   ├── score_director/analysis.rs              — ScoreDirector constraint_results/constraint_analyses/constraint_match_totals
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
@@ -501,14 +501,20 @@ inserts the owner and every element it now holds, and clears and re-inserts
 elements that left the owner without joining another list. Element rows
 therefore always hold the shadows they were inserted with.
 
-When `S::HAS_CASCADING_SHADOWS` is `true`, element rows are deferred to the
-end of the move: each `after_variable_changed` refreshes only the owner's list
-structure (`update_list_structure_shadows`) and inserts the owner, and when the
-move's last notified owner has been refreshed the director propagates the
-cascading values (`CascadePropagation`) from every element those owners held
-before or after the move. An element written during propagation is retracted
-before its write unless it is already pending, and every pending element is
-inserted once. The branch is on the associated constant, so other solutions
+When `S::HAS_CASCADING_SHADOWS` is `true`, only rows whose shadows change are
+rescored, and they are deferred to the end of the move.
+`before_variable_changed` records the elements the owner holds and retracts
+no element row. Each `after_variable_changed` retracts the rows of the
+owner's elements whose structure shadows do not already describe their new
+place (`list_structure_unchanged`, asked before the rewrite), arrivals from
+no list included, then
+refreshes only the owner's list structure (`update_list_structure_shadows`)
+and inserts the owner. When the move's last notified owner has been
+refreshed, an element that was held and is now in no list is retracted and
+cleared, the director propagates the cascading values (`CascadePropagation`)
+from the retracted elements, an element written during propagation is
+retracted before its write unless it is already pending, and every pending
+element is inserted once. The branch is on the associated constant, so other solutions
 compile none of it.
 
 ### `SolvableSolution` — `: PlanningSolution`

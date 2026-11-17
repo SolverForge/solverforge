@@ -109,6 +109,20 @@ pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     /// it; none by default.
     fn cascading_peers(_solution: &Self, _element: usize, _peers: &mut Vec<usize>) {}
 
+    /// Whether `element`'s list structure shadows already describe the given
+    /// place; `false` by default.
+    fn list_structure_unchanged(
+        _solution: &Self,
+        _element: usize,
+        _owner_descriptor: usize,
+        _owner_index: usize,
+        _index: usize,
+        _previous: Option<usize>,
+        _next: Option<usize>,
+    ) -> bool {
+        false
+    }
+
     /// Whether `element`'s cascading value is unset; `true` by default.
     fn cascading_unset(_solution: &Self, _element: usize) -> bool {
         true

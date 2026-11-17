@@ -1074,7 +1074,8 @@ Runtime helpers:
   updates without proc-macro registries. Its cascading hooks
   (`update_list_structure_shadows`, `cascading_element_count`,
   `cascading_assigned`, `cascading_next`, `cascading_dependencies`,
-  `cascading_peers`, `cascading_unset`, `update_cascading_shadow`) mirror the
+  `cascading_peers`, `list_structure_unchanged`, `cascading_unset`,
+  `update_cascading_shadow`) mirror the
   `PlanningSolution` ones and default to no cascading shadow.
 
 Scalar-only, list-only, mixed, and zero-variable planning models target the same compiled runtime layer through `RuntimeModel`. Generic construction order is the descriptor-backed variable order emitted by the macros, and scalar runtime assembly does not depend on Rust module declaration order. Scalar construction is single-slot by default for non-assignment-owned slots; grouped scalar construction is explicit, named, and atomic. Assignment-owned scalar slots are constructed and searched only through their owning grouped scalar path. Specialized list algorithms are compiled nodes that call their existing kernels directly.

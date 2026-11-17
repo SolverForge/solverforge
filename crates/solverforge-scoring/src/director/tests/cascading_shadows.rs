@@ -112,6 +112,22 @@ impl PlanningSolution for Shop {
         dependencies.extend(self.tasks[element].waits_on);
     }
 
+    fn list_structure_unchanged(
+        &self,
+        element: usize,
+        owner_descriptor: usize,
+        owner_index: usize,
+        _index: usize,
+        previous: Option<usize>,
+        next: Option<usize>,
+    ) -> bool {
+        let task = &self.tasks[element];
+        owner_descriptor == MACHINES
+            && task.machine == Some(owner_index)
+            && task.previous == previous
+            && task.next == next
+    }
+
     fn cascading_unset(&self, element: usize) -> bool {
         self.tasks[element].start.is_none()
     }
@@ -158,6 +174,11 @@ type StartCost = IncrementalUniConstraint<
     SoftScore,
 >;
 
+thread_local! {
+    // Rows weighed by `start_cost`, to count which rows a move rescores.
+    static COST_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 // Each task costs its start, with its position and machine folded in so a
 // stale previous pointer would also show. An unset start costs 1000 in no
 // list and 5000 on a machine (a dependency cycle), so a row retracted after
@@ -170,6 +191,7 @@ fn start_cost() -> StartCost {
         true
     }
     fn cost(task: &Task) -> SoftScore {
+        COST_CALLS.with(|calls| calls.set(calls.get() + 1));
         match task.start {
             Some(start) => SoftScore::of(
                 start * 10
@@ -291,6 +313,24 @@ fn a_move_that_closes_a_dependency_cycle_unsets_it_and_its_undo_restores_it() {
         machines[0].retain(|&task| task != 2);
         machines[1].insert(0, 2);
     });
+    assert_matches_fresh(&mut director);
+}
+
+#[test]
+fn a_task_appended_to_a_route_rescores_only_the_rows_whose_shadows_change() {
+    // Saw (0): tasks 0 to 5. Task 6 is unassigned.
+    let mut director = director(vec![(0..6).collect()], &[2, 3, 2, 4, 1, 3, 5], &[]);
+    assert_matches_fresh(&mut director);
+    COST_CALLS.with(|calls| calls.set(0));
+
+    // Only task 5 (a new next) and task 6 (placed) change; tasks 0 to 4
+    // keep their structure and start, so their rows stay.
+    change(&mut director, &[0], |machines| machines[0].push(6));
+    let rescored = COST_CALLS.with(|calls| calls.get());
+    assert!(
+        rescored <= 4,
+        "{rescored} row weighings for two changed rows"
+    );
     assert_matches_fresh(&mut director);
 }
 

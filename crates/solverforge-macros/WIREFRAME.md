@@ -397,7 +397,8 @@ element shadows score incrementally.
 
 With `cascading_field`, the generated support sets
 `PlanningSolution::HAS_CASCADING_SHADOWS = true` and implements the
-`cascading_*` hooks, `update_cascading_shadow` and
+`cascading_*` hooks, `list_structure_unchanged` (comparing the inverse,
+previous, next and, when configured, index fields), `update_cascading_shadow` and
 `update_list_structure_shadows` (the owner update without the cascading
 shadow). `update_entity_shadows` refreshes the owner's structure, then
 propagates the cascading values from its elements with `CascadePropagation`;

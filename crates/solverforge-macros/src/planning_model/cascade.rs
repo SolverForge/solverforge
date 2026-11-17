@@ -7,6 +7,8 @@ propagation itself, its ordering and its change reporting are SolverForge's.
 
 struct CascadeContext<'a> {
     solution_path: &'a TokenStream,
+    // The list owner's descriptor index.
+    descriptor_index: usize,
     element_accessor: &'a Ident,
     element_mut_accessor: &'a Ident,
 }
@@ -53,6 +55,7 @@ fn generate_cascade_hooks(config: &ShadowConfig, context: &CascadeContext<'_>) -
     let span = proc_macro2::Span::call_site();
     let CascadeContext {
         solution_path,
+        descriptor_index,
         element_accessor,
         element_mut_accessor,
     } = context;
@@ -60,6 +63,15 @@ fn generate_cascade_hooks(config: &ShadowConfig, context: &CascadeContext<'_>) -
     let compute = Ident::new(config.cascading_compute.as_deref().unwrap(), span);
     let inverse = Ident::new(config.inverse_field.as_deref().unwrap(), span);
     let next = Ident::new(config.next_field.as_deref().unwrap(), span);
+    let previous = Ident::new(config.previous_field.as_deref().unwrap(), span);
+    let index_matches = config
+        .index_field
+        .as_deref()
+        .map(|field| {
+            let field = Ident::new(field, span);
+            quote! { && stored.#field == ::core::option::Option::Some(index) }
+        })
+        .unwrap_or_default();
     let dependencies = config
         .cascading_dependencies
         .as_deref()
@@ -101,6 +113,24 @@ fn generate_cascade_hooks(config: &ShadowConfig, context: &CascadeContext<'_>) -
         #[allow(unused_variables)]
         fn cascading_peers(solution: &Self, element: usize, peers: &mut ::std::vec::Vec<usize>) {
             #peers
+        }
+
+        #[allow(unused_variables)]
+        fn list_structure_unchanged(
+            solution: &Self,
+            element: usize,
+            owner_descriptor: usize,
+            owner_index: usize,
+            index: usize,
+            previous: ::core::option::Option<usize>,
+            next: ::core::option::Option<usize>,
+        ) -> bool {
+            let stored = &#solution_path::#element_accessor(solution)[element];
+            owner_descriptor == #descriptor_index
+                && stored.#inverse == ::core::option::Option::Some(owner_index)
+                && stored.#previous == previous
+                && stored.#next == next
+                #index_matches
         }
 
         fn cascading_unset(solution: &Self, element: usize) -> bool {

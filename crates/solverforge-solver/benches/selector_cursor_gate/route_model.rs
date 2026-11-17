@@ -134,6 +134,25 @@ impl PlanningSolution for RoutePlan {
         self.stops[element].next
     }
 
+    // The structure hook exists from the candidate tree on; a baseline
+    // without it rescores every element of a changed owner.
+    #[cfg(feature = "candidate")]
+    fn list_structure_unchanged(
+        &self,
+        element: usize,
+        owner_descriptor: usize,
+        owner_index: usize,
+        _index: usize,
+        previous: Option<usize>,
+        next: Option<usize>,
+    ) -> bool {
+        let stop = &self.stops[element];
+        owner_descriptor == 0
+            && stop.vehicle == Some(owner_index)
+            && stop.previous == previous
+            && stop.next == next
+    }
+
     fn cascading_unset(&self, element: usize) -> bool {
         self.stops[element].arrival.is_none()
     }

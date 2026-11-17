@@ -224,3 +224,28 @@ fn eager_extension_preparation_precedes_lazy_source_binding() {
     ));
     assert_eq!(EXTENSION_BUILD_CALLS.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn optional_construction_keeps_its_share_of_a_time_limited_solve() {
+    use crate::runtime::compiler::executor::default_construction::optional_construction_termination;
+
+    let input = plan(vec![7], vec![Vec::new()]);
+    let director = ScoreDirector::simple(input, descriptor(), |plan, _| entity_count(plan));
+    let mut scope = SolverScope::new(director);
+    assert!(
+        optional_construction_termination(&scope).is_none(),
+        "a solve without a time limit leaves the optional pass unbounded"
+    );
+    scope.set_time_limit(std::time::Duration::from_secs(60));
+    assert_eq!(
+        optional_construction_termination(&scope).and_then(|config| config.seconds_spent_limit),
+        Some(12),
+        "a fifth of a 60 s solve"
+    );
+    scope.set_time_limit(std::time::Duration::from_secs(4));
+    assert_eq!(
+        optional_construction_termination(&scope).and_then(|config| config.seconds_spent_limit),
+        Some(1),
+        "the 0.8 s share rounds up to whole seconds"
+    );
+}

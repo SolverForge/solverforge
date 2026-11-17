@@ -974,9 +974,13 @@ carry a `reason` attribute naming the model declaration that selected them
 (`savings_hooks_declared`, `precedence_construction_order_and_ownership_declared`,
 `precedence_and_construction_order_declared`, `no_specialized_list_policy_declared`,
 `required_assignments_remain`, `only_optional_assignments_remain`,
-`scalar_slot_outside_assignment_groups`, `route_hooks_declared_and_route_non_empty`).
+`scalar_slot_outside_assignment_groups`, `route_hooks_declared_and_route_non_empty`,
+`element_groups_declared`, `list_elements_remain_unassigned`). The optional
+assignment step of a time-limited solve also carries `time_budget_seconds`,
+the share of the time limit it was allowed.
 The default local-search node carries acceptor, forager,
-`forager_accepted_count_limit`, `selection_order`, `weighting` and
+`forager_accepted_count_limit`, `selection_order`, `weighting` (`equal`, or
+`fixed:[...]` with one cost weight per selector) and
 `excluded_families` (`family@slot:missing=capability+...`, or `none`); an
 explicit local-search node carries the configured or inherited acceptor and
 forager plus the effective `forager_accepted_count_limit` (`none` for variable

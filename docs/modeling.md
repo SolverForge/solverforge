@@ -322,8 +322,9 @@ elements may sit between them, as a shared ride needs:
   one member to the next.
 - `list_group_swap_move_selector` exchanges two groups of the same size on
   different owners, member slot for member slot.
-- `list_ruin_move_selector` ruins whole groups and recreates each group
-  jointly, choosing all of its members' positions together.
+- `list_ruin_move_selector` ruins whole groups and recreates them in one
+  pass, each group jointly at its best placement given the groups placed
+  before it, choosing all of its members' positions together.
 - `list_cheapest_insertion` and `list_regret_insertion` place a group as one
   unit. A member is never placed alone; members already assigned pin the rest
   of their group to that owner.

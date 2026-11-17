@@ -301,6 +301,10 @@ runs:
 - The descriptor-placement scalar construction placer
   (`RuntimeScalarConstructionPlacer`) and the compiled runtime phase runner
   that solves first-fit construction.
+- Route moves executed against a scored model: the score director's
+  cascading list-shadow row maintenance (`route_rows`), and grouped list
+  ruin-and-recreate with joint placement of each element group
+  (`group_ruin`), each candidate done, scored and undone.
 
 The standalone `heuristic/selector` selectors, decorators, and
 `QueuedEntityPlacer` are test oracles only; no production path runs them.

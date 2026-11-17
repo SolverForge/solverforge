@@ -149,6 +149,8 @@ include!("selector_cursor_gate/list_cases.rs");
 include!("selector_cursor_gate/scalar_cases.rs");
 include!("selector_cursor_gate/construction_cases.rs");
 include!("selector_cursor_gate/scoring_cases.rs");
+include!("selector_cursor_gate/route_model.rs");
+include!("selector_cursor_gate/route_cases.rs");
 
 include!("selector_cursor_gate/case_dispatch.rs");
 
@@ -187,6 +189,8 @@ fn main() {
         "construction_first_fit",
         construction_first_fit
     );
+    run_case!(case, matched, "route_rows", route_rows);
+    run_case!(case, matched, "group_ruin", group_ruin);
     run_case!(case, matched, "scoring", scoring);
     run_case!(case, matched, "scoring_weights_one", scoring_weights_one);
     run_case!(

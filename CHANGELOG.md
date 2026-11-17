@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.31.1](https://github.com/SolverForge/solverforge/compare/v0.31.0...v0.31.1) (2026-11-17)
+
+
+### Performance Improvements
+
+* **list:** recreate ruined groups in one pass with shared trial prefixes ([31a9e13](https://github.com/SolverForge/solverforge/commit/31a9e1334c5a414e6f007d4a08b8a1d858d92a12))
+* **scoring:** rescore only the list-shadow rows a cascading move changes ([4ea363b](https://github.com/SolverForge/solverforge/commit/4ea363b2020480740df6874283da81af197de6fd))
+
+
 ## [0.31.0](https://github.com/SolverForge/solverforge/compare/v0.30.1...v0.31.0) (2026-11-17)
 
 

@@ -17,8 +17,9 @@ use crate::scope::{ProgressCallback, SolverScope};
 use super::execute::execute_prepared_construction;
 use super::{
     DefaultConstructionStageExecutionRecord, DefaultRuntimeConstructionExecution,
-    PreparedDefaultRuntime, PreparedRuntimeExecution, ResolvedConstructionExecutionOutcome,
-    ResolvedConstructionExecutionStep, RuntimeInstantiationError,
+    PreparedConstruction, PreparedDefaultRuntime, PreparedRuntimeExecution,
+    ResolvedConstructionExecutionOutcome, ResolvedConstructionExecutionStep,
+    RuntimeInstantiationError,
 };
 
 /// Executes the staged omitted-construction profile through the same prepared
@@ -134,6 +135,31 @@ where
     Ok(needs_completion)
 }
 
+/// Share of a time-limited solve, in percent, after which the optional
+/// assignment pass stops so local search keeps the rest of the budget. On
+/// the rostering bench a fifth lets the pass finish in a 60 s solve, where a
+/// tenth already costs quality, and still frees a 10 s solve for search.
+/// Optional rows stay reachable to local search's optional-assignment moves.
+const OPTIONAL_CONSTRUCTION_BUDGET_PERCENT: u32 = 20;
+
+/// The optional pass's remaining share of the solve's time limit, rounded up
+/// to whole seconds, or `None` when the solve has no time limit.
+pub(super) fn optional_construction_termination<S, D, ProgressCb>(
+    solver_scope: &SolverScope<'_, S, D, ProgressCb>,
+) -> Option<solverforge_config::TerminationConfig>
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    let share = solver_scope.time_limit()? * OPTIONAL_CONSTRUCTION_BUDGET_PERCENT / 100;
+    let remaining = share.saturating_sub(solver_scope.elapsed().unwrap_or_default());
+    Some(solverforge_config::TerminationConfig {
+        seconds_spent_limit: Some(remaining.as_millis().div_ceil(1000) as u64),
+        ..solverforge_config::TerminationConfig::default()
+    })
+}
+
 fn execute_resolved_default_construction_plan<S, V, DM, IDM, Extension, D, ProgressCb>(
     execution: &mut PreparedRuntimeExecution<S, V, DM, IDM, Extension>,
     default: &PreparedDefaultRuntime<S, V, DM, IDM>,
@@ -151,8 +177,18 @@ where
 {
     let mut steps = Vec::with_capacity(resolved.steps.len());
     for step in &resolved.steps {
-        let construction =
+        let mut construction =
             execution.prepare_resolved_construction(default.phase_index, &step.construction)?;
+        let mut time_budget_seconds = None;
+        if step.kind == DefaultConstructionStepKind::AssignmentOptional {
+            if let PreparedConstruction::GroupedScalar { config, .. } = &mut construction {
+                config.termination = optional_construction_termination(solver_scope);
+                time_budget_seconds = config
+                    .termination
+                    .as_ref()
+                    .and_then(|termination| termination.seconds_spent_limit);
+            }
+        }
         let execution = execute_prepared_construction(
             execution,
             &construction,
@@ -165,6 +201,7 @@ where
             required_only: step.required_only,
             target: step.target.clone(),
             list_policies: step.list_policies.clone(),
+            time_budget_seconds,
             outcome: execution.outcome,
         });
     }

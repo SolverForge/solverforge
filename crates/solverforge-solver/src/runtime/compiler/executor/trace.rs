@@ -148,6 +148,9 @@ fn default_step_plan(step: &ResolvedConstructionExecutionStep) -> CandidateTrace
                 .map_or_else(|| "none".to_string(), slot_signature),
         ),
     ];
+    if let Some(seconds) = step.time_budget_seconds {
+        attributes.push(("time_budget_seconds".to_string(), seconds.to_string()));
+    }
     if let Some(policies) = &step.list_policies {
         match step.kind {
             DefaultConstructionStepKind::ListConstruction(

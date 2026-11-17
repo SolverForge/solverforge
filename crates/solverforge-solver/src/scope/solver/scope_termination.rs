@@ -73,6 +73,11 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.inphase_score_calc_count_limit_reached()
     }
 
+    /// The solve's time limit, when it has one.
+    pub(crate) fn time_limit(&self) -> Option<Duration> {
+        self.time_limit
+    }
+
     /// Stops the solve once this much solver-active time has elapsed.
     pub fn set_time_limit(&mut self, limit: Duration) {
         self.time_limit = Some(limit);

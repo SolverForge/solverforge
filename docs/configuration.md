@@ -147,6 +147,18 @@ optional pass. Completed optional roots are skipped before candidate-domain
 reads or move generation, so the candidate budget stays available for later
 rows.
 
+Construction and local search share a time-limited budget. Required work is
+not capped: every list element, required assignment and non-optional scalar
+must be placed before local search starts, and a solve whose limits end first
+fails rather than publish a partial plan. The optional assignment pass is the
+one construction step that can run long without being needed, so it stops once
+a fifth of the solve's time limit has passed (rounded up to whole seconds) and
+leaves the rest to local search, whose optional-assignment moves keep filling
+optional rows. The step reports the share it got as `time_budget_seconds`. On
+the rostering bench the pass needs about 7 s: uncapped it leaves a 10 s solve
+2 s of search, and capped at a tenth it costs a 60 s solve quality; a fifth
+does neither. A solve without a time limit runs the pass to completion.
+
 An explicit scalar construction target that names an assignment-owned variable
 must use the owning `group_name`.
 

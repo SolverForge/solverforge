@@ -70,6 +70,9 @@ pub(crate) struct ResolvedConstructionExecutionStep {
     pub(crate) required_only: bool,
     pub(crate) target: Option<RuntimeScalarSlotId>,
     pub(crate) list_policies: Option<DefaultListPolicyProvenance>,
+    /// Whole seconds of the solve's time limit this step was allowed, when
+    /// the default policy bounded it.
+    pub(crate) time_budget_seconds: Option<u64>,
     pub(crate) outcome: ResolvedConstructionExecutionOutcome,
 }
 

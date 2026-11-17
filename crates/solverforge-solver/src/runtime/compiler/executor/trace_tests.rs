@@ -24,6 +24,7 @@ fn executed_stage(
             required_only: false,
             target: None,
             list_policies: None,
+            time_budget_seconds: None,
             outcome: ResolvedConstructionExecutionOutcome::Executed,
         }],
     }
@@ -88,4 +89,32 @@ fn default_terminal_trace_keeps_clarke_wright_then_k_opt_exactly() {
         plan.is_complete(),
         "terminal construction trace must not be opaque"
     );
+}
+
+#[test]
+fn default_trace_reports_the_optional_pass_time_budget() {
+    let mut stage = executed_stage(
+        DefaultConstructionStage::Preconstruction(DefaultPreconstructionStage::AssignmentOptional),
+        DefaultConstructionStepKind::AssignmentOptional,
+        DefaultConstructionReason::OnlyOptionalAssignmentsRemain,
+    );
+    stage.steps[0].time_budget_seconds = Some(2);
+    let execution = DefaultRuntimeConstructionExecution {
+        ran_child_phase: true,
+        stages: vec![stage],
+    };
+
+    let plan = default_construction_plan(&execution);
+    let budget = plan
+        .children
+        .iter()
+        .flat_map(|stage| stage.children.iter())
+        .filter_map(|step| {
+            step.attributes
+                .iter()
+                .find(|attribute| attribute.key == "time_budget_seconds")
+                .map(|attribute| attribute.value.as_str())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(budget, ["2"]);
 }

@@ -21,8 +21,13 @@ impl DefaultLocalSearchPlan {
                 selection_order_label(self.selection_order).to_string(),
             ),
             ("selector_count", self.selectors.len().to_string()),
-            // Every default union weighs its families equally.
-            ("weighting", "equal".to_string()),
+            (
+                "weighting",
+                self.family_weights().map_or_else(
+                    || "equal".to_string(),
+                    |weights| format!("fixed:{weights:?}"),
+                ),
+            ),
             ("excluded_families", self.excluded_families_signature()),
         ];
         match self.components.acceptor {

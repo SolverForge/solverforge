@@ -184,7 +184,11 @@ neighborhoods:
   scalar, compound conflict-repair and ordinary scalar families.
 
 Leaf order is seeded `Random`. A single family uses `Sequential`; a
-multi-family union uses `StratifiedRandom` with equal family weights.
+multi-family union uses `StratifiedRandom`, weighted by candidate cost: list
+ruin and unbounded k-opt rebuild or scan whole routes per candidate, so they
+draw weight 1 against 4 for every other family. They stay in the
+neighborhood for diversification without taking an equal share of the step.
+`telemetry.resolved_phase_plan` reports the weights as `weighting`.
 `limited_neighborhood` remains the explicit cap for configured exhaustive
 selectors.
 
@@ -192,11 +196,15 @@ The acceptor and forager follow the model's shape:
 
 | Model | Acceptor | Forager |
 |---|---|---|
-| list variables, precedence moves available | Late Acceptance, history 400 | first last-step-score improving, accepted-count ceiling 256 |
-| list variables | Late Acceptance, history 400 | accepted count 256 |
-| scalar groups, no list variables | Diversified Late Acceptance, history 400 | accepted count 256 |
-| scalar variables with nearby hooks or conflict repairs | Simulated Annealing, auto-calibrated | accepted count 256 |
+| list variables, precedence moves available | Late Acceptance, history 400 | first last-step-score improving, accepted-count ceiling 32 |
+| list variables | Late Acceptance, history 400 | accepted count 4 |
+| scalar groups, no list variables | Diversified Late Acceptance, history 400 | accepted count 32 |
+| scalar variables with nearby hooks or conflict repairs | Simulated Annealing, auto-calibrated | accepted count 32 |
 | other scalar variables | Simulated Annealing, auto-calibrated | accepted count 1 |
+
+The accepted counts come from five-seed runs of the solverforge-bench CVRP,
+rostering and job-shop suites at a 10 s budget: fewer accepted moves per step
+buy more steps, and each model shape has its own best count.
 
 ### Omitted and explicit components
 
@@ -215,7 +223,7 @@ written:
 - **An explicit forager with omitted fields** uses that forager's own field
   defaults, not the default policy's: `type = "accepted_count"` without
   `limit` collects 1 accepted move per step, while an omitted forager on a list
-  model collects 256.
+  model collects 4.
 
 `telemetry.resolved_phase_plan` reports the resolved choice for every phase,
 including the families a slot did not receive and the capability each was

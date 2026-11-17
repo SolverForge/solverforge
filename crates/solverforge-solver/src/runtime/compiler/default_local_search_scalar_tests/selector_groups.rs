@@ -81,7 +81,7 @@ fn typed_and_dynamic_assignment_groups_hide_scalar_leaves_and_keep_group_policy(
         );
         assert_eq!(
             plan.components.forager,
-            DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 256 }
+            DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 32 }
         );
         assert!(plan.candidate_trace_plan().is_complete());
     }

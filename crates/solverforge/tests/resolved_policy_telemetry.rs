@@ -77,11 +77,11 @@ fn final_telemetry_names_the_default_construction_and_why() {
     let local_search = find(&plan, "solverforge.runtime.default_local_search")
         .unwrap_or_else(|| panic!("default local search is reported: {plan:#?}"));
     assert_eq!(attribute(local_search, "acceptor"), "late_acceptance");
+    assert_eq!(attribute(local_search, "forager_accepted_count_limit"), "4");
     assert_eq!(
-        attribute(local_search, "forager_accepted_count_limit"),
-        "256"
+        attribute(local_search, "weighting"),
+        "fixed:[4, 4, 4, 4, 4, 4, 1]"
     );
-    assert_eq!(attribute(local_search, "weighting"), "equal");
     assert_eq!(
         attribute(local_search, "selection_order"),
         "stratified_random"
@@ -121,11 +121,11 @@ fn an_omitted_forager_inherits_the_default_policy() {
     let local_search = explicit_local_search_plan("");
     assert_eq!(
         attribute(&local_search, "forager"),
-        "default:AcceptedCount { limit: 256 }"
+        "default:AcceptedCount { limit: 4 }"
     );
     assert_eq!(
         attribute(&local_search, "forager_accepted_count_limit"),
-        "256"
+        "4"
     );
 }
 

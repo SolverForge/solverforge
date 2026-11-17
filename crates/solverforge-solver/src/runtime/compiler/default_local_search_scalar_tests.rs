@@ -380,7 +380,7 @@ fn typed_and_dynamic_scalar_capabilities_have_identical_default_policy() {
     );
     assert_eq!(
         typed.components.forager,
-        DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 256 }
+        DefaultLocalSearchForagerPolicy::AcceptedCount { limit: 32 }
     );
     assert_eq!(
         trace_value(&typed, "simulated_annealing_decay_rate_bits"),
@@ -392,7 +392,7 @@ fn typed_and_dynamic_scalar_capabilities_have_identical_default_policy() {
     );
     assert_eq!(
         trace_value(&typed, "forager_accepted_count_limit"),
-        Some("256".to_string())
+        Some("32".to_string())
     );
 }
 

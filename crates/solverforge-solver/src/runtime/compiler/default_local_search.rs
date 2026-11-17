@@ -92,6 +92,17 @@ pub(crate) enum DefaultLocalSearchSelectorFamily {
 }
 
 impl DefaultLocalSearchSelectorFamily {
+    /// Share of the default union's candidate draws. Ruin-and-recreate and
+    /// unbounded k-opt rebuild or scan whole routes per candidate (48 ms per
+    /// ruin move at 10k stops), so they draw a quarter as often as the
+    /// families whose candidates touch a few positions.
+    pub(crate) fn cost_weight(self) -> u64 {
+        match self {
+            Self::UnboundedKOpt | Self::ListRuin => 1,
+            _ => 4,
+        }
+    }
+
     pub(crate) fn trace_label(self) -> &'static str {
         match self {
             Self::ListGroupChange => "list_group_change",
@@ -174,6 +185,22 @@ pub(crate) struct DefaultLocalSearchPlan {
     pub selectors: Vec<DefaultLocalSearchSelectorDeclaration>,
     /// Default families a slot does not receive, with the reason.
     pub excluded: Vec<DefaultExcludedFamily>,
+}
+
+impl DefaultLocalSearchPlan {
+    /// One cost weight per selector, or `None` when every family weighs the
+    /// same and the union stays equally weighted.
+    pub(crate) fn family_weights(&self) -> Option<Vec<u64>> {
+        let weights: Vec<u64> = self
+            .selectors
+            .iter()
+            .map(|selector| selector.family.cost_weight())
+            .collect();
+        weights
+            .windows(2)
+            .any(|pair| pair[0] != pair[1])
+            .then_some(weights)
+    }
 }
 
 pub(super) fn target_for(slot: &RuntimeScalarSlotId) -> VariableTargetConfig {

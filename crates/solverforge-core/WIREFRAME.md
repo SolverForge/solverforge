@@ -279,9 +279,7 @@ Constructors: `of([i64; H], [i64; S])`, `zero()`, `one_hard(usize)`, `one_soft(u
 
 Accessors: `hard_levels_count() -> usize`, `soft_levels_count() -> usize`, `hard_score(usize) -> i64`, `soft_score(usize) -> i64`, `hard_scores() -> &[i64; H]`, `soft_scores() -> &[i64; S]`
 
-Implements: `Score`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`
-
-Does **not** implement `ParseableScore`.
+Implements: `Score`, `ParseableScore`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`
 
 Optional: `serde::Serialize + Deserialize` (feature `serde`), hand-written in `score/bendable_serde.rs`: the wire shape is `{"hard": [...], "soft": [...]}`, and a level list whose length is not exactly `H` (or `S`) is rejected with an `invalid length` error.
 

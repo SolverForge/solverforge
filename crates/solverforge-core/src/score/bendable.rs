@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
-use super::traits::Score;
+use super::traits::{ParseableScore, Score, ScoreParseError};
 use super::ScoreLevel;
 
 /// A score with a configurable number of hard and soft levels.
@@ -379,5 +379,63 @@ impl<const H: usize, const S: usize> fmt::Display for BendableScore<H, S> {
             hard_str.join("/"),
             soft_str.join("/")
         )
+    }
+}
+
+/// Parses the `/`-separated levels inside one pair of brackets into exactly
+/// `N` values; empty brackets hold zero levels.
+fn parse_levels<const N: usize>(text: &str, label: &str) -> Result<[i64; N], ScoreParseError> {
+    let parts: Vec<&str> = if text.trim().is_empty() {
+        Vec::new()
+    } else {
+        text.split('/').collect()
+    };
+    if parts.len() != N {
+        return Err(ScoreParseError {
+            message: format!(
+                "BendableScore {} levels '[{}]': expected {} values, got {}",
+                label,
+                text,
+                N,
+                parts.len()
+            ),
+        });
+    }
+
+    let mut levels = [0; N];
+    for (level, part) in levels.iter_mut().zip(parts) {
+        let part = part.trim();
+        *level = part.parse::<i64>().map_err(|e| ScoreParseError {
+            message: format!("Invalid {} score '{}': {}", label, part, e),
+        })?;
+    }
+    Ok(levels)
+}
+
+// BendableScore keeps its levels in brackets ("[0/-1]hard/[-5/0/7]soft"), so
+// no macro.
+impl<const H: usize, const S: usize> ParseableScore for BendableScore<H, S> {
+    fn parse(s: &str) -> Result<Self, ScoreParseError> {
+        let s = s.trim();
+
+        let (hard_str, soft_str) = s
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix("]soft"))
+            .and_then(|rest| rest.split_once("]hard/["))
+            .ok_or_else(|| ScoreParseError {
+                message: format!(
+                    "Invalid BendableScore format '{}': expected '[X/...]hard/[Y/...]soft'",
+                    s
+                ),
+            })?;
+
+        Ok(BendableScore::of(
+            parse_levels(hard_str, "hard")?,
+            parse_levels(soft_str, "soft")?,
+        ))
+    }
+
+    fn to_string_repr(&self) -> String {
+        format!("{}", self)
     }
 }

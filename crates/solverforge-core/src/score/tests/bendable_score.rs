@@ -85,3 +85,78 @@ fn test_level_number_out_of_range_panics() {
     let score: BendableScore<2, 3> = BendableScore::of([0, 0], [0, 0, 0]);
     let _ = score.level_number(5);
 }
+
+#[test]
+fn test_parse() {
+    assert_eq!(
+        BendableScore::<2, 3>::parse("[0/-1]hard/[-5/0/7]soft").unwrap(),
+        BendableScore::of([0, -1], [-5, 0, 7])
+    );
+    assert_eq!(
+        BendableScore::<1, 2>::parse(" [ -1 ]hard/[ 0 / -5 ]soft ").unwrap(),
+        BendableScore::of([-1], [0, -5])
+    );
+    assert_eq!(
+        BendableScore::<0, 2>::parse("[]hard/[-1/-2]soft").unwrap(),
+        BendableScore::of([], [-1, -2])
+    );
+}
+
+#[test]
+fn test_display() {
+    let score: BendableScore<2, 3> = BendableScore::of([0, -1], [-5, 0, 7]);
+    assert_eq!(format!("{}", score), "[0/-1]hard/[-5/0/7]soft");
+    assert_eq!(score.to_string_repr(), "[0/-1]hard/[-5/0/7]soft");
+}
+
+#[test]
+fn display_then_parse_round_trips() {
+    for score in [
+        BendableScore::<1, 3>::zero(),
+        BendableScore::of([-1000], [-2, 0, -123_456_789]),
+        BendableScore::of([i64::MIN], [i64::MAX, 1, -1]),
+    ] {
+        let text = score.to_string();
+        assert_eq!(BendableScore::<1, 3>::parse(&text), Ok(score), "{text}");
+    }
+}
+
+#[test]
+fn parse_rejects_a_wrong_number_of_levels() {
+    for (input, expected) in [
+        (
+            "[0]hard/[0/0/0]soft",
+            "hard levels '[0]': expected 2 values, got 1",
+        ),
+        (
+            "[0/0]hard/[0/0/0/0]soft",
+            "soft levels '[0/0/0/0]': expected 3 values, got 4",
+        ),
+        (
+            "[]hard/[0/0/0]soft",
+            "hard levels '[]': expected 2 values, got 0",
+        ),
+    ] {
+        let error = BendableScore::<2, 3>::parse(input).expect_err(input);
+        assert!(error.message.contains(expected), "{input}: {error}");
+    }
+}
+
+#[test]
+fn parse_rejects_malformed_text() {
+    for input in [
+        "",
+        "0hard/0soft",
+        "[0]hard",
+        "[0]soft/[0]hard",
+        "[0]hard/[0]soft/",
+        "[0]hard/[x]soft",
+        "[0.5]hard/[0]soft",
+        "[0]hard/[99999999999999999999]soft",
+    ] {
+        assert!(
+            BendableScore::<1, 1>::parse(input).is_err(),
+            "{input} must not parse"
+        );
+    }
+}

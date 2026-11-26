@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.31.3](https://github.com/SolverForge/solverforge/compare/v0.31.2...v0.31.3) (2026-11-26)
+
+
+### Features
+
+* **score:** parse BendableScore from its text form ([710390e](https://github.com/SolverForge/solverforge/commit/710390e6840983e3eb26a4cc7dad6da95f197ea6))
+
+
 ## [0.31.2](https://github.com/SolverForge/solverforge/compare/v0.31.1...v0.31.2) (2026-11-17)
 
 

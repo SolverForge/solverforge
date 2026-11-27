@@ -16,11 +16,11 @@ trait AmbiguousIfClone<Marker> {
     fn check() {}
 }
 
-impl<T: ?Sized> AmbiguousIfClone<()> for T {}
+impl<T> AmbiguousIfClone<()> for T {}
 
 struct IsClone;
 
-impl<T: ?Sized + Clone> AmbiguousIfClone<IsClone> for T {}
+impl<T: Clone> AmbiguousIfClone<IsClone> for T {}
 
 #[test]
 fn move_carriers_and_borrowed_access_are_not_clone() {

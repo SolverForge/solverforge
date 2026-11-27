@@ -175,7 +175,11 @@ custom phase that owns its concrete decider and register it through the typed
 search function. A custom phase implements `CustomSearchPhase<S>` against
 `solverforge::{SolverScope, ProgressCallback}`; it draws randomness with
 `SolverScope::random_below` and `random_u64`, which use the solve's seeded
-generator. Assignment-backed scalar variables still belong to their
+generator. It reads the time it has left with `SolverScope::remaining_time`,
+which counts the solve's time limit and any deadline it inherits as a
+partition's child phase; a phase that takes a share of that time returns once
+the share is spent instead of changing the solve's limit. Assignment-backed
+scalar variables still belong to their
 `ScalarGroup`; exact scalar assignment should not be configured as a second
 path beside grouped assignment.
 

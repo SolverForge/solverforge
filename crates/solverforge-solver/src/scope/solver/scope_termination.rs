@@ -74,7 +74,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     /// The solve's time limit, when it has one.
-    pub(crate) fn time_limit(&self) -> Option<Duration> {
+    pub fn time_limit(&self) -> Option<Duration> {
         self.time_limit
     }
 

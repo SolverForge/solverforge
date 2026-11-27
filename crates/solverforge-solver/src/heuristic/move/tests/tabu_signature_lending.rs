@@ -17,6 +17,7 @@ use crate::test_utils::{create_nqueens_director, get_queen_row, set_queen_row, N
 
 type QueenMove = ChangeMove<NQueensSolution, i64>;
 type RuntimeMove = RuntimeNeighborhoodMove<
+    'static,
     NQueensSolution,
     usize,
     DefaultCrossEntityDistanceMeter,

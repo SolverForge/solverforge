@@ -26,8 +26,9 @@ pub(crate) use execution_record::{
     ResolvedConstructionExecutionStep,
 };
 pub(crate) use list_leaf::{
-    CompiledListNeighborhoodLeafAdapter, RuntimeListMove, RuntimeListMoveUndo,
-    RuntimeListNeighborhoodCursor, RuntimeListNeighborhoodLeaf, RuntimeListNeighborhoodStreamState,
+    contiguous_source_routes, CompiledListNeighborhoodLeafAdapter, RuntimeListMove,
+    RuntimeListMoveUndo, RuntimeListNeighborhoodCursor, RuntimeListNeighborhoodLeaf,
+    RuntimeListNeighborhoodStreamState,
 };
 pub(crate) use prepared::{
     CompiledRuntimeExecutor, PreparedConstruction, PreparedDefaultRuntime, PreparedListSlot,

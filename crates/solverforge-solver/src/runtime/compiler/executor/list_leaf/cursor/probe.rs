@@ -5,7 +5,8 @@ use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::context::{list_access::ListAccess, RuntimeListSlot};
 use crate::heuristic::selector::list_kernel::{
-    critical_analysis_from_graph, CriticalAnalysis, RuinSourcePool, SelectedListOwners,
+    critical_analysis_from_graph, CriticalAnalysis, RuinDistanceProbe, RuinSourcePool,
+    SelectedListOwners,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::precedence_route::{
@@ -24,6 +25,44 @@ pub(super) struct RuntimeNearbyProbe<'a, S, V, DM, IDM> {
     /// Whether candidates carry an owner restriction: an owner hook or
     /// element groups. Frozen at construction, read per candidate.
     owner_binding: bool,
+}
+
+/// Cross-position metric probe for contiguous list ruin.
+pub(super) struct RuntimeRuinProbe<'a, S, V, DM, IDM> {
+    slot: &'a RuntimeListSlot<S, V, DM, IDM>,
+}
+
+impl<'a, S, V, DM, IDM> RuntimeRuinProbe<'a, S, V, DM, IDM> {
+    pub(super) fn new(slot: &'a RuntimeListSlot<S, V, DM, IDM>) -> Self {
+        Self { slot }
+    }
+}
+
+impl<S, V, DM, IDM> RuinDistanceProbe<S> for RuntimeRuinProbe<'_, S, V, DM, IDM>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
+    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+{
+    fn distance(
+        &self,
+        solution: &S,
+        seed_entity: usize,
+        seed_position: usize,
+        entity: usize,
+        position: usize,
+    ) -> f64 {
+        ListAccess::cross_position_distance(
+            self.slot,
+            solution,
+            seed_entity,
+            seed_position,
+            entity,
+            position,
+        )
+        .expect("compiled contiguous list ruin requires validated cross-position distance")
+    }
 }
 
 /// Intra-route metric probe borrowed from the immutable selector declaration.
@@ -286,6 +325,7 @@ pub(super) fn runtime_ruin_source_pool<S, V, DM, IDM>(
     slot: &RuntimeListSlot<S, V, DM, IDM>,
     solution: &S,
     max_source_list_len: Option<usize>,
+    is_pinned: Option<&impl Fn(usize) -> bool>,
 ) -> RuinSourcePool
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
@@ -297,8 +337,10 @@ where
     let non_empty = (0..entity_count)
         .filter_map(|entity| {
             let length = ListAccess::list_len(slot, solution, entity);
-            (length > 0 && max_source_list_len.is_none_or(|maximum| length <= maximum))
-                .then_some((entity, length))
+            (length > 0
+                && max_source_list_len.is_none_or(|maximum| length <= maximum)
+                && !is_pinned.is_some_and(|check| check(entity)))
+            .then_some((entity, length))
         })
         .collect::<Vec<_>>();
     if !slot.ownership_policy().is_explicit() {
@@ -312,8 +354,13 @@ where
                     .filter(|&position| {
                         ListAccess::list_get(slot, solution, entity, position).is_some_and(
                             |element| {
-                                owner_restriction(slot, solution, entity_count, &element)
-                                    .allows_any(entity_count)
+                                let restriction =
+                                    owner_restriction(slot, solution, entity_count, &element);
+                                match is_pinned {
+                                    Some(check) => (0..entity_count)
+                                        .any(|owner| !check(owner) && restriction.allows(owner)),
+                                    None => restriction.allows_any(entity_count),
+                                }
                             },
                         )
                     })

@@ -15,12 +15,12 @@ use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
 use super::spec::RuntimeScalarRecipe;
 
 /// Owned scalar move from the one typed/dynamic scalar leaf kernel.
-pub(crate) struct RuntimeScalarMove<S> {
-    recipe: RuntimeScalarRecipe<S>,
-    entity_indices: Vec<usize>,
+pub(crate) struct RuntimeScalarMove<'a, S> {
+    recipe: RuntimeScalarRecipe<'a, S>,
+    entity_indices: SmallVec<[usize; 2]>,
 }
 
-impl<S> std::fmt::Debug for RuntimeScalarMove<S> {
+impl<S> std::fmt::Debug for RuntimeScalarMove<'_, S> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("RuntimeScalarMove")
@@ -31,8 +31,8 @@ impl<S> std::fmt::Debug for RuntimeScalarMove<S> {
     }
 }
 
-impl<S> RuntimeScalarMove<S> {
-    pub(crate) fn from_recipe(recipe: RuntimeScalarRecipe<S>) -> Self {
+impl<'a, S> RuntimeScalarMove<'a, S> {
+    pub(crate) fn from_recipe(recipe: RuntimeScalarRecipe<'a, S>) -> Self {
         // Candidate ordering is part of the selector contract.  In
         // particular, ruin/recreate uses the sampled permutation order for
         // both recreation and its public move view.  Keep the recipe's order
@@ -47,7 +47,7 @@ impl<S> RuntimeScalarMove<S> {
     }
 
     #[cfg(test)]
-    pub(crate) fn into_recipe(self) -> RuntimeScalarRecipe<S> {
+    pub(crate) fn into_recipe(self) -> RuntimeScalarRecipe<'a, S> {
         self.recipe
     }
 
@@ -65,7 +65,7 @@ pub(crate) enum RuntimeScalarMoveUndo {
     Many(SmallVec<[(usize, Option<usize>); 8]>),
 }
 
-impl<S> Move<S> for RuntimeScalarMove<S>
+impl<S> Move<S> for RuntimeScalarMove<'_, S>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -89,7 +89,11 @@ where
     }
 
     fn entity_indices(&self) -> &[usize] {
-        &self.entity_indices
+        match &self.recipe {
+            RuntimeScalarRecipe::PillarChange { entity_indices, .. }
+            | RuntimeScalarRecipe::RuinRecreate { entity_indices, .. } => entity_indices,
+            _ => &self.entity_indices,
+        }
     }
 
     fn variable_name(&self) -> &str {
@@ -183,7 +187,7 @@ where
     fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         let descriptor_index = self.descriptor_index();
         let variable_name = self.variable_name();
-        for &entity_index in &self.entity_indices {
+        for &entity_index in self.entity_indices() {
             visitor(MoveAffectedEntity {
                 descriptor_index,
                 entity_index,
@@ -193,7 +197,7 @@ where
     }
 }
 
-pub(super) fn recipe_slot<S>(recipe: &RuntimeScalarRecipe<S>) -> &RuntimeScalarSlot<S> {
+pub(super) fn recipe_slot<'a, S>(recipe: &RuntimeScalarRecipe<'a, S>) -> &'a RuntimeScalarSlot<S> {
     match recipe {
         RuntimeScalarRecipe::Change { slot, .. }
         | RuntimeScalarRecipe::Swap { slot, .. }
@@ -203,7 +207,7 @@ pub(super) fn recipe_slot<S>(recipe: &RuntimeScalarRecipe<S>) -> &RuntimeScalarS
     }
 }
 
-fn recipe_family<S>(recipe: &RuntimeScalarRecipe<S>) -> &'static str {
+fn recipe_family<S>(recipe: &RuntimeScalarRecipe<'_, S>) -> &'static str {
     match recipe {
         RuntimeScalarRecipe::Change { .. } => "change",
         RuntimeScalarRecipe::Swap { .. } => "swap",
@@ -213,16 +217,17 @@ fn recipe_family<S>(recipe: &RuntimeScalarRecipe<S>) -> &'static str {
     }
 }
 
-fn recipe_entity_indices<S>(recipe: &RuntimeScalarRecipe<S>) -> Vec<usize> {
+fn recipe_entity_indices<S>(recipe: &RuntimeScalarRecipe<'_, S>) -> SmallVec<[usize; 2]> {
     match recipe {
-        RuntimeScalarRecipe::Change { entity_index, .. } => vec![*entity_index],
+        RuntimeScalarRecipe::Change { entity_index, .. } => smallvec::smallvec![*entity_index],
         RuntimeScalarRecipe::Swap {
             left_entity_index,
             right_entity_index,
             ..
-        } => vec![*left_entity_index, *right_entity_index],
-        RuntimeScalarRecipe::PillarChange { entity_indices, .. }
-        | RuntimeScalarRecipe::RuinRecreate { entity_indices, .. } => entity_indices.clone(),
+        } => smallvec::smallvec![*left_entity_index, *right_entity_index],
+        RuntimeScalarRecipe::PillarChange { .. } | RuntimeScalarRecipe::RuinRecreate { .. } => {
+            SmallVec::new()
+        }
         RuntimeScalarRecipe::PillarSwap {
             left_indices,
             right_indices,

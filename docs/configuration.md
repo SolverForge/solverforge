@@ -319,6 +319,31 @@ Local search moves groups through `list_group_change_move_selector`
 `list_ruin_move_selector` takes the same two bounds for its joint recreate.
 These selectors, and ruin bounds, require a targeted list with element groups.
 
+### Contiguous list ruin
+
+`list_ruin_move_selector` draws its removed elements at random from one list
+by default. `source_strategy = "contiguous"` removes consecutive elements
+instead, so recreate can redraw how neighbouring routes split a local cluster:
+
+```toml
+[[phases.move_selector.selectors]]
+type = "list_ruin_move_selector"
+min_ruin_count = 4
+max_ruin_count = 8
+source_strategy = "contiguous"
+max_source_routes = 2
+```
+
+Each move picks a random seed element, finds the element nearest to it on up
+to `max_source_routes - 1` other lists, and grows a segment around each of
+them until the move holds a ruin count between `min_ruin_count` and
+`max_ruin_count`. With routes `A B C D` and `E F G H` and `C` close to `F`, one
+move can remove `B C` and `F G`; recreate then places each of the four stops
+on its own. A segment stops at an element that has no legal destination, and
+recreate keeps every owner restriction. `max_source_routes` takes 1 to 255 and
+defaults to 2; above 1 the list variable needs a cross-position distance meter.
+The default `random` strategy and its seeded move order are unchanged.
+
 The configuration surface also covers bounded candidate tracing, per-selector
 ordering and host metrics, weighted union scheduling, score tie-breaking, and
 grouped scalar and conflict-repair selectors.

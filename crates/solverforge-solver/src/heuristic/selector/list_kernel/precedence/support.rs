@@ -36,25 +36,18 @@ pub(super) fn critical_adjacent_swaps(blocks: &[CriticalBlock]) -> Vec<AdjacentS
 
 pub(super) fn support_adjacent_swaps(
     blocks: &[CriticalBlock],
-    route_graph: &mut PrecedenceRouteGraph,
+    route_graph: &PrecedenceRouteGraph,
 ) -> Vec<AdjacentSwap> {
     let mut swaps = Vec::new();
     for block in blocks {
-        // Route nodes are copied out so the &mut graph passes below are the
-        // only borrows in the loop body.
         let Some(route) = route_graph.route(block.entity) else {
             continue;
         };
-        let positions = &route[block.start..=block.end]; // may panic if out of bounds? guarded by block invariants
-        let nodes: Vec<usize> = positions.to_vec();
-        let _ = positions;
-        for &node in &nodes {
-            let successors: Vec<usize> = route_graph.fixed_successors(node).to_vec();
-            for &successor in &successors {
+        for &node in &route[block.start..=block.end] {
+            for &successor in route_graph.fixed_successors(node) {
                 push_support_adjacent_swaps(route_graph, successor, &mut swaps);
             }
-            let predecessors: Vec<usize> = route_graph.fixed_predecessors(node).to_vec();
-            for &predecessor in &predecessors {
+            for &predecessor in route_graph.fixed_predecessors(node) {
                 push_support_adjacent_swaps(route_graph, predecessor, &mut swaps);
             }
         }
@@ -169,7 +162,7 @@ pub(super) fn multi_critical_ruin_sources(
 }
 
 fn push_support_adjacent_swaps(
-    route_graph: &mut PrecedenceRouteGraph,
+    route_graph: &PrecedenceRouteGraph,
     node: usize,
     swaps: &mut Vec<AdjacentSwap>,
 ) {

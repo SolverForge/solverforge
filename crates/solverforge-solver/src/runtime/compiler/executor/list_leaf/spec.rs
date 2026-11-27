@@ -3,7 +3,7 @@ use std::fmt;
 use smallvec::SmallVec;
 use std::num::NonZeroU8;
 
-use solverforge_config::MoveSelectorConfig;
+use solverforge_config::{ListRuinMoveSelectorConfig, ListRuinSourceStrategy, MoveSelectorConfig};
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::r#move::list_kernel::{
@@ -47,6 +47,23 @@ impl<S, V, DM, IDM> fmt::Debug for RuntimeListNeighborhoodPlan<S, V, DM, IDM> {
     }
 }
 
+/// How a list-ruin cursor picks the positions one move removes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RuinSourceShape {
+    /// Random positions of one list.
+    Random,
+    /// Consecutive positions around a seed and around its nearest position
+    /// on up to `max_routes - 1` other lists.
+    Contiguous { max_routes: NonZeroU8 },
+}
+
+/// Most lists a `contiguous` list ruin removes from, `None` for `random`.
+pub(crate) fn contiguous_source_routes(config: &ListRuinMoveSelectorConfig) -> Option<NonZeroU8> {
+    const DEFAULT_ROUTES: NonZeroU8 = NonZeroU8::new(2).expect("2 is non-zero");
+    (config.source_strategy == ListRuinSourceStrategy::Contiguous)
+        .then(|| config.max_source_routes.unwrap_or(DEFAULT_ROUTES))
+}
+
 /// Family-specific settings copied directly from the compiled selector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RuntimeListNeighborhoodSpec {
@@ -83,6 +100,7 @@ pub(super) enum RuntimeListNeighborhoodSpec {
         moves_per_step: usize,
         max_source_list_len: Option<usize>,
         skip_empty_destinations: bool,
+        source: RuinSourceShape,
         /// Joint placement bounds for recreating element groups.
         bounds: JointBounds,
     },
@@ -93,61 +111,62 @@ pub(super) enum RuntimeListNeighborhoodSpec {
 }
 
 /// One owned move recipe emitted by the common list cursor.
-#[derive(Clone, Debug)]
-pub(crate) enum RuntimeListRecipe<S, V> {
+#[derive(Debug)]
+#[cfg_attr(test, derive(Clone))]
+pub(crate) enum RuntimeListRecipe<'a, S, V> {
     Change {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: ChangeCoordinates,
     },
     Swap {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: SwapCoordinates,
     },
     Permute {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: PermuteCoordinates,
         permutation: SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>,
         inverse_permutation: SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>,
     },
     Reverse {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: ReverseCoordinates,
     },
     SublistChange {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: SegmentRelocationCoords,
     },
     SublistSwap {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: SegmentSwapCoords,
     },
     KOpt {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         entity: usize,
         cuts: SmallVec<[CutPoint; 5]>,
         reconnection: KOptReconnection,
         variable_id: u64,
     },
     Ruin {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         sources: RuinSources,
         skip_empty_destinations: bool,
     },
     MultiSwap {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: MultiSwapCoordinates,
         require_score_improvement: bool,
     },
     GroupChange {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: GroupChangeCoordinates,
     },
     GroupSwap {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         coordinates: GroupSwapCoordinates,
     },
     GroupRuin {
-        access: RuntimeListMoveAccess<S, V>,
+        access: &'a RuntimeListMoveAccess<S, V>,
         plan: GroupRuinPlan,
     },
 }
@@ -266,6 +285,10 @@ impl RuntimeListNeighborhoodSpec {
                     moves_per_step: config.moves_per_step.unwrap_or(10),
                     max_source_list_len: config.max_source_list_len,
                     skip_empty_destinations: config.skip_empty_destinations,
+                    source: contiguous_source_routes(config)
+                        .map_or(RuinSourceShape::Random, |max_routes| {
+                            RuinSourceShape::Contiguous { max_routes }
+                        }),
                     bounds: JointBounds::from_config(
                         config.max_member_distance,
                         config.max_group_owners,

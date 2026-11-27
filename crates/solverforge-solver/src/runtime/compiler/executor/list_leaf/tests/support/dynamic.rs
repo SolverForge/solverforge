@@ -187,17 +187,28 @@ impl DynamicListMetadata<ListPlan> for DynamicMetadata {
 }
 
 fn dynamic_variable_slot_with_precedence(precedence: bool) -> DynamicListVariableSlot<ListPlan> {
-    DynamicListVariableSlot::with_access_and_metadata(
+    tracked_dynamic_slot(precedence).0
+}
+
+pub(super) fn tracked_dynamic_slot(
+    precedence: bool,
+) -> (
+    DynamicListVariableSlot<ListPlan>,
+    Arc<dyn DynamicListAccess<ListPlan>>,
+) {
+    let access: Arc<dyn DynamicListAccess<ListPlan>> = Arc::new(DynamicAccess);
+    let slot = DynamicListVariableSlot::with_access_and_metadata(
         EntityClassId(0),
         VariableId(0),
         "Vehicle",
         "visits",
-        Arc::new(DynamicAccess),
+        Arc::clone(&access),
         Arc::new(DynamicMetadata { precedence }),
     )
     .expect("dynamic test access and metadata have matching identities")
     .resolved_against(&descriptor())
-    .expect("dynamic test slot resolves against the list descriptor")
+    .expect("dynamic test slot resolves against the list descriptor");
+    (slot, access)
 }
 
 pub(crate) fn dynamic_variable_slot() -> DynamicListVariableSlot<ListPlan> {

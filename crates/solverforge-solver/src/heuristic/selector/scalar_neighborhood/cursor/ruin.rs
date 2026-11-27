@@ -88,26 +88,26 @@ struct RuinSnapshot {
 /// Streams pre-generated subsets after snapshotting their eligibility. A
 /// selected move owns its recipe and performs score-aware recreation only
 /// when applied by the local-search engine.
-pub(super) struct RuinRecreateCursor<S> {
-    slot: RuntimeScalarSlot<S>,
+pub(super) struct RuinRecreateCursor<'a, S> {
+    slot: &'a RuntimeScalarSlot<S>,
     batches: std::vec::IntoIter<Vec<usize>>,
     snapshot: RuinSnapshot,
     value_candidate_limit: Option<usize>,
     recreate_heuristic_type: RecreateHeuristicType,
 }
 
-impl<S> RuinRecreateCursor<S>
+impl<'a, S> RuinRecreateCursor<'a, S>
 where
     S: PlanningSolution,
 {
     pub(super) fn new(
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         solution: &S,
         batches: Vec<Vec<usize>>,
         value_candidate_limit: Option<usize>,
         recreate_heuristic_type: RecreateHeuristicType,
     ) -> Self {
-        let snapshot = snapshot_slot(&slot, solution, value_candidate_limit);
+        let snapshot = snapshot_slot(slot, solution, value_candidate_limit);
         Self {
             slot,
             batches: batches.into_iter(),
@@ -117,7 +117,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<'a, S>> {
         while let Some(entity_indices) = self.batches.next() {
             let has_assigned = entity_indices
                 .iter()
@@ -136,7 +136,7 @@ where
                 continue;
             }
             return Some(RuntimeScalarRecipe::RuinRecreate {
-                slot: self.slot.clone(),
+                slot: self.slot,
                 entity_indices,
                 value_candidate_limit: self.value_candidate_limit,
                 recreate_heuristic_type: self.recreate_heuristic_type,

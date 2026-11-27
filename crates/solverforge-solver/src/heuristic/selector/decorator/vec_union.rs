@@ -210,6 +210,20 @@ where
     pub(crate) fn child_cursors_mut(&mut self) -> &mut [C] {
         &mut self.cursors
     }
+
+    /// Reuses `pool`'s capacity for the discovered-candidate table.
+    pub(crate) fn with_discovered_pool(mut self, mut pool: Vec<(usize, CandidateId)>) -> Self {
+        pool.clear();
+        self.discovered = pool;
+        self
+    }
+
+    /// Hands the discovered-candidate table back, emptied, for the next open.
+    pub(crate) fn take_discovered_pool(&mut self) -> Vec<(usize, CandidateId)> {
+        let mut pool = std::mem::take(&mut self.discovered);
+        pool.clear();
+        pool
+    }
 }
 
 impl<S, M, C, Resources> ResourceMoveCursor<S, M, Resources> for ResourceVecUnionMoveCursor<S, M, C>

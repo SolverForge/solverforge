@@ -130,6 +130,28 @@ fn static_access() -> StaticListRuinAccess<ClonePlan, CloneProbe> {
 }
 
 #[test]
+fn native_ruin_move_keeps_the_owned_source_buffer() {
+    let indices: smallvec::SmallVec<[usize; 8]> = (0..12).rev().collect();
+    assert!(indices.spilled());
+    let original_storage = indices.as_ptr();
+    let candidate = ListRuinMove::new_multi_source(
+        smallvec::smallvec![(0, indices)],
+        clone_entity_count,
+        clone_list_len,
+        clone_list_get,
+        clone_list_remove,
+        clone_list_insert,
+        "stops",
+        0,
+    );
+    assert_eq!(
+        candidate.element_indices(),
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    );
+    assert_eq!(candidate.element_indices().as_ptr(), original_storage);
+}
+
+#[test]
 fn ruin_do_move_transfers_removed_values_without_cloning_them() {
     let counter = Arc::new(AtomicUsize::new(0));
     let read_counter = Arc::clone(&counter);
@@ -138,7 +160,7 @@ fn ruin_do_move_transfers_removed_values_without_cloning_them() {
     let access = static_access();
     let undo = ruin_do_move(
         &access,
-        &single_ruin_source(0, &[0, 1, 2]),
+        &single_ruin_source(0, smallvec::smallvec![0, 1, 2]),
         false,
         &mut score_director,
     );

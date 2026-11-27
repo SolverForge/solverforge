@@ -7,7 +7,8 @@
 
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
-    KOptMoveSelectorConfig, ListPermuteMoveConfig, MoveSelectorConfig, PhaseConfig, SolverConfig,
+    KOptMoveSelectorConfig, ListPermuteMoveConfig, ListRuinSourceStrategy, MoveSelectorConfig,
+    PhaseConfig, SolverConfig,
 };
 
 use crate::heuristic::r#move::MAX_LIST_PERMUTE_WINDOW_SIZE;
@@ -194,7 +195,17 @@ fn validate_selector(config: &MoveSelectorConfig, path: &str) -> Result<(), Runt
         MoveSelectorConfig::ListRuinMoveSelector(config) => {
             ruin_counts(path, config.min_ruin_count, config.max_ruin_count)?;
             positive_limit(path, "moves_per_step", config.moves_per_step)?;
-            positive_limit(path, "max_source_list_len", config.max_source_list_len)
+            positive_limit(path, "max_source_list_len", config.max_source_list_len)?;
+            if config.source_strategy == ListRuinSourceStrategy::Random
+                && config.max_source_routes.is_some()
+            {
+                return Err(invalid(
+                    path,
+                    "max_source_routes",
+                    "applies only to source_strategy = \"contiguous\"".to_string(),
+                ));
+            }
+            Ok(())
         }
         MoveSelectorConfig::LimitedNeighborhood(config) => {
             positive(path, "selected_count_limit", config.selected_count_limit)?;

@@ -21,33 +21,32 @@ use crate::runtime::compiler::graph::{
 
 use super::super::CompiledListNeighborhoodLeafAdapter;
 use super::leaf::{
-    ProviderExecutionResources, RuntimeNeighborhoodFlat, RuntimeNeighborhoodLeaf,
-    RuntimeNeighborhoodLeafStreamState, RuntimeProviderNeighborhoodLeaf,
+    ProviderExecutionResources, RuntimeNeighborhoodFlat, RuntimeNeighborhoodFlatStreamState,
+    RuntimeNeighborhoodLeaf, RuntimeProviderNeighborhoodLeaf,
 };
 use super::r#move::RuntimeNeighborhoodMove;
 
 pub(crate) type RuntimeNeighborhoodComposition<S, V, DM, IDM> = SelectorComposition<
     S,
-    RuntimeNeighborhoodMove<S, V, DM, IDM>,
     RuntimeNeighborhoodFlat<S, V, DM, IDM>,
-    Vec<RuntimeNeighborhoodLeafStreamState>,
+    RuntimeNeighborhoodFlatStreamState,
 >;
 
 /// The live cursor a compiled local-search step pulls candidates from.
 pub(crate) type RuntimeNeighborhoodCursor<'a, S, V, DM, IDM> = SelectorCompositionBorrowedCursor<
     'a,
+    'a,
     S,
-    RuntimeNeighborhoodMove<S, V, DM, IDM>,
+    RuntimeNeighborhoodMove<'a, S, V, DM, IDM>,
     RuntimeNeighborhoodFlat<S, V, DM, IDM>,
-    Vec<RuntimeNeighborhoodLeafStreamState>,
+    RuntimeNeighborhoodFlatStreamState,
     ProviderExecutionResources<S>,
 >;
 
 pub(crate) type RuntimeNeighborhoodState<S, V, DM, IDM> = SelectorCompositionState<
     S,
-    RuntimeNeighborhoodMove<S, V, DM, IDM>,
     RuntimeNeighborhoodFlat<S, V, DM, IDM>,
-    Vec<RuntimeNeighborhoodLeafStreamState>,
+    RuntimeNeighborhoodFlatStreamState,
     ProviderExecutionResources<S>,
 >;
 

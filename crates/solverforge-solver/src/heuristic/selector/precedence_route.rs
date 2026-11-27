@@ -195,12 +195,11 @@ impl PrecedenceRouteGraph {
         source: usize,
         dest: usize,
     ) -> bool {
-        let Some(route) = self.route(entity) else {
+        let Some(route) = self.route_nodes.get(entity) else {
             return false;
         };
-        let route = route.to_vec();
-        route_after_list_change_into(&route, source, dest, &mut self.scratch_after_route);
-        self.route_move_introduces_cycle(&route)
+        route_after_list_change_into(route, source, dest, &mut self.scratch_after_route);
+        self.route_move_introduces_cycle(entity)
     }
 
     pub(crate) fn intra_list_swap_introduces_cycle(
@@ -209,14 +208,13 @@ impl PrecedenceRouteGraph {
         first: usize,
         second: usize,
     ) -> bool {
-        let Some(route) = self.route(entity) else {
+        let Some(route) = self.route_nodes.get(entity) else {
             return false;
         };
-        let route = route.to_vec();
         self.scratch_after_route.clear();
-        self.scratch_after_route.extend_from_slice(&route);
+        self.scratch_after_route.extend_from_slice(route);
         self.scratch_after_route.swap(first, second);
-        self.route_move_introduces_cycle(&route)
+        self.route_move_introduces_cycle(entity)
     }
 
     pub(crate) fn intra_list_reverse_introduces_cycle(
@@ -225,14 +223,13 @@ impl PrecedenceRouteGraph {
         start: usize,
         end: usize,
     ) -> bool {
-        let Some(route) = self.route(entity) else {
+        let Some(route) = self.route_nodes.get(entity) else {
             return false;
         };
-        let route = route.to_vec();
         self.scratch_after_route.clear();
-        self.scratch_after_route.extend_from_slice(&route);
+        self.scratch_after_route.extend_from_slice(route);
         self.scratch_after_route[start..end].reverse();
-        self.route_move_introduces_cycle(&route)
+        self.route_move_introduces_cycle(entity)
     }
 
     pub(crate) fn intra_sublist_change_introduces_cycle(
@@ -242,18 +239,17 @@ impl PrecedenceRouteGraph {
         source_end: usize,
         dest: usize,
     ) -> bool {
-        let Some(route) = self.route(entity) else {
+        let Some(route) = self.route_nodes.get(entity) else {
             return false;
         };
-        let route = route.to_vec();
         route_after_sublist_change_into(
-            &route,
+            route,
             source_start,
             source_end,
             dest,
             &mut self.scratch_after_route,
         );
-        self.route_move_introduces_cycle(&route)
+        self.route_move_introduces_cycle(entity)
     }
 
     pub(crate) fn intra_sublist_swap_introduces_cycle(
@@ -264,12 +260,11 @@ impl PrecedenceRouteGraph {
         second_start: usize,
         second_end: usize,
     ) -> bool {
-        let Some(route) = self.route(entity) else {
+        let Some(route) = self.route_nodes.get(entity) else {
             return false;
         };
-        let route = route.to_vec();
         if !route_after_sublist_swap_into(
-            &route,
+            route,
             first_start,
             first_end,
             second_start,
@@ -278,7 +273,7 @@ impl PrecedenceRouteGraph {
         ) {
             return false;
         }
-        self.route_move_introduces_cycle(&route)
+        self.route_move_introduces_cycle(entity)
     }
 
     pub(crate) fn intra_list_permutation_introduces_cycle(
@@ -288,18 +283,17 @@ impl PrecedenceRouteGraph {
         end: usize,
         permutation: &[usize],
     ) -> bool {
-        let Some(route) = self.route(entity) else {
+        let Some(route) = self.route_nodes.get(entity) else {
             return false;
         };
-        let route = route.to_vec();
         route_after_permutation_into(
-            &route,
+            route,
             start,
             end,
             permutation,
             &mut self.scratch_after_route,
         );
-        self.route_move_introduces_cycle(&route)
+        self.route_move_introduces_cycle(entity)
     }
 
     pub(crate) fn multi_intra_list_swaps_introduce_cycle(
@@ -309,18 +303,17 @@ impl PrecedenceRouteGraph {
         self.scratch_removed.clear();
         self.scratch_added.clear();
         for &(entity, first, second) in swaps {
-            let Some(route) = self.route(entity) else {
+            let Some(route) = self.route_nodes.get(entity) else {
                 continue;
             };
             if first >= route.len() || second >= route.len() {
                 continue;
             }
-            let route = route.to_vec();
             self.scratch_after_route.clear();
-            self.scratch_after_route.extend_from_slice(&route);
+            self.scratch_after_route.extend_from_slice(route);
             self.scratch_after_route.swap(first, second);
             changed_route_edges_into(
-                &route,
+                route,
                 &self.scratch_after_route,
                 &mut self.scratch_before_edges,
                 &mut self.scratch_after_edges,
@@ -375,9 +368,9 @@ impl PrecedenceRouteGraph {
     }
 
     /// `after` must have been staged in `scratch_after_route` by the caller.
-    fn route_move_introduces_cycle(&mut self, before: &[usize]) -> bool {
+    fn route_move_introduces_cycle(&mut self, entity: usize) -> bool {
         changed_route_edges_into(
-            before,
+            &self.route_nodes[entity],
             &self.scratch_after_route,
             &mut self.scratch_before_edges,
             &mut self.scratch_after_edges,

@@ -23,8 +23,8 @@ const ENTITY_STRIDE_MIX: u64 = 0xD1B5_4A32_D192_ED03;
 /// cursor is therefore linear in the entity count, independent of the value
 /// range. Dynamic slots retain their existing direct legality calls while
 /// traversing the same candidate ordering.
-pub(super) struct SwapCursor<S> {
-    slot: RuntimeScalarSlot<S>,
+pub(super) struct SwapCursor<'a, S> {
+    slot: &'a RuntimeScalarSlot<S>,
     snapshot: SwapSnapshot,
     context: MoveStreamContext,
     entity_order: Vec<usize>,
@@ -68,12 +68,12 @@ impl StaticSwapLegality {
     }
 }
 
-impl<S> SwapCursor<S>
+impl<'a, S> SwapCursor<'a, S>
 where
     S: PlanningSolution,
 {
     pub(super) fn new(
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         solution: &S,
         context: MoveStreamContext,
     ) -> Self {
@@ -90,7 +90,7 @@ where
             }
             RuntimeScalarSlot::Dynamic(_) => SwapSnapshot::Dynamic,
         };
-        let entity_order = Self::guided_entity_order(&slot, solution, &context);
+        let entity_order = Self::guided_entity_order(slot, solution, &context);
         Self {
             slot,
             snapshot,
@@ -190,7 +190,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<'a, S>> {
         let entity_count = self.entity_count(solution);
         while self.left_offset < entity_count {
             let left_entity_index = self.ordered_left_entity(self.left_offset);
@@ -213,7 +213,7 @@ where
                     continue;
                 }
                 return Some(RuntimeScalarRecipe::Swap {
-                    slot: self.slot.clone(),
+                    slot: self.slot,
                     left_entity_index,
                     right_entity_index,
                 });
@@ -232,8 +232,8 @@ where
 /// reusable ranked scratch. Structural source availability is validated
 /// before this cursor is constructed; an empty row is simply an empty row,
 /// never an all-entity substitute.
-pub(super) struct NearbySwapCursor<S> {
-    slot: RuntimeScalarSlot<S>,
+pub(super) struct NearbySwapCursor<'a, S> {
+    slot: &'a RuntimeScalarSlot<S>,
     max_nearby: usize,
     orientation: NearbyOrientation,
     entity_count: usize,
@@ -244,12 +244,12 @@ pub(super) struct NearbySwapCursor<S> {
     source_loaded: bool,
 }
 
-impl<S> NearbySwapCursor<S>
+impl<'a, S> NearbySwapCursor<'a, S>
 where
     S: PlanningSolution,
 {
     pub(super) fn new(
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         solution: &S,
         context: MoveStreamContext,
         max_nearby: usize,
@@ -273,7 +273,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<'a, S>> {
         while self.left_offset < self.entity_count {
             let left_entity_index = ordered_entity(
                 self.entity_count,
@@ -281,11 +281,11 @@ where
                 self.context,
                 NEARBY_SWAP_ENTITY_START_SALT,
                 NEARBY_SWAP_ENTITY_STRIDE_SALT,
-                slot_identity(&self.slot),
+                slot_identity(self.slot),
             );
             if !self.source_loaded {
                 self.right_entities = rank_nearby_entities(
-                    &self.slot,
+                    self.slot,
                     solution,
                     left_entity_index,
                     self.entity_count,
@@ -299,7 +299,7 @@ where
             if let Some(&right_entity_index) = self.right_entities.get(self.right_offset) {
                 self.right_offset += 1;
                 return Some(RuntimeScalarRecipe::Swap {
-                    slot: self.slot.clone(),
+                    slot: self.slot,
                     left_entity_index,
                     right_entity_index,
                 });

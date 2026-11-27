@@ -61,10 +61,7 @@ where
     }
 
     pub(crate) fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        crate::heuristic::selector::move_selector::MoveSelector::size(
-            &self.selector,
-            score_director,
-        )
+        self.selector.size(score_director)
     }
 }
 

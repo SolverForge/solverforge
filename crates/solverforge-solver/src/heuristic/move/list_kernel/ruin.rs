@@ -15,27 +15,30 @@ use super::{ListMoveAccess, ListRuinAccess};
 pub(crate) type RuinSources = SmallVec<[(usize, SmallVec<[usize; 8]>); 4]>;
 pub(crate) type RuinUndo = SmallVec<[(usize, usize, usize); 8]>;
 
-pub(crate) fn single_ruin_source(entity: usize, indices: &[usize]) -> RuinSources {
-    let mut sorted = SmallVec::<[usize; 8]>::from_slice(indices);
-    sorted.sort_unstable();
-    smallvec![(entity, sorted)]
+pub(crate) fn single_ruin_source(entity: usize, mut indices: SmallVec<[usize; 8]>) -> RuinSources {
+    indices.sort_unstable();
+    smallvec![(entity, indices)]
 }
 
-pub(crate) fn merged_ruin_sources(sources: &[(usize, SmallVec<[usize; 8]>)]) -> RuinSources {
+/// Merges owned sources: one entry per entity, ascending, positions sorted
+/// and distinct, empty entries dropped.
+pub(crate) fn merged_ruin_sources(sources: RuinSources) -> RuinSources {
     let mut merged = RuinSources::new();
-    for (entity, indices) in sources {
-        let mut sorted = indices.clone();
-        sorted.sort_unstable();
-        sorted.dedup();
-        if sorted.is_empty() {
+    for (entity, mut indices) in sources {
+        indices.sort_unstable();
+        indices.dedup();
+        if indices.is_empty() {
             continue;
         }
-        if let Some((_, existing)) = merged.iter_mut().find(|(candidate, _)| candidate == entity) {
-            existing.extend(sorted);
+        if let Some((_, existing)) = merged
+            .iter_mut()
+            .find(|(candidate, _)| *candidate == entity)
+        {
+            existing.extend(indices);
             existing.sort_unstable();
             existing.dedup();
         } else {
-            merged.push((*entity, sorted));
+            merged.push((entity, indices));
         }
     }
     merged.sort_by_key(|(entity, _)| *entity);
@@ -394,14 +397,14 @@ fn restore_remaining_elements<S, A, D>(
     let mut current_positions = final_positions_after_ordered_insertions(placements);
     let descriptor_index = access.descriptor_index();
     for i in (0..placements.len()).rev() {
-        let (entity, _, _) = placements[i];
+        let (entity, _, removed_index) = placements[i];
         let actual_position = current_positions[i];
         score_director.before_variable_changed(descriptor_index, entity);
-        let _ = access.list_remove(
+        remaining[removed_index].3 = Some(access.list_remove(
             score_director.working_solution_mut(),
             entity,
             actual_position,
-        );
+        ));
         score_director.after_variable_changed(descriptor_index, entity);
         for j in 0..i {
             let (other_entity, _, _) = placements[j];

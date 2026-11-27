@@ -22,7 +22,7 @@ use super::super::{RuntimeListMove, RuntimeListMoveUndo};
 /// selected Cartesian moves. It is the only carrier produced by compiled
 /// local-search lowering; no second selector union is rebuilt beside it.
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum RuntimeNeighborhoodMove<S, V, DM, IDM>
+pub(crate) enum RuntimeNeighborhoodMove<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -30,14 +30,14 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    Scalar(RuntimeScalarMove<S>),
-    List(RuntimeListMove<S, V, DM, IDM>),
+    Scalar(RuntimeScalarMove<'a, S>),
+    List(RuntimeListMove<'a, S, V, DM, IDM>),
     Grouped(CompoundScalarMove<S>),
     Provider(RuntimeCompoundMove<S>),
     Sequential(SequentialCompositeMove<S, Self>),
 }
 
-pub(crate) enum RuntimeNeighborhoodMoveUndo<S, V, DM, IDM>
+pub(crate) enum RuntimeNeighborhoodMoveUndo<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -45,14 +45,14 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    Scalar(<RuntimeScalarMove<S> as Move<S>>::Undo),
-    List(<RuntimeListMove<S, V, DM, IDM> as Move<S>>::Undo),
+    Scalar(<RuntimeScalarMove<'a, S> as Move<S>>::Undo),
+    List(<RuntimeListMove<'a, S, V, DM, IDM> as Move<S>>::Undo),
     Grouped(<CompoundScalarMove<S> as Move<S>>::Undo),
     Provider(<RuntimeCompoundMove<S> as Move<S>>::Undo),
     Sequential(Box<(Self, Self)>),
 }
 
-impl<S, V, DM, IDM> Debug for RuntimeNeighborhoodMove<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> Debug for RuntimeNeighborhoodMove<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -86,7 +86,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> Move<S> for RuntimeNeighborhoodMove<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> Move<S> for RuntimeNeighborhoodMove<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -94,7 +94,7 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    type Undo = RuntimeNeighborhoodMoveUndo<S, V, DM, IDM>;
+    type Undo = RuntimeNeighborhoodMoveUndo<'a, S, V, DM, IDM>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         match self {
@@ -286,7 +286,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> SequentialMoveCarrier<S> for RuntimeNeighborhoodMove<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> SequentialMoveCarrier<S> for RuntimeNeighborhoodMove<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,

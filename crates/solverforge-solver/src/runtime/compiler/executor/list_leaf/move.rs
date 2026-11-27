@@ -28,15 +28,15 @@ use super::recipe::{recipe_access, recipe_entity_indices, recipe_family, Runtime
 use super::recipe_identity::{recipe_candidate_trace_identity, recipe_tabu_signature};
 use super::spec::RuntimeListRecipe;
 
-#[derive(Clone)]
-pub(crate) struct RuntimeListMove<S, V, DM, IDM> {
-    recipe: RuntimeListRecipe<S, V>,
+#[cfg_attr(test, derive(Clone))]
+pub(crate) struct RuntimeListMove<'a, S, V, DM, IDM> {
+    recipe: RuntimeListRecipe<'a, S, V>,
     entity_indices: SmallVec<[usize; 8]>,
     _phantom: PhantomData<fn() -> (DM, IDM)>,
 }
 
-impl<S, V, DM, IDM> RuntimeListMove<S, V, DM, IDM> {
-    pub(super) fn new(recipe: RuntimeListRecipe<S, V>) -> Self {
+impl<'a, S, V, DM, IDM> RuntimeListMove<'a, S, V, DM, IDM> {
+    pub(super) fn new(recipe: RuntimeListRecipe<'a, S, V>) -> Self {
         let entity_indices = recipe_entity_indices(&recipe);
         Self {
             recipe,
@@ -46,7 +46,7 @@ impl<S, V, DM, IDM> RuntimeListMove<S, V, DM, IDM> {
     }
 
     #[cfg(test)]
-    pub(super) fn into_recipe(self) -> RuntimeListRecipe<S, V> {
+    pub(super) fn into_recipe(self) -> RuntimeListRecipe<'a, S, V> {
         self.recipe
     }
 
@@ -55,7 +55,7 @@ impl<S, V, DM, IDM> RuntimeListMove<S, V, DM, IDM> {
     }
 }
 
-impl<S, V, DM, IDM> RuntimeListMove<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> RuntimeListMove<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -89,7 +89,7 @@ where
         };
         let mut journal = retired.unwrap_or_default();
         k_opt_do_move_into(
-            access,
+            *access,
             cuts,
             reconnection,
             *entity,
@@ -115,12 +115,12 @@ where
         };
         // The undo consumes the restored route journal; a fresh shell keeps
         // the inline capacity for the next K-opt trial.
-        k_opt_undo_move(access, *entity, values, score_director);
+        k_opt_undo_move(*access, *entity, values, score_director);
         Some(ListUndoJournal::new())
     }
 }
 
-impl<S, V, DM, IDM> fmt::Debug for RuntimeListMove<S, V, DM, IDM> {
+impl<S, V, DM, IDM> fmt::Debug for RuntimeListMove<'_, S, V, DM, IDM> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("RuntimeListMove")
@@ -131,7 +131,7 @@ impl<S, V, DM, IDM> fmt::Debug for RuntimeListMove<S, V, DM, IDM> {
     }
 }
 
-impl<S, V, DM, IDM> Move<S> for RuntimeListMove<S, V, DM, IDM>
+impl<S, V, DM, IDM> Move<S> for RuntimeListMove<'_, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -146,54 +146,54 @@ where
             RuntimeListRecipe::Change {
                 access,
                 coordinates,
-            } => change_is_doable(access, *coordinates, score_director),
+            } => change_is_doable(*access, *coordinates, score_director),
             RuntimeListRecipe::Swap {
                 access,
                 coordinates,
-            } => swap_is_doable(access, *coordinates, score_director),
+            } => swap_is_doable(*access, *coordinates, score_director),
             RuntimeListRecipe::Permute {
                 access,
                 coordinates,
                 permutation,
                 ..
-            } => permute_is_doable(access, *coordinates, permutation, score_director),
+            } => permute_is_doable(*access, *coordinates, permutation, score_director),
             RuntimeListRecipe::Reverse {
                 access,
                 coordinates,
-            } => reverse_is_doable(access, *coordinates, score_director),
+            } => reverse_is_doable(*access, *coordinates, score_director),
             RuntimeListRecipe::SublistChange {
                 access,
                 coordinates,
-            } => sublist_change_is_doable(access, *coordinates, score_director),
+            } => sublist_change_is_doable(*access, *coordinates, score_director),
             RuntimeListRecipe::SublistSwap {
                 access,
                 coordinates,
-            } => sublist_swap_is_doable(access, *coordinates, score_director),
+            } => sublist_swap_is_doable(*access, *coordinates, score_director),
             RuntimeListRecipe::KOpt {
                 access,
                 entity,
                 cuts,
                 reconnection,
                 ..
-            } => k_opt_is_doable(access, cuts, reconnection, *entity, score_director),
+            } => k_opt_is_doable(*access, cuts, reconnection, *entity, score_director),
             RuntimeListRecipe::Ruin {
                 access, sources, ..
-            } => ruin_is_doable(access, sources, score_director),
+            } => ruin_is_doable(*access, sources, score_director),
             RuntimeListRecipe::MultiSwap {
                 access,
                 coordinates,
                 ..
-            } => multi_swap_is_doable(access, coordinates, score_director),
+            } => multi_swap_is_doable(*access, coordinates, score_director),
             RuntimeListRecipe::GroupChange {
                 access,
                 coordinates,
-            } => group_change_is_doable(access, coordinates, score_director),
+            } => group_change_is_doable(*access, coordinates, score_director),
             RuntimeListRecipe::GroupSwap {
                 access,
                 coordinates,
-            } => group_swap_is_doable(access, coordinates, score_director),
+            } => group_swap_is_doable(*access, coordinates, score_director),
             RuntimeListRecipe::GroupRuin { access, plan } => {
-                group_ruin_is_doable(access, plan, score_director)
+                group_ruin_is_doable(*access, plan, score_director)
             }
         }
     }
@@ -233,44 +233,44 @@ where
                 access,
                 coordinates,
             } => {
-                change_do_move(access, *coordinates, score_director);
+                change_do_move(*access, *coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::Swap {
                 access,
                 coordinates,
             } => {
-                swap_do_move(access, *coordinates, score_director);
+                swap_do_move(*access, *coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::Permute {
                 access,
                 coordinates,
                 permutation,
-                inverse_permutation,
+                ..
             } => {
-                permute_do_move(access, *coordinates, permutation, score_director);
-                RuntimeListMoveUndo::Permute(inverse_permutation.clone())
+                permute_do_move(*access, *coordinates, permutation, score_director);
+                RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::Reverse {
                 access,
                 coordinates,
             } => {
-                reverse_do_move(access, *coordinates, score_director);
+                reverse_do_move(*access, *coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::SublistChange {
                 access,
                 coordinates,
             } => {
-                sublist_change_do_move(access, *coordinates, score_director);
+                sublist_change_do_move(*access, *coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::SublistSwap {
                 access,
                 coordinates,
             } => {
-                sublist_swap_do_move(access, *coordinates, score_director);
+                sublist_swap_do_move(*access, *coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::KOpt {
@@ -280,7 +280,7 @@ where
                 reconnection,
                 ..
             } => RuntimeListMoveUndo::KOpt(k_opt_do_move(
-                access,
+                *access,
                 cuts,
                 reconnection,
                 *entity,
@@ -291,7 +291,7 @@ where
                 sources,
                 skip_empty_destinations,
             } => RuntimeListMoveUndo::Ruin(ruin_do_move(
-                access,
+                *access,
                 sources,
                 *skip_empty_destinations,
                 score_director,
@@ -301,25 +301,25 @@ where
                 coordinates,
                 ..
             } => {
-                multi_swap_do_move(access, coordinates, &self.entity_indices, score_director);
+                multi_swap_do_move(*access, coordinates, &self.entity_indices, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::GroupChange {
                 access,
                 coordinates,
             } => {
-                group_change_do_move(access, coordinates, score_director);
+                group_change_do_move(*access, coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::GroupSwap {
                 access,
                 coordinates,
             } => {
-                group_swap_do_move(access, coordinates, score_director);
+                group_swap_do_move(*access, coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::GroupRuin { access, plan } => {
-                RuntimeListMoveUndo::Ruin(group_ruin_do_move(access, plan, score_director))
+                RuntimeListMoveUndo::Ruin(group_ruin_do_move(*access, plan, score_director))
             }
         }
     }
@@ -332,23 +332,24 @@ where
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => change_undo_move(access, *coordinates, score_director),
+            ) => change_undo_move(*access, *coordinates, score_director),
             (
                 RuntimeListRecipe::Swap {
                     access,
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => swap_do_move(access, *coordinates, score_director),
+            ) => swap_do_move(*access, *coordinates, score_director),
             (
                 RuntimeListRecipe::Permute {
                     access,
                     coordinates,
+                    inverse_permutation,
                     ..
                 },
-                RuntimeListMoveUndo::Permute(inverse_permutation),
+                RuntimeListMoveUndo::None,
             ) => permute_undo_move(
-                access,
+                *access,
                 *coordinates,
                 inverse_permutation.as_slice(),
                 score_director,
@@ -359,30 +360,30 @@ where
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => reverse_do_move(access, *coordinates, score_director),
+            ) => reverse_do_move(*access, *coordinates, score_director),
             (
                 RuntimeListRecipe::SublistChange {
                     access,
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => sublist_change_undo_move(access, *coordinates, score_director),
+            ) => sublist_change_undo_move(*access, *coordinates, score_director),
             (
                 RuntimeListRecipe::SublistSwap {
                     access,
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => sublist_swap_undo_move(access, *coordinates, score_director),
+            ) => sublist_swap_undo_move(*access, *coordinates, score_director),
             (RuntimeListRecipe::KOpt { access, entity, .. }, RuntimeListMoveUndo::KOpt(values)) => {
-                k_opt_undo_move(access, *entity, values, score_director)
+                k_opt_undo_move(*access, *entity, values, score_director)
             }
             (
                 RuntimeListRecipe::Ruin {
                     access, sources, ..
                 },
                 RuntimeListMoveUndo::Ruin(undo),
-            ) => ruin_undo_move(access, sources, undo, score_director),
+            ) => ruin_undo_move(*access, sources, undo, score_director),
             (
                 RuntimeListRecipe::MultiSwap {
                     access,
@@ -390,23 +391,23 @@ where
                     ..
                 },
                 RuntimeListMoveUndo::None,
-            ) => multi_swap_undo_move(access, coordinates, &self.entity_indices, score_director),
+            ) => multi_swap_undo_move(*access, coordinates, &self.entity_indices, score_director),
             (
                 RuntimeListRecipe::GroupChange {
                     access,
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => group_change_undo_move(access, coordinates, score_director),
+            ) => group_change_undo_move(*access, coordinates, score_director),
             (
                 RuntimeListRecipe::GroupSwap {
                     access,
                     coordinates,
                 },
                 RuntimeListMoveUndo::None,
-            ) => group_swap_undo_move(access, coordinates, score_director),
+            ) => group_swap_undo_move(*access, coordinates, score_director),
             (RuntimeListRecipe::GroupRuin { access, plan }, RuntimeListMoveUndo::Ruin(undo)) => {
-                group_ruin_undo_move(access, plan, undo, score_director)
+                group_ruin_undo_move(*access, plan, undo, score_director)
             }
             _ => panic!("runtime list move undo shape must match recipe"),
         }

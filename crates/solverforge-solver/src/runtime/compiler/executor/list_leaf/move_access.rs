@@ -2,8 +2,8 @@
 //!
 //! Cursor generation keeps the complete compiled slot, including distance
 //! meters and construction metadata. Emitted moves need only mutation,
-//! identity, tabu, ownership, and ruin-recreate access, so they retain this
-//! meter-free carrier instead of cloning the complete slot per candidate.
+//! identity, tabu, ownership, and ruin-recreate access. The frozen selector
+//! builds one meter-free carrier per slot; its candidates borrow that carrier.
 
 use std::fmt;
 
@@ -26,7 +26,6 @@ use crate::heuristic::selector::precedence_route::{
 };
 use crate::list_placement::OwnerRestriction;
 
-#[derive(Clone)]
 pub(crate) enum RuntimeListMoveAccess<S, V> {
     Static(StaticRuntimeListMoveAccess<S, V>),
     Dynamic {

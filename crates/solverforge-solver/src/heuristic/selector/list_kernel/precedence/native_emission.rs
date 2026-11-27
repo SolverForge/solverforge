@@ -2,6 +2,7 @@
 
 use super::PrecedenceEmitter;
 
+use crate::heuristic::r#move::list_kernel::{MultiSwapCoordinates, RuinSources};
 use crate::heuristic::r#move::{
     ListChangeMove, ListMoveUnion, ListMultiSwapMove, ListPermuteMove, ListReverseMove,
     ListRuinMove, ListSwapMove, SublistChangeMove, SublistSwapMove, MAX_LIST_PERMUTE_WINDOW_SIZE,
@@ -77,38 +78,23 @@ impl<S, V> NativePrecedenceEmitter<S, V> {
         }
     }
 
-    fn precedence_ruin(&self, sources: &[(usize, SmallVec<[usize; 8]>)]) -> ListRuinMove<S, V> {
-        let move_ = if let [(entity, indices)] = sources {
-            ListRuinMove::new(
-                *entity,
-                indices,
-                self.entity_count,
-                self.list_len,
-                self.list_get,
-                self.ruin_remove,
-                self.ruin_insert,
-                self.variable_name,
-                self.descriptor_index,
-            )
-        } else {
-            ListRuinMove::new_multi_source(
-                sources,
-                self.entity_count,
-                self.list_len,
-                self.list_get,
-                self.ruin_remove,
-                self.ruin_insert,
-                self.variable_name,
-                self.descriptor_index,
-            )
-        };
-        move_
-            .with_element_owner_fn(self.element_owner_fn)
-            .with_precedence_hooks(
-                Some(self.element_count),
-                Some(self.index_to_element),
-                Some(self.fixed_successors),
-            )
+    fn precedence_ruin(&self, sources: RuinSources) -> ListRuinMove<S, V> {
+        ListRuinMove::new_multi_source(
+            sources,
+            self.entity_count,
+            self.list_len,
+            self.list_get,
+            self.ruin_remove,
+            self.ruin_insert,
+            self.variable_name,
+            self.descriptor_index,
+        )
+        .with_element_owner_fn(self.element_owner_fn)
+        .with_precedence_hooks(
+            Some(self.element_count),
+            Some(self.index_to_element),
+            Some(self.fixed_successors),
+        )
     }
 }
 
@@ -195,7 +181,7 @@ where
         ))
     }
 
-    fn emit_ruin(&self, sources: &[(usize, SmallVec<[usize; 8]>)]) -> Self::Move {
+    fn emit_ruin(&self, sources: RuinSources) -> Self::Move {
         ListMoveUnion::ListRuin(self.precedence_ruin(sources))
     }
 
@@ -242,7 +228,7 @@ where
         ))
     }
 
-    fn emit_multi_swap(&self, swaps: &[(usize, usize, usize)]) -> Self::Move {
+    fn emit_multi_swap(&self, swaps: MultiSwapCoordinates) -> Self::Move {
         ListMoveUnion::ListMultiSwap(
             ListMultiSwapMove::new(
                 swaps,

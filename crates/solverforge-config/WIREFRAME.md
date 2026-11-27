@@ -22,7 +22,7 @@ src/
 ├── forager.rs       — ForagerConfig, AcceptedCountForagerConfig, and ScoreTieBreak
 ├── move_selector.rs — MoveSelectorConfig, VariableTargetConfig, SelectionOrder, and shared selector defaults
 ├── move_selector/composite.rs — Limited, union (order/weighting), cartesian, and conflict-repair selector config structs
-├── move_selector/list.rs — List-variable selector config structs (list change through list ruin)
+├── move_selector/list.rs — List-variable selector config structs (list change through list ruin) and ListRuinSourceStrategy
 ├── move_selector/scalar.rs — Scalar selector config structs (change through grouped scalar) and RecreateHeuristicType
 ├── phase.rs         — PhaseConfig plus construction/local-search/partitioned/custom configs
 ├── solver_config.rs — SolverConfig, bounded candidate-trace config, canonical provenance serialization, overrides, and environment/thread settings
@@ -562,12 +562,23 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `moves_per_step` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `max_source_list_len` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `skip_empty_destinations` | `bool` | `false` |
+| `source_strategy` | `ListRuinSourceStrategy` | `Random` |
+| `max_source_routes` | `Option<NonZeroU8>` | `None` (`2` with `Contiguous`); `0` does not parse; rejected with `Random`; above `1` requires a cross-position distance meter |
 | `max_member_distance` | `Option<NonZeroU8>` | `None` (every placement); `0` does not parse; with element groups, most positions from one member of a jointly recreated group to the next |
 | `max_group_owners` | `Option<NonZeroU8>` | `None` (every allowed owner); `0` does not parse; with element groups, owners tried per recreated group, best contiguous fit first |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
 Either group bound requires a targeted list variable with `element_group_fn`.
+
+### `ListRuinSourceStrategy`
+
+Enum: `Random` (default) draws positions at random from one list.
+`Contiguous` removes consecutive positions around a random seed and around the
+seed's nearest position on up to `max_source_routes - 1` other lists; a segment
+never crosses a position without a legal destination, and `min_ruin_count` /
+`max_ruin_count` bound the whole move. With element groups each ruined element
+still takes its whole group along, as with `Random`.
 
 ### `ListGroupChangeMoveConfig`
 

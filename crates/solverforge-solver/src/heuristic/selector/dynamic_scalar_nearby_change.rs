@@ -24,8 +24,8 @@ pub(crate) struct DynamicScalarNearbyChangeMoveSelector<S> {
     leaf: ScalarNeighborhoodLeaf<S>,
 }
 
-pub(crate) type DynamicScalarNearbyChangeMoveCursor<S> =
-    RuntimeScalarFacadeCursor<S, DynamicScalarChangeMove<S>>;
+pub(crate) type DynamicScalarNearbyChangeMoveCursor<'a, S> =
+    RuntimeScalarFacadeCursor<'a, S, DynamicScalarChangeMove<S>>;
 
 impl<S> DynamicScalarNearbyChangeMoveSelector<S>
 where
@@ -67,7 +67,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = DynamicScalarNearbyChangeMoveCursor<S>
+        = DynamicScalarNearbyChangeMoveCursor<'a, S>
     where
         Self: 'a;
 

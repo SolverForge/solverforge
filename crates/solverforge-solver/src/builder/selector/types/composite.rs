@@ -42,33 +42,40 @@ where
 /// This intentionally does not inherit the public selector facade. Provider
 /// leaves borrow the runner-owned resource only when a reachable child is
 /// pulled.
-pub(crate) trait StatefulComposedFlat<S, M, FlatState, Resources>
+pub(crate) trait ComposedFlat<S, FlatState>
 where
     S: PlanningSolution,
-    M: Move<S>,
 {
-    type Cursor<'a>: ResourceMoveCursor<S, M, Resources> + 'a
-    where
-        Self: 'a;
-
     fn new_stream_state(&self) -> FlatState;
-
-    fn open_cursor_with_stream_state<'a, D: Director<S>>(
-        &'a self,
-        stream_state: &mut FlatState,
-        resources: &mut Resources,
-        score_director: &D,
-        context: MoveStreamContext,
-    ) -> Self::Cursor<'a>;
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     fn validate_cursor<D: Director<S>>(&self, score_director: &D);
+}
+
+/// Opens a flat's cursor over `&'m self`. The moves `M` it yields may borrow
+/// the flat's frozen declaration for `'m`, so no candidate copies slot or
+/// access data out of it.
+pub(crate) trait StatefulComposedFlat<'m, S, M, FlatState, Resources>:
+    ComposedFlat<S, FlatState> + 'm
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    type Cursor: ResourceMoveCursor<S, M, Resources> + 'm;
+
+    fn open_cursor_with_stream_state<D: Director<S>>(
+        &'m self,
+        stream_state: &mut FlatState,
+        resources: &mut Resources,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor;
 
     /// Returns retained pooled leaf state from a closing cursor before it
     /// drops. The default keeps every flat stateless; flats with pooled state
     /// move it back exactly once per open/close cycle.
-    fn reclaim_cursor_state(_cursor: &mut Self::Cursor<'_>, _stream_state: &mut FlatState) {}
+    fn reclaim_cursor_state(_cursor: &mut Self::Cursor, _stream_state: &mut FlatState) {}
 }
 
 /// Stable declaration and stream-state coordinate, never a candidate ID.
@@ -105,12 +112,12 @@ pub(crate) enum SelectorCompositionNode<Flat> {
 /// Built once in postorder, then owned immutably by one solve execution.
 /// Children precede parents, and each child has exactly one parent. Thus
 /// cursor state can use the same coordinates without sharing mutable leaves.
-pub(crate) struct SelectorComposition<S, M, Flat, FlatState> {
+pub(crate) struct SelectorComposition<S, Flat, FlatState> {
     nodes: Vec<SelectorCompositionNode<Flat>>,
-    _marker: PhantomData<fn() -> (S, M, FlatState)>,
+    _marker: PhantomData<fn() -> (S, FlatState)>,
 }
 
-impl<S, M, Flat, FlatState> SelectorComposition<S, M, Flat, FlatState> {
+impl<S, Flat, FlatState> SelectorComposition<S, Flat, FlatState> {
     pub(crate) fn new() -> Self {
         Self {
             nodes: Vec::new(),
@@ -171,7 +178,7 @@ impl<S, M, Flat, FlatState> SelectorComposition<S, M, Flat, FlatState> {
     }
 }
 
-impl<S, M, Flat: Debug, FlatState> Debug for SelectorComposition<S, M, Flat, FlatState> {
+impl<S, Flat: Debug, FlatState> Debug for SelectorComposition<S, Flat, FlatState> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SelectorComposition")
             .field("nodes", &self.nodes)

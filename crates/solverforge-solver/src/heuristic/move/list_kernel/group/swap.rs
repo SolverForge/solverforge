@@ -126,17 +126,20 @@ where
     let first_ids = member_value_ids(access, &first, score_director);
     let second_ids = member_value_ids(access, &second, score_director);
     let scope = MoveTabuScope::new(access.descriptor_index(), access.variable_name());
-    let mut header: SmallVec<[u64; 8]> = smallvec![
-        encode_usize(access.descriptor_index()),
-        hash_str(access.variable_name()),
-        encode_usize(first.len())
-    ];
-    push_coordinates(&mut header, &first);
-    push_coordinates(&mut header, &second);
-    let mut forward = header.clone();
+    let header = || -> SmallVec<[u64; 8]> {
+        let mut header: SmallVec<[u64; 8]> = smallvec![
+            encode_usize(access.descriptor_index()),
+            hash_str(access.variable_name()),
+            encode_usize(first.len())
+        ];
+        push_coordinates(&mut header, &first);
+        push_coordinates(&mut header, &second);
+        header
+    };
+    let mut forward = header();
     forward.extend(first_ids.iter().copied());
     forward.extend(second_ids.iter().copied());
-    let mut backward = header;
+    let mut backward = header();
     backward.extend(second_ids.iter().copied());
     backward.extend(first_ids.iter().copied());
     let moved: SmallVec<[u64; 8]> = first_ids.iter().chain(&second_ids).copied().collect();

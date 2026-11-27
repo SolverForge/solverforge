@@ -8,6 +8,7 @@ use crate::builder::{
 };
 use crate::descriptor::{collect_bindings, ResolvedVariableBinding};
 
+use super::executor::contiguous_source_routes;
 use super::graph::{CompiledSelectorNode, ListLeafKind, ScalarLeafKind};
 use super::types::{
     CompiledListSlot, CompiledScalarSlot, RuntimeCapability, RuntimeCompileError,
@@ -352,6 +353,9 @@ where
             if let MoveSelectorConfig::ListRuinMoveSelector(ruin) = config {
                 if ruin.max_member_distance.is_some() || ruin.max_group_owners.is_some() {
                     required.push(RuntimeCapability::ListElementGroups);
+                }
+                if contiguous_source_routes(ruin).is_some_and(|routes| routes.get() > 1) {
+                    required.push(RuntimeCapability::ListCrossPositionDistance);
                 }
             }
         }

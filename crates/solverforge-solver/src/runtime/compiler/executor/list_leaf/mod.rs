@@ -28,5 +28,6 @@ pub(crate) use cursor::{
 pub(crate) use r#move::RuntimeListMove;
 pub(crate) use recipe::RuntimeListMoveUndo;
 pub(crate) use spec::{
-    RuntimeListNeighborhoodPlan, RuntimeListNeighborhoodPlanError, RuntimeListRecipe,
+    contiguous_source_routes, RuntimeListNeighborhoodPlan, RuntimeListNeighborhoodPlanError,
+    RuntimeListRecipe,
 };

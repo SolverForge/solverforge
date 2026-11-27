@@ -81,8 +81,35 @@ fn test_list_ruin_max_source_list_len_parsing() {
     assert_eq!(ruin.moves_per_step, Some(10));
     assert_eq!(ruin.max_source_list_len, Some(8));
     assert!(ruin.skip_empty_destinations);
+    assert_eq!(ruin.source_strategy, ListRuinSourceStrategy::Random);
+    assert_eq!(ruin.max_source_routes, None);
     assert_eq!(ruin.target.entity_class.as_deref(), Some("Route"));
     assert_eq!(ruin.target.variable_name.as_deref(), Some("visits"));
+}
+
+#[test]
+fn test_list_ruin_contiguous_parsing() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "list_ruin_move_selector"
+        min_ruin_count = 2
+        max_ruin_count = 6
+        source_strategy = "contiguous"
+        max_source_routes = 3
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &config.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::ListRuinMoveSelector(ruin)) = &local_search.move_selector else {
+        panic!("local search should have a list ruin selector");
+    };
+    assert_eq!(ruin.source_strategy, ListRuinSourceStrategy::Contiguous);
+    assert_eq!(ruin.max_source_routes.map(|routes| routes.get()), Some(3));
 }
 
 #[test]

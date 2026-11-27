@@ -14,7 +14,7 @@ use solverforge_scoring::Director;
 
 use crate::builder::RuntimeScalarSlot;
 use crate::heuristic::selector::move_selector::{
-    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveStreamContext,
 };
 use crate::heuristic::selector::seed::scoped_seed;
 
@@ -81,7 +81,7 @@ where
         state: &mut ScalarNeighborhoodStreamState,
         director: &D,
         context: MoveStreamContext,
-    ) -> RuntimeScalarNeighborhoodCursor<S>
+    ) -> RuntimeScalarNeighborhoodCursor<'_, S>
     where
         D: Director<S>,
         S::Score: Score,
@@ -91,21 +91,19 @@ where
             ScalarNeighborhoodSpec::Change {
                 value_candidate_limit,
             } => RuntimeScalarCursorState::Change(ChangeCursor::new(
-                self.slot.clone(),
+                &self.slot,
                 solution,
                 context,
                 value_candidate_limit,
             )),
-            ScalarNeighborhoodSpec::Swap => RuntimeScalarCursorState::Swap(SwapCursor::new(
-                self.slot.clone(),
-                solution,
-                context,
-            )),
+            ScalarNeighborhoodSpec::Swap => {
+                RuntimeScalarCursorState::Swap(SwapCursor::new(&self.slot, solution, context))
+            }
             ScalarNeighborhoodSpec::NearbyChange {
                 max_nearby,
                 value_candidate_limit,
             } => RuntimeScalarCursorState::NearbyChange(NearbyChangeCursor::new(
-                self.slot.clone(),
+                &self.slot,
                 solution,
                 context,
                 max_nearby,
@@ -113,10 +111,7 @@ where
             )),
             ScalarNeighborhoodSpec::NearbySwap { max_nearby } => {
                 RuntimeScalarCursorState::NearbySwap(NearbySwapCursor::new(
-                    self.slot.clone(),
-                    solution,
-                    context,
-                    max_nearby,
+                    &self.slot, solution, context, max_nearby,
                 ))
             }
             ScalarNeighborhoodSpec::PillarChange {
@@ -124,7 +119,7 @@ where
                 maximum_sub_pillar_size,
                 value_candidate_limit,
             } => RuntimeScalarCursorState::PillarChange(PillarChangeCursor::new(
-                self.slot.clone(),
+                &self.slot,
                 solution,
                 context,
                 minimum_sub_pillar_size,
@@ -135,7 +130,7 @@ where
                 minimum_sub_pillar_size,
                 maximum_sub_pillar_size,
             } => RuntimeScalarCursorState::PillarSwap(PillarSwapCursor::new(
-                self.slot.clone(),
+                &self.slot,
                 solution,
                 context,
                 minimum_sub_pillar_size,
@@ -164,7 +159,7 @@ where
                     0x5CA1_A2C0_7A11_0001 ^ slot_identity(&self.slot),
                 );
                 RuntimeScalarCursorState::RuinRecreate(RuinRecreateCursor::new(
-                    self.slot.clone(),
+                    &self.slot,
                     solution,
                     batches,
                     value_candidate_limit,
@@ -192,25 +187,23 @@ where
     }
 }
 
-impl<S> MoveSelector<S, RuntimeScalarMove<S>> for ScalarNeighborhoodLeaf<S>
+impl<S> ScalarNeighborhoodLeaf<S>
 where
     S: PlanningSolution,
     S::Score: Score,
 {
-    type Cursor<'a>
-        = RuntimeScalarNeighborhoodCursor<S>
-    where
-        Self: 'a;
-
-    fn open_cursor<'a, D: Director<S>>(&'a self, director: &D) -> Self::Cursor<'a> {
+    pub(crate) fn open_cursor<D: Director<S>>(
+        &self,
+        director: &D,
+    ) -> RuntimeScalarNeighborhoodCursor<'_, S> {
         self.open_cursor_with_context(director, MoveStreamContext::default())
     }
 
-    fn open_cursor_with_context<'a, D: Director<S>>(
+    pub(crate) fn open_cursor_with_context<'a, D: Director<S>>(
         &'a self,
         director: &D,
         context: MoveStreamContext,
-    ) -> Self::Cursor<'a> {
+    ) -> RuntimeScalarNeighborhoodCursor<'a, S> {
         if matches!(self.spec, ScalarNeighborhoodSpec::RuinRecreate { .. }) {
             panic!(
                 "ruin/recreate scalar leaves must be opened through their persistent composed stream state"
@@ -220,7 +213,7 @@ where
         Self::open_cursor_with_stream_state(self, &mut state, director, context)
     }
 
-    fn size<D: Director<S>>(&self, director: &D) -> usize {
+    pub(crate) fn size<D: Director<S>>(&self, director: &D) -> usize {
         match self.spec {
             ScalarNeighborhoodSpec::RuinRecreate { moves_per_step, .. } => {
                 usize::from(self.slot.entity_count(director.working_solution()) > 0)
@@ -289,33 +282,33 @@ impl fmt::Debug for ScalarNeighborhoodStreamState {
 }
 
 /// Cursor-owned candidate storage and one family state machine.
-pub(crate) struct RuntimeScalarNeighborhoodCursor<S>
+pub(crate) struct RuntimeScalarNeighborhoodCursor<'a, S>
 where
     S: PlanningSolution,
     S::Score: Score,
 {
-    store: CandidateStore<S, RuntimeScalarMove<S>>,
-    state: RuntimeScalarCursorState<S>,
+    store: CandidateStore<S, RuntimeScalarMove<'a, S>>,
+    state: RuntimeScalarCursorState<'a, S>,
 }
 
-enum RuntimeScalarCursorState<S>
+enum RuntimeScalarCursorState<'a, S>
 where
     S: PlanningSolution,
 {
-    Change(ChangeCursor<S>),
-    Swap(SwapCursor<S>),
-    NearbyChange(NearbyChangeCursor<S>),
-    NearbySwap(NearbySwapCursor<S>),
-    PillarChange(PillarChangeCursor<S>),
-    PillarSwap(PillarSwapCursor<S>),
-    RuinRecreate(RuinRecreateCursor<S>),
+    Change(ChangeCursor<'a, S>),
+    Swap(SwapCursor<'a, S>),
+    NearbyChange(NearbyChangeCursor<'a, S>),
+    NearbySwap(NearbySwapCursor<'a, S>),
+    PillarChange(PillarChangeCursor<'a, S>),
+    PillarSwap(PillarSwapCursor<'a, S>),
+    RuinRecreate(RuinRecreateCursor<'a, S>),
 }
 
-impl<S> RuntimeScalarCursorState<S>
+impl<'a, S> RuntimeScalarCursorState<'a, S>
 where
     S: PlanningSolution,
 {
-    fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
+    fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<'a, S>> {
         match self {
             Self::Change(cursor) => cursor.next_recipe(solution),
             Self::Swap(cursor) => cursor.next_recipe(solution),
@@ -328,19 +321,19 @@ where
     }
 }
 
-impl<S> RuntimeScalarNeighborhoodCursor<S>
+impl<'a, S> RuntimeScalarNeighborhoodCursor<'a, S>
 where
     S: PlanningSolution,
     S::Score: Score,
 {
-    fn next_move(&mut self, solution: &S) -> Option<RuntimeScalarMove<S>> {
+    fn next_move(&mut self, solution: &S) -> Option<RuntimeScalarMove<'a, S>> {
         self.state
             .next_recipe(solution)
             .map(RuntimeScalarMove::from_recipe)
     }
 }
 
-impl<S> MoveCursor<S, RuntimeScalarMove<S>> for RuntimeScalarNeighborhoodCursor<S>
+impl<'a, S> MoveCursor<S, RuntimeScalarMove<'a, S>> for RuntimeScalarNeighborhoodCursor<'a, S>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -349,15 +342,18 @@ where
         self.next_move(solution).map(|mov| self.store.push(mov))
     }
 
-    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, RuntimeScalarMove<S>>> {
+    fn candidate(
+        &self,
+        id: CandidateId,
+    ) -> Option<MoveCandidateRef<'_, S, RuntimeScalarMove<'a, S>>> {
         self.store.candidate(id)
     }
 
-    fn take_candidate(&mut self, id: CandidateId) -> RuntimeScalarMove<S> {
+    fn take_candidate(&mut self, id: CandidateId) -> RuntimeScalarMove<'a, S> {
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeScalarMove<S>> {
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeScalarMove<'a, S>> {
         self.next_move(solution)
     }
 

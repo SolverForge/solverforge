@@ -33,6 +33,24 @@ where
         self.live.clear();
     }
 
+    /// A store whose candidate-ID table reuses `positions`' capacity, so a
+    /// cursor reopened every step does not re-grow the table.
+    pub(crate) fn with_position_pool(mut positions: Vec<Option<usize>>) -> Self {
+        positions.clear();
+        Self {
+            positions,
+            live: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Hands the candidate-ID table back, emptied, for the next open.
+    pub(crate) fn take_position_pool(&mut self) -> Vec<Option<usize>> {
+        let mut positions = std::mem::take(&mut self.positions);
+        positions.clear();
+        positions
+    }
+
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             positions: Vec::with_capacity(capacity),

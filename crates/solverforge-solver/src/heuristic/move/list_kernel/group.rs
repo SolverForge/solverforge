@@ -119,9 +119,8 @@ where
         return false;
     }
     let solution = score_director.working_solution();
-    let mut sources = coordinates.sources.clone();
-    sources.sort_unstable();
-    if sources.windows(2).any(|pair| pair[0] == pair[1])
+    let sources = &coordinates.sources;
+    if has_duplicate(sources)
         || sources
             .iter()
             .any(|&(entity, position)| position >= access.list_len(solution, entity))
@@ -329,17 +328,19 @@ where
 {
     let value_ids = member_value_ids(access, &coordinates.sources, score_director);
     let scope = MoveTabuScope::new(access.descriptor_index(), access.variable_name());
-    let header: SmallVec<[u64; 8]> = smallvec![
-        encode_usize(access.descriptor_index()),
-        hash_str(access.variable_name()),
-        encode_usize(coordinates.sources.len())
-    ];
+    let header = || -> SmallVec<[u64; 8]> {
+        smallvec![
+            encode_usize(access.descriptor_index()),
+            hash_str(access.variable_name()),
+            encode_usize(coordinates.sources.len())
+        ]
+    };
     let targets = destination_targets(coordinates);
-    let mut forward = header.clone();
+    let mut forward = header();
     push_coordinates(&mut forward, &coordinates.sources);
     push_coordinates(&mut forward, &targets);
     forward.extend(value_ids.iter().copied());
-    let mut backward = header;
+    let mut backward = header();
     push_coordinates(&mut backward, &targets);
     push_coordinates(&mut backward, &coordinates.sources);
     backward.extend(value_ids.iter().copied());
@@ -366,4 +367,12 @@ where
             .chain(std::iter::once(coordinates.destination_entity))
             .chain(coordinates.destination_positions.iter().copied()),
     )
+}
+
+/// Whether two of the (few) member coordinates coincide.
+pub(super) fn has_duplicate(coordinates: &[(usize, usize)]) -> bool {
+    coordinates
+        .iter()
+        .enumerate()
+        .any(|(index, coordinate)| coordinates[index + 1..].contains(coordinate))
 }

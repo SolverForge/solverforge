@@ -19,26 +19,26 @@ use super::{RuntimeScalarMove, RuntimeScalarNeighborhoodCursor};
 /// Candidate-store boundary for a typed move projection. The inner canonical cursor
 /// transfers each recipe by ownership, so a selected public candidate remains
 /// owned by exactly one outer store.
-pub(crate) struct RuntimeScalarFacadeCursor<S, M>
+pub(crate) struct RuntimeScalarFacadeCursor<'a, S, M>
 where
     S: PlanningSolution,
     S::Score: Score,
     M: Move<S>,
 {
-    inner: RuntimeScalarNeighborhoodCursor<S>,
+    inner: RuntimeScalarNeighborhoodCursor<'a, S>,
     store: CandidateStore<S, M>,
-    emit: fn(RuntimeScalarMove<S>) -> M,
+    emit: fn(RuntimeScalarMove<'a, S>) -> M,
 }
 
-impl<S, M> RuntimeScalarFacadeCursor<S, M>
+impl<'a, S, M> RuntimeScalarFacadeCursor<'a, S, M>
 where
     S: PlanningSolution,
     S::Score: Score,
     M: Move<S>,
 {
     pub(crate) fn new(
-        inner: RuntimeScalarNeighborhoodCursor<S>,
-        emit: fn(RuntimeScalarMove<S>) -> M,
+        inner: RuntimeScalarNeighborhoodCursor<'a, S>,
+        emit: fn(RuntimeScalarMove<'a, S>) -> M,
     ) -> Self {
         Self {
             inner,
@@ -52,7 +52,7 @@ where
     }
 }
 
-impl<S, M> MoveCursor<S, M> for RuntimeScalarFacadeCursor<S, M>
+impl<S, M> MoveCursor<S, M> for RuntimeScalarFacadeCursor<'_, S, M>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -90,7 +90,7 @@ where
             slot: RuntimeScalarSlot::Dynamic(slot),
             entity_index,
             to_value,
-        } => DynamicScalarChangeMove::new(slot, entity_index, to_value),
+        } => DynamicScalarChangeMove::new(slot.clone(), entity_index, to_value),
         _ => panic!("dynamic scalar change facade must only reify change recipes"),
     }
 }
@@ -106,7 +106,7 @@ where
             slot: RuntimeScalarSlot::Dynamic(slot),
             left_entity_index,
             right_entity_index,
-        } => DynamicScalarSwapMove::new(slot, left_entity_index, right_entity_index),
+        } => DynamicScalarSwapMove::new(slot.clone(), left_entity_index, right_entity_index),
         _ => panic!("dynamic scalar swap facade must only reify swap recipes"),
     }
 }

@@ -8,11 +8,11 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::builder::context::{ProviderReasonArena, RuntimeProviderRegistry};
-use crate::builder::selector::types::StatefulComposedFlat;
+use crate::builder::selector::types::{ComposedFlat, StatefulComposedFlat};
 use crate::builder::selector::GroupedScalarSelector;
 use crate::builder::RuntimeCandidateMetricBinding;
 use crate::heuristic::selector::decorator::ResourceVecUnionMoveCursor;
-use crate::heuristic::selector::move_selector::{MoveSelector, MoveStreamContext};
+use crate::heuristic::selector::move_selector::{CandidateId, MoveSelector, MoveStreamContext};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::scalar_neighborhood::{
     ScalarNeighborhoodLeaf, ScalarNeighborhoodStreamState,
@@ -200,7 +200,7 @@ where
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         match self {
-            Self::Scalar(leaf) => MoveSelector::size(leaf, score_director),
+            Self::Scalar(leaf) => leaf.size(score_director),
             Self::List(leaf) => leaf.size(score_director),
             Self::Grouped(selector) => MoveSelector::size(selector, score_director),
             Self::Provider(_) => 0,
@@ -304,13 +304,16 @@ where
     }
 }
 
-impl<S, V, DM, IDM>
-    StatefulComposedFlat<
-        S,
-        RuntimeNeighborhoodMove<S, V, DM, IDM>,
-        Vec<RuntimeNeighborhoodLeafStreamState>,
-        ProviderExecutionResources<S>,
-    > for RuntimeNeighborhoodFlat<S, V, DM, IDM>
+/// Retained per-solve state of one compiled flat: every leaf's stream state
+/// plus the candidate-ID tables its cursors reuse across steps.
+pub(crate) struct RuntimeNeighborhoodFlatStreamState {
+    pub(super) leaves: Vec<RuntimeNeighborhoodLeafStreamState>,
+    pub(super) discovered: Vec<(usize, CandidateId)>,
+    pub(super) positions: Vec<Vec<Option<usize>>>,
+}
+
+impl<S, V, DM, IDM> ComposedFlat<S, RuntimeNeighborhoodFlatStreamState>
+    for RuntimeNeighborhoodFlat<S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -318,50 +321,16 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    type Cursor<'a>
-        = RuntimeNeighborhoodFlatCursor<'a, S, V, DM, IDM>
-    where
-        Self: 'a;
-
-    fn new_stream_state(&self) -> Vec<RuntimeNeighborhoodLeafStreamState> {
-        self.leaves
-            .iter()
-            .map(RuntimeNeighborhoodLeaf::new_stream_state)
-            .collect()
-    }
-
-    fn open_cursor_with_stream_state<'a, D: Director<S>>(
-        &'a self,
-        stream_state: &mut Vec<RuntimeNeighborhoodLeafStreamState>,
-        _resources: &mut ProviderExecutionResources<S>,
-        score_director: &D,
-        context: MoveStreamContext,
-    ) -> Self::Cursor<'a> {
-        assert_eq!(
-            stream_state.len(),
-            self.leaves.len(),
-            "compiled neighborhood state must match frozen leaves"
-        );
-        let candidate_context = context.with_selection_order(self.candidate_order);
-        let cursors = self
-            .leaves
-            .iter()
-            .zip(stream_state.iter_mut())
-            .map(|(leaf, state)| {
-                leaf.open_cursor_with_stream_state(state, score_director, candidate_context)
-            })
-            .collect();
-        RuntimeNeighborhoodFlatCursor::new(
-            ResourceVecUnionMoveCursor::new(
-                cursors,
-                self.selection_order,
-                context,
-                vec![1; self.leaves.len()],
-            ),
-            self.candidate_order,
-            self.candidate_metric.clone(),
-            candidate_context,
-        )
+    fn new_stream_state(&self) -> RuntimeNeighborhoodFlatStreamState {
+        RuntimeNeighborhoodFlatStreamState {
+            leaves: self
+                .leaves
+                .iter()
+                .map(RuntimeNeighborhoodLeaf::new_stream_state)
+                .collect(),
+            discovered: Vec::new(),
+            positions: self.leaves.iter().map(|_| Vec::new()).collect(),
+        }
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -371,16 +340,68 @@ where
             .sum()
     }
 
-    fn validate_cursor<D: Director<S>>(&self, _score_director: &D) {
-        // Compiler validation has already frozen exact capabilities. Opening
-        // a compiled cursor performs no separate selector validation pass.
+    fn validate_cursor<D: Director<S>>(&self, _score_director: &D) {}
+}
+
+impl<'a, S, V, DM, IDM>
+    StatefulComposedFlat<
+        'a,
+        S,
+        RuntimeNeighborhoodMove<'a, S, V, DM, IDM>,
+        RuntimeNeighborhoodFlatStreamState,
+        ProviderExecutionResources<S>,
+    > for RuntimeNeighborhoodFlat<S, V, DM, IDM>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'a,
+    IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'a,
+{
+    type Cursor = RuntimeNeighborhoodFlatCursor<'a, S, V, DM, IDM>;
+
+    fn open_cursor_with_stream_state<D: Director<S>>(
+        &'a self,
+        stream_state: &mut RuntimeNeighborhoodFlatStreamState,
+        _resources: &mut ProviderExecutionResources<S>,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor {
+        assert_eq!(
+            stream_state.leaves.len(),
+            self.leaves.len(),
+            "compiled neighborhood state must match frozen leaves"
+        );
+        let candidate_context = context.with_selection_order(self.candidate_order);
+        let cursors = self
+            .leaves
+            .iter()
+            .zip(stream_state.leaves.iter_mut())
+            .zip(stream_state.positions.iter_mut())
+            .map(|((leaf, state), positions)| {
+                leaf.open_cursor_with_stream_state(state, score_director, candidate_context)
+                    .with_position_pool(std::mem::take(positions))
+            })
+            .collect();
+        RuntimeNeighborhoodFlatCursor::new(
+            ResourceVecUnionMoveCursor::new(
+                cursors,
+                self.selection_order,
+                context,
+                vec![1; self.leaves.len()],
+            )
+            .with_discovered_pool(std::mem::take(&mut stream_state.discovered)),
+            self.candidate_order,
+            self.candidate_metric.clone(),
+            candidate_context,
+        )
     }
 
     fn reclaim_cursor_state(
-        cursor: &mut Self::Cursor<'_>,
-        stream_state: &mut Vec<RuntimeNeighborhoodLeafStreamState>,
+        cursor: &mut Self::Cursor,
+        stream_state: &mut RuntimeNeighborhoodFlatStreamState,
     ) {
-        cursor.reclaim_grouped_pooled(stream_state);
+        cursor.reclaim_pooled(stream_state);
     }
 }
 

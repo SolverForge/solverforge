@@ -5,7 +5,7 @@ use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodSpe
 fn scalar_change_coverage_across_all_selection_orders_matches_drained_size() {
     use super::super::ScalarNeighborhoodLeaf;
     use crate::builder::RuntimeScalarSlot;
-    use crate::heuristic::selector::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
+    use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
     use solverforge_config::SelectionOrder;
 
     let order_modes = [
@@ -29,7 +29,7 @@ fn scalar_change_coverage_across_all_selection_orders_matches_drained_size() {
             Some(0x50 + mode_index as u64),
         )
         .expect("test slot supplies the change capability");
-        let expected_size = MoveSelector::size(&leaf, &director);
+        let expected_size = leaf.size(&director);
         let mut state = leaf.new_stream_state();
         let mut cursor = leaf.open_cursor_with_stream_state(
             &mut state,

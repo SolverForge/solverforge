@@ -155,32 +155,32 @@ impl ScalarNeighborhoodSpec {
     }
 }
 
-/// One selected scalar recipe. The recipe owns the frozen physical slot so a
-/// selected candidate never borrows a cursor, callback view, or row buffer.
-#[derive(Clone, Debug)]
-pub(crate) enum RuntimeScalarRecipe<S> {
+/// One selected scalar recipe. Only the frozen slot is borrowed; the recipe
+/// owns its coordinates and can outlive the cursor that emitted it.
+#[derive(Debug)]
+pub(crate) enum RuntimeScalarRecipe<'a, S> {
     Change {
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         entity_index: usize,
         to_value: Option<usize>,
     },
     Swap {
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         left_entity_index: usize,
         right_entity_index: usize,
     },
     PillarChange {
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         entity_indices: Vec<usize>,
         to_value: Option<usize>,
     },
     PillarSwap {
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         left_indices: Vec<usize>,
         right_indices: Vec<usize>,
     },
     RuinRecreate {
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         entity_indices: Vec<usize>,
         value_candidate_limit: Option<usize>,
         recreate_heuristic_type: RecreateHeuristicType,

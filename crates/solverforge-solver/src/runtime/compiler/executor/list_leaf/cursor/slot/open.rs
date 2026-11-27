@@ -5,7 +5,9 @@ use crate::list_groups::member_gap;
 pub(in super::super) fn open_slot_cursor<'a, S, V, DM, IDM>(
     spec: RuntimeListNeighborhoodSpec,
     slot: &'a RuntimeListSlot<S, V, DM, IDM>,
+    move_access: &'a super::super::super::move_access::RuntimeListMoveAccess<S, V>,
     solution: &S,
+    is_pinned: impl Fn(usize) -> bool,
     context: MoveStreamContext,
     kopt_patterns: &'a [KOptReconnection],
     ruin_seed: Option<u64>,
@@ -42,7 +44,7 @@ where
             let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::Change(
                 ChangeCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     entities,
                     route_lens,
                     context,
@@ -64,7 +66,7 @@ where
             let entity_count = ListAccess::entity_count(slot, solution);
             RuntimeListSlotCursor::NearbyChange(
                 NearbyChangeCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     RuntimeNearbyProbe::new(slot, solution),
                     entities,
                     route_lens,
@@ -88,7 +90,7 @@ where
             let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::Swap(
                 SwapCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     entities,
                     route_lens,
                     context,
@@ -112,7 +114,7 @@ where
             let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::Permute(
                 PermuteCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     entities,
                     route_lens,
                     context,
@@ -134,7 +136,7 @@ where
                 analysis.blocks,
                 analysis.route_graph,
                 context,
-                RuntimeListEmitter::new(slot, false),
+                RuntimeListEmitter::new(slot, move_access, false),
                 descriptor_index,
             ))
         }
@@ -149,7 +151,7 @@ where
             let entity_count = ListAccess::entity_count(slot, solution);
             RuntimeListSlotCursor::NearbySwap(
                 NearbySwapCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     RuntimeNearbyProbe::new(slot, solution),
                     entities,
                     route_lens,
@@ -176,7 +178,7 @@ where
             let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::SublistChange(
                 SublistChangeCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     entities,
                     route_lens,
                     context,
@@ -202,7 +204,7 @@ where
             let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::SublistSwap(
                 SublistSwapCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     entities,
                     route_lens,
                     context,
@@ -223,7 +225,7 @@ where
             );
             RuntimeListSlotCursor::Reverse(
                 ReverseCursor::new(
-                    RuntimeListEmitter::new(slot, false),
+                    RuntimeListEmitter::new(slot, move_access, false),
                     entities,
                     route_lens,
                     context,
@@ -241,7 +243,7 @@ where
                 .map(|entity| (entity, ListAccess::list_len(slot, solution, entity)))
                 .collect();
             RuntimeListSlotCursor::KOpt(KOptCursor::new(
-                RuntimeListEmitter::new(slot, false),
+                RuntimeListEmitter::new(slot, move_access, false),
                 entities,
                 k,
                 min_segment_len,
@@ -259,7 +261,7 @@ where
                 .map(|entity| (entity, ListAccess::list_len(slot, solution, entity)))
                 .collect();
             RuntimeListSlotCursor::NearbyKOpt(NearbyKOptCursor::new(
-                RuntimeListEmitter::new(slot, false),
+                RuntimeListEmitter::new(slot, move_access, false),
                 RuntimeKOptProbe::new(slot),
                 entities,
                 k,
@@ -276,15 +278,58 @@ where
             moves_per_step,
             max_source_list_len,
             skip_empty_destinations,
+            source,
             bounds,
         } => {
             let Some(seed) = ruin_seed else {
                 return RuntimeListSlotCursor::Empty;
             };
-            let source_pool = runtime_ruin_source_pool(slot, solution, max_source_list_len);
-            if let Some(emitter) =
-                runtime_grouped_ruin_emitter(slot, solution, skip_empty_destinations, bounds)
-            {
+            let source_pool = runtime_ruin_source_pool(
+                slot,
+                solution,
+                max_source_list_len,
+                matches!(source, RuinSourceShape::Contiguous { .. }).then_some(&is_pinned),
+            );
+            if let RuinSourceShape::Contiguous { max_routes } = source {
+                let max_routes = usize::from(max_routes.get());
+                let rng = SmallRng::seed_from_u64(seed);
+                let probe = RuntimeRuinProbe::new(slot);
+                if let Some(emitter) = runtime_grouped_ruin_emitter(
+                    slot,
+                    move_access,
+                    solution,
+                    skip_empty_destinations,
+                    bounds,
+                ) {
+                    return RuntimeListSlotCursor::ContiguousGroupRuin(ContiguousRuinCursor::new(
+                        emitter,
+                        probe,
+                        rng,
+                        source_pool,
+                        moves_per_step,
+                        min_ruin_count,
+                        max_ruin_count,
+                        max_routes,
+                    ));
+                }
+                return RuntimeListSlotCursor::ContiguousRuin(ContiguousRuinCursor::new(
+                    RuntimeListEmitter::new(slot, move_access, skip_empty_destinations),
+                    probe,
+                    rng,
+                    source_pool,
+                    moves_per_step,
+                    min_ruin_count,
+                    max_ruin_count,
+                    max_routes,
+                ));
+            }
+            if let Some(emitter) = runtime_grouped_ruin_emitter(
+                slot,
+                move_access,
+                solution,
+                skip_empty_destinations,
+                bounds,
+            ) {
                 return RuntimeListSlotCursor::GroupRuin(RuinCursor::new(
                     emitter,
                     SmallRng::seed_from_u64(seed),
@@ -295,7 +340,7 @@ where
                 ));
             }
             RuntimeListSlotCursor::Ruin(RuinCursor::new(
-                RuntimeListEmitter::new(slot, skip_empty_destinations),
+                RuntimeListEmitter::new(slot, move_access, skip_empty_destinations),
                 SmallRng::seed_from_u64(seed),
                 source_pool,
                 moves_per_step,
@@ -310,7 +355,7 @@ where
                 .map(|entity| ListAccess::list_len(slot, solution, entity))
                 .collect();
             RuntimeListSlotCursor::GroupChange(GroupChangeCursor::new(
-                RuntimeListEmitter::new(slot, false),
+                RuntimeListEmitter::new(slot, move_access, false),
                 runtime_group_snapshots(slot, solution),
                 entity_lens,
                 context,
@@ -320,7 +365,7 @@ where
         }
         RuntimeListNeighborhoodSpec::GroupSwap => {
             RuntimeListSlotCursor::GroupSwap(GroupSwapCursor::new(
-                RuntimeListEmitter::new(slot, false),
+                RuntimeListEmitter::new(slot, move_access, false),
                 runtime_group_snapshots(slot, solution),
                 context,
                 descriptor_index,

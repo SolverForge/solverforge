@@ -75,6 +75,7 @@ const LEAF_CASES: &[(&str, &str, &str, &str)] = &[
     ("type = \"list_ruin_move_selector\"\nmax_ruin_count = 1", "min_ruin_count = 2", "min_ruin_count = 1", "min_ruin_count"),
     ("type = \"list_ruin_move_selector\"\nmin_ruin_count = 1\nmax_ruin_count = 2", "moves_per_step = 0", "moves_per_step = 1", "moves_per_step"),
     ("type = \"list_ruin_move_selector\"\nmin_ruin_count = 1\nmax_ruin_count = 2", "max_source_list_len = 0", "max_source_list_len = 1", "max_source_list_len"),
+    ("type = \"list_ruin_move_selector\"\nmin_ruin_count = 1\nmax_ruin_count = 2", "max_source_routes = 2", "source_strategy = \"random\"", "max_source_routes"),
     ("type = \"conflict_repair_move_selector\"\nconstraints = [\"c\"]", "max_matches_per_step = 0", "max_matches_per_step = 1", "max_matches_per_step"),
     ("type = \"conflict_repair_move_selector\"\nconstraints = [\"c\"]", "max_repairs_per_match = 0", "max_repairs_per_match = 1", "max_repairs_per_match"),
     ("type = \"conflict_repair_move_selector\"\nconstraints = [\"c\"]", "max_moves_per_step = 0", "max_moves_per_step = 1", "max_moves_per_step"),

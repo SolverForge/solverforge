@@ -1,7 +1,10 @@
 //! Ruin emitter over static list accessors, for the reference selectors in tests.
+use smallvec::SmallVec;
+
 use super::RuinEmitter;
 
 use crate::heuristic::r#move::ListRuinMove;
+
 use solverforge_core::domain::PlanningSolution;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
@@ -66,10 +69,9 @@ where
 {
     type Move = ListRuinMove<S, V>;
 
-    fn emit_ruin(&self, entity: usize, indices: &[usize]) -> Self::Move {
-        ListRuinMove::new(
-            entity,
-            indices,
+    fn emit_ruin(&self, entity: usize, indices: SmallVec<[usize; 8]>) -> Self::Move {
+        ListRuinMove::new_multi_source(
+            smallvec::smallvec![(entity, indices)],
             self.entity_count,
             self.list_len,
             self.list_get,

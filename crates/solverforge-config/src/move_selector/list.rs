@@ -318,6 +318,14 @@ pub struct ListRuinMoveSelectorConfig {
     /// Whether recreate should skip currently empty destination lists.
     #[serde(default)]
     pub skip_empty_destinations: bool,
+    /// How the removed elements are chosen. Omitted: `random`.
+    #[serde(default)]
+    pub source_strategy: ListRuinSourceStrategy,
+    /// With `contiguous`: most lists one move removes segments from. Above
+    /// `1`, the extra segments start at the element nearest to the seed on
+    /// other lists, which needs a cross-position distance meter. Omitted:
+    /// `2`. Rejected with `random`.
+    pub max_source_routes: Option<NonZeroU8>,
     /// With element groups: most positions from one member of a jointly
     /// recreated group to the next; `1` keeps members adjacent. Omitted:
     /// every placement.
@@ -343,11 +351,28 @@ impl Default for ListRuinMoveSelectorConfig {
             moves_per_step: None,
             max_source_list_len: None,
             skip_empty_destinations: false,
+            source_strategy: ListRuinSourceStrategy::Random,
+            max_source_routes: None,
             max_member_distance: None,
             max_group_owners: None,
             target: VariableTargetConfig::default(),
         }
     }
+}
+
+/// How `ListRuinMoveSelector` picks the elements one move removes.
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ListRuinSourceStrategy {
+    /// Elements drawn at random from one list.
+    #[default]
+    Random,
+    /// Consecutive elements around a random seed, plus consecutive elements
+    /// around the seed's nearest element on up to `max_source_routes - 1`
+    /// other lists. A segment never crosses an element that has no legal
+    /// destination; `min_ruin_count` and `max_ruin_count` bound the whole
+    /// move.
+    Contiguous,
 }
 
 /// Configuration for `ListGroupChangeMoveSelector`: moves a whole element

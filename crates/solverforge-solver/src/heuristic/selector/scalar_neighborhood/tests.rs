@@ -167,16 +167,25 @@ fn descriptor() -> SolutionDescriptor {
 }
 
 fn slot() -> DynamicScalarVariableSlot<Plan> {
-    DynamicScalarVariableSlot::with_access(
+    tracked_slot().0
+}
+
+fn tracked_slot() -> (
+    DynamicScalarVariableSlot<Plan>,
+    Arc<dyn DynamicScalarAccess<Plan>>,
+) {
+    let access: Arc<dyn DynamicScalarAccess<Plan>> = Arc::new(RowFallbackAccess);
+    let slot = DynamicScalarVariableSlot::with_access(
         EntityClassId(0),
         VariableId(0),
         "Row",
         "value",
         false,
-        Arc::new(RowFallbackAccess),
+        Arc::clone(&access),
     )
     .resolved_against(&descriptor())
-    .expect("dynamic test slot resolves")
+    .expect("dynamic test slot resolves");
+    (slot, access)
 }
 
 fn director(plan: Plan) -> ScoreDirector<Plan, ()> {
@@ -184,7 +193,7 @@ fn director(plan: Plan) -> ScoreDirector<Plan, ()> {
 }
 
 #[test]
-fn scalar_cursor_open_and_enumeration_never_clone_the_solution() {
+fn scalar_cursor_open_and_enumeration_never_copy_the_solution_or_retain_access() {
     use super::ScalarNeighborhoodLeaf;
     use crate::builder::RuntimeScalarSlot;
     use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
@@ -228,17 +237,25 @@ fn scalar_cursor_open_and_enumeration_never_clone_the_solution() {
         },
     ];
     for spec in specs {
+        let (slot, access) = tracked_slot();
         let leaf =
-            ScalarNeighborhoodLeaf::from_spec(spec, RuntimeScalarSlot::Dynamic(slot()), Some(17))
+            ScalarNeighborhoodLeaf::from_spec(spec, RuntimeScalarSlot::Dynamic(slot), Some(17))
                 .expect("test slot supplies the family capability");
+        let baseline = Arc::strong_count(&access);
         let mut state = leaf.new_stream_state();
         SOLUTION_CLONES.with(|count| count.set(0));
         let mut cursor =
             leaf.open_cursor_with_stream_state(&mut state, &director, MoveStreamContext::default());
-        while cursor
-            .next_owned_candidate(director.working_solution())
-            .is_some()
-        {}
+        assert_eq!(Arc::strong_count(&access), baseline, "{spec:?} cursor open");
+        let mut moves = Vec::new();
+        while let Some(candidate) = cursor.next_owned_candidate(director.working_solution()) {
+            moves.push(candidate);
+            assert_eq!(
+                Arc::strong_count(&access),
+                baseline,
+                "{spec:?} candidate emission"
+            );
+        }
         assert_eq!(SOLUTION_CLONES.with(|count| count.get()), 0, "{spec:?}");
     }
 }

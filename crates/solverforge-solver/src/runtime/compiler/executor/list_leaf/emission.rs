@@ -10,14 +10,14 @@ use crate::builder::context::RuntimeListSlot;
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::r#move::list_kernel::{
     merged_ruin_sources, single_ruin_source, ChangeCoordinates, MultiSwapCoordinates,
-    PermuteCoordinates, ReverseCoordinates,
+    PermuteCoordinates, ReverseCoordinates, RuinSources,
 };
 use crate::heuristic::r#move::metadata::hash_str;
 use crate::heuristic::r#move::{CutPoint, MAX_LIST_PERMUTE_WINDOW_SIZE};
 use crate::heuristic::r#move::{SegmentRelocationCoords, SegmentSwapCoords};
 use crate::heuristic::selector::list_kernel::{
-    ChangeEmitter, KOptEmitter, PermuteEmitter, PrecedenceEmitter, ReverseEmitter, RuinEmitter,
-    SublistChangeEmitter, SublistSwapEmitter, SwapEmitter,
+    ChangeEmitter, KOptEmitter, MultiRuinEmitter, PermuteEmitter, PrecedenceEmitter,
+    ReverseEmitter, RuinEmitter, SublistChangeEmitter, SublistSwapEmitter, SwapEmitter,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
@@ -30,14 +30,14 @@ use super::{RuntimeListMove, RuntimeListRecipe};
 /// pruning, or mutation. The cursor therefore remains the sole source of
 /// candidate order.
 #[derive(Clone)]
-pub(super) struct RuntimeListEmitter<S, V, DM, IDM> {
-    move_access: RuntimeListMoveAccess<S, V>,
+pub(super) struct RuntimeListEmitter<'a, S, V, DM, IDM> {
+    move_access: &'a RuntimeListMoveAccess<S, V>,
     variable_name: &'static str,
     skip_empty_destinations: bool,
     _phantom: PhantomData<fn() -> (S, DM, IDM)>,
 }
 
-impl<S, V, DM, IDM> RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -46,9 +46,9 @@ where
 {
     pub(super) fn new(
         slot: &RuntimeListSlot<S, V, DM, IDM>,
+        move_access: &'a RuntimeListMoveAccess<S, V>,
         skip_empty_destinations: bool,
     ) -> Self {
-        let move_access = RuntimeListMoveAccess::from_slot(slot);
         Self {
             move_access,
             variable_name: slot.variable_name(),
@@ -59,13 +59,13 @@ where
 
     pub(super) fn move_from_recipe(
         &self,
-        recipe: RuntimeListRecipe<S, V>,
-    ) -> RuntimeListMove<S, V, DM, IDM> {
+        recipe: RuntimeListRecipe<'a, S, V>,
+    ) -> RuntimeListMove<'a, S, V, DM, IDM> {
         RuntimeListMove::new(recipe)
     }
 
-    pub(super) fn move_access(&self) -> &RuntimeListMoveAccess<S, V> {
-        &self.move_access
+    pub(super) fn move_access(&self) -> &'a RuntimeListMoveAccess<S, V> {
+        self.move_access
     }
 
     pub(super) fn skip_empty_destinations(&self) -> bool {
@@ -73,7 +73,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> fmt::Debug for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> fmt::Debug for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     RuntimeListSlot<S, V, DM, IDM>: fmt::Debug,
 {
@@ -87,7 +87,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> ChangeEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> ChangeEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -95,7 +95,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_change(
         &self,
@@ -105,7 +105,7 @@ where
         destination_position: usize,
     ) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::Change {
-            access: self.move_access.clone(),
+            access: self.move_access,
             coordinates: ChangeCoordinates {
                 source_entity,
                 source_position,
@@ -116,7 +116,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> SwapEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> SwapEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -124,7 +124,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_swap(
         &self,
@@ -134,7 +134,7 @@ where
         second_position: usize,
     ) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::Swap {
-            access: self.move_access.clone(),
+            access: self.move_access,
             coordinates: crate::heuristic::r#move::list_kernel::SwapCoordinates {
                 first_entity,
                 first_position,
@@ -145,7 +145,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> ReverseEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> ReverseEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -153,17 +153,17 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_reverse(&self, entity: usize, start: usize, end: usize) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::Reverse {
-            access: self.move_access.clone(),
+            access: self.move_access,
             coordinates: ReverseCoordinates { entity, start, end },
         })
     }
 }
 
-impl<S, V, DM, IDM> PermuteEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> PermuteEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -171,7 +171,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_permute(
         &self,
@@ -181,7 +181,7 @@ where
         permutation: SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>,
     ) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::Permute {
-            access: self.move_access.clone(),
+            access: self.move_access,
             coordinates: PermuteCoordinates { entity, start, end },
             inverse_permutation: inverse_permutation(&permutation),
             permutation,
@@ -189,7 +189,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> SublistChangeEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> SublistChangeEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -197,7 +197,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_sublist_change(
         &self,
@@ -208,7 +208,7 @@ where
         destination_position: usize,
     ) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::SublistChange {
-            access: self.move_access.clone(),
+            access: self.move_access,
             coordinates: SegmentRelocationCoords::new(
                 source_entity,
                 source_start,
@@ -220,7 +220,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> SublistSwapEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> SublistSwapEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -228,7 +228,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_sublist_swap(
         &self,
@@ -240,7 +240,7 @@ where
         second_end: usize,
     ) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::SublistSwap {
-            access: self.move_access.clone(),
+            access: self.move_access,
             coordinates: SegmentSwapCoords::new(
                 first_entity,
                 first_start,
@@ -253,7 +253,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> KOptEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> KOptEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -261,7 +261,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_k_opt(&self, cuts: &[CutPoint], reconnection: &KOptReconnection) -> Self::Move {
         let entity = cuts
@@ -269,7 +269,7 @@ where
             .map(CutPoint::entity_index)
             .expect("shared K-opt cursor emits at least one cut");
         self.move_from_recipe(RuntimeListRecipe::KOpt {
-            access: self.move_access.clone(),
+            access: self.move_access,
             entity,
             cuts: cuts.iter().copied().collect(),
             reconnection: *reconnection,
@@ -278,7 +278,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> RuinEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> RuinEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -286,18 +286,18 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
-    fn emit_ruin(&self, entity: usize, indices: &[usize]) -> Self::Move {
+    fn emit_ruin(&self, entity: usize, indices: SmallVec<[usize; 8]>) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::Ruin {
-            access: self.move_access.clone(),
+            access: self.move_access,
             sources: single_ruin_source(entity, indices),
             skip_empty_destinations: self.skip_empty_destinations,
         })
     }
 }
 
-impl<S, V, DM, IDM> PrecedenceEmitter<S> for RuntimeListEmitter<S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> MultiRuinEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -305,7 +305,30 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Move = RuntimeListMove<S, V, DM, IDM>;
+    fn emit_ruin_sources(
+        &self,
+        sources: RuinSources,
+        _max_count: usize,
+        _max_routes: usize,
+        _eligible: impl Fn(usize, usize) -> bool,
+    ) -> Option<Self::Move> {
+        Some(self.move_from_recipe(RuntimeListRecipe::Ruin {
+            access: self.move_access,
+            sources,
+            skip_empty_destinations: self.skip_empty_destinations,
+        }))
+    }
+}
+
+impl<'a, S, V, DM, IDM> PrecedenceEmitter<S> for RuntimeListEmitter<'a, S, V, DM, IDM>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score,
+    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
+    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+{
+    type Move = RuntimeListMove<'a, S, V, DM, IDM>;
 
     fn emit_change(&self, entity: usize, source: usize, destination: usize) -> Self::Move {
         <Self as ChangeEmitter<S>>::emit_change(self, entity, source, entity, destination)
@@ -338,9 +361,9 @@ where
         )
     }
 
-    fn emit_ruin(&self, sources: &[(usize, SmallVec<[usize; 8]>)]) -> Self::Move {
+    fn emit_ruin(&self, sources: RuinSources) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::Ruin {
-            access: self.move_access.clone(),
+            access: self.move_access,
             sources: merged_ruin_sources(sources),
             skip_empty_destinations: false,
         })
@@ -373,10 +396,10 @@ where
         <Self as PermuteEmitter<S>>::emit_permute(self, entity, start, end, permutation)
     }
 
-    fn emit_multi_swap(&self, swaps: &[(usize, usize, usize)]) -> Self::Move {
+    fn emit_multi_swap(&self, swaps: MultiSwapCoordinates) -> Self::Move {
         self.move_from_recipe(RuntimeListRecipe::MultiSwap {
-            access: self.move_access.clone(),
-            coordinates: MultiSwapCoordinates::from_slice(swaps),
+            access: self.move_access,
+            coordinates: swaps,
             require_score_improvement: true,
         })
     }

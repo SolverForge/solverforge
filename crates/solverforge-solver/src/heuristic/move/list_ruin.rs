@@ -21,8 +21,6 @@ use super::{Move, MoveTabuSignature};
 /// mechanics live in `move::list_kernel` so runtime list moves reuse the same
 /// implementation instead of translating through this facade.
 pub(crate) struct ListRuinMove<S, V> {
-    entity_index: usize,
-    element_indices: SmallVec<[usize; 8]>,
     sources: RuinSources,
     entity_indices: SmallVec<[usize; 8]>,
     access: StaticListRuinAccess<S, V>,
@@ -53,7 +51,7 @@ impl<S, V> ListRuinMove<S, V> {
         descriptor_index: usize,
     ) -> Self {
         Self::from_sources(
-            single_ruin_source(entity_index, element_indices),
+            single_ruin_source(entity_index, SmallVec::from_slice(element_indices)),
             entity_count,
             list_len,
             list_get,
@@ -66,7 +64,7 @@ impl<S, V> ListRuinMove<S, V> {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_multi_source(
-        sources: &[(usize, SmallVec<[usize; 8]>)],
+        sources: RuinSources,
         entity_count: fn(&S) -> usize,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
@@ -98,14 +96,8 @@ impl<S, V> ListRuinMove<S, V> {
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
-        let (entity_index, element_indices) = sources
-            .first()
-            .cloned()
-            .unwrap_or_else(|| (0, SmallVec::new()));
         let entity_indices = ruin_entity_indices(&sources);
         Self {
-            entity_index,
-            element_indices,
             sources,
             entity_indices,
             access: StaticListRuinAccess {
@@ -151,11 +143,13 @@ impl<S, V> ListRuinMove<S, V> {
     }
 
     pub(crate) fn entity_index(&self) -> usize {
-        self.entity_index
+        self.sources.first().map_or(0, |source| source.0)
     }
 
     pub(crate) fn element_indices(&self) -> &[usize] {
-        &self.element_indices
+        self.sources
+            .first()
+            .map_or(&[], |source| source.1.as_slice())
     }
 
     pub(crate) fn ruin_count(&self) -> usize {

@@ -230,17 +230,13 @@ fn permute_moves_clone_only_values_once_and_undo_restores() {
     assert!(mov.is_doable(&director));
     {
         let mut recording = SnapshotDirector::new(&mut director);
-        let undo = mov.do_move(&mut recording);
+        mov.do_move(&mut recording);
         assert_eq!(
             director.working_solution().bins[0].items,
             [goods(0), goods(3), goods(1), goods(2), goods(4)]
         );
-        assert_eq!(
-            undo.as_slice(),
-            &[1, 2, 0],
-            "the permute undo is the inverse permutation, not a value segment"
-        );
-        mov.undo_move(&mut director, undo);
+        // The permute undo replays the move's own inverse, so it carries nothing.
+        mov.undo_move(&mut director, ());
         assert_eq!(
             director.working_solution().bins[0].items,
             vec![goods(0), goods(1), goods(2), goods(3), goods(4)]

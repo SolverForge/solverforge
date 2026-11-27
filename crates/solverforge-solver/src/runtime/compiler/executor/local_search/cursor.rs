@@ -33,7 +33,7 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    Scalar(RuntimeScalarNeighborhoodCursor<S>),
+    Scalar(RuntimeScalarNeighborhoodCursor<'a, S>),
     List(RuntimeListNeighborhoodCursor<'a, S, V, DM, IDM>),
     /// `None` on the step-close return path after the grouped cursor was
     /// extracted with its pooled assignment base.
@@ -53,7 +53,7 @@ where
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
     inner: RuntimeNeighborhoodLeafCursorInner<'a, S, V, DM, IDM>,
-    store: CandidateStore<S, RuntimeNeighborhoodMove<S, V, DM, IDM>>,
+    store: CandidateStore<S, RuntimeNeighborhoodMove<'a, S, V, DM, IDM>>,
 }
 
 impl<'a, S, V, DM, IDM> RuntimeNeighborhoodLeafCursor<'a, S, V, DM, IDM>
@@ -64,7 +64,7 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    pub(super) fn scalar(cursor: RuntimeScalarNeighborhoodCursor<S>) -> Self {
+    pub(super) fn scalar(cursor: RuntimeScalarNeighborhoodCursor<'a, S>) -> Self {
         Self {
             inner: RuntimeNeighborhoodLeafCursorInner::Scalar(cursor),
             store: CandidateStore::new(),
@@ -92,11 +92,17 @@ where
         }
     }
 
+    /// Reuses a pooled candidate-ID table from the leaf's retained state.
+    pub(super) fn with_position_pool(mut self, pool: Vec<Option<usize>>) -> Self {
+        self.store = CandidateStore::with_position_pool(pool);
+        self
+    }
+
     fn next_move(
         &mut self,
         solution: &S,
         resources: &mut ProviderExecutionResources<S>,
-    ) -> Option<RuntimeNeighborhoodMove<S, V, DM, IDM>> {
+    ) -> Option<RuntimeNeighborhoodMove<'a, S, V, DM, IDM>> {
         match &mut self.inner {
             RuntimeNeighborhoodLeafCursorInner::Scalar(cursor) => cursor
                 .next_owned_candidate(solution)
@@ -119,9 +125,9 @@ where
     }
 }
 
-impl<S, V, DM, IDM>
-    ResourceMoveCursor<S, RuntimeNeighborhoodMove<S, V, DM, IDM>, ProviderExecutionResources<S>>
-    for RuntimeNeighborhoodLeafCursor<'_, S, V, DM, IDM>
+impl<'a, S, V, DM, IDM>
+    ResourceMoveCursor<S, RuntimeNeighborhoodMove<'a, S, V, DM, IDM>, ProviderExecutionResources<S>>
+    for RuntimeNeighborhoodLeafCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -141,11 +147,11 @@ where
     fn candidate(
         &self,
         index: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, RuntimeNeighborhoodMove<S, V, DM, IDM>>> {
+    ) -> Option<MoveCandidateRef<'_, S, RuntimeNeighborhoodMove<'a, S, V, DM, IDM>>> {
         self.store.candidate(index)
     }
 
-    fn take_candidate(&mut self, index: CandidateId) -> RuntimeNeighborhoodMove<S, V, DM, IDM> {
+    fn take_candidate(&mut self, index: CandidateId) -> RuntimeNeighborhoodMove<'a, S, V, DM, IDM> {
         self.store.take_candidate(index)
     }
 
@@ -177,7 +183,7 @@ where
 {
     inner: ResourceVecUnionMoveCursor<
         S,
-        RuntimeNeighborhoodMove<S, V, DM, IDM>,
+        RuntimeNeighborhoodMove<'a, S, V, DM, IDM>,
         RuntimeNeighborhoodLeafCursor<'a, S, V, DM, IDM>,
     >,
     candidate_order: SelectionOrder,
@@ -198,7 +204,7 @@ where
     pub(super) fn new(
         inner: ResourceVecUnionMoveCursor<
             S,
-            RuntimeNeighborhoodMove<S, V, DM, IDM>,
+            RuntimeNeighborhoodMove<'a, S, V, DM, IDM>,
             RuntimeNeighborhoodLeafCursor<'a, S, V, DM, IDM>,
         >,
         candidate_order: SelectionOrder,
@@ -215,18 +221,22 @@ where
         }
     }
 
-    /// Pooled grouped assignment bases move back into their leaf slots on the
-    /// step-close path; leaves keep the state between steps.
-    pub(super) fn reclaim_grouped_pooled(
+    /// Pooled state moves back into the retained flat state on the
+    /// step-close path: grouped assignment bases into their leaf slots, and
+    /// the candidate-ID tables, so the next step reuses their capacity.
+    pub(super) fn reclaim_pooled(
         &mut self,
-        stream_state: &mut [super::leaf::RuntimeNeighborhoodLeafStreamState],
+        stream_state: &mut super::leaf::RuntimeNeighborhoodFlatStreamState,
     ) {
-        for (leaf_cursor, slot) in self
+        stream_state.discovered = self.inner.take_discovered_pool();
+        for ((leaf_cursor, slot), positions) in self
             .inner
             .child_cursors_mut()
             .iter_mut()
-            .zip(stream_state.iter_mut())
+            .zip(stream_state.leaves.iter_mut())
+            .zip(stream_state.positions.iter_mut())
         {
+            *positions = leaf_cursor.store.take_position_pool();
             if let (
                 RuntimeNeighborhoodLeafCursorInner::Grouped(grouped),
                 super::leaf::RuntimeNeighborhoodLeafStreamState::Grouped(pooled),
@@ -309,9 +319,9 @@ where
     }
 }
 
-impl<S, V, DM, IDM>
-    ResourceMoveCursor<S, RuntimeNeighborhoodMove<S, V, DM, IDM>, ProviderExecutionResources<S>>
-    for RuntimeNeighborhoodFlatCursor<'_, S, V, DM, IDM>
+impl<'a, S, V, DM, IDM>
+    ResourceMoveCursor<S, RuntimeNeighborhoodMove<'a, S, V, DM, IDM>, ProviderExecutionResources<S>>
+    for RuntimeNeighborhoodFlatCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -342,11 +352,11 @@ where
     fn candidate(
         &self,
         index: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, RuntimeNeighborhoodMove<S, V, DM, IDM>>> {
+    ) -> Option<MoveCandidateRef<'_, S, RuntimeNeighborhoodMove<'a, S, V, DM, IDM>>> {
         self.inner.candidate(index)
     }
 
-    fn take_candidate(&mut self, index: CandidateId) -> RuntimeNeighborhoodMove<S, V, DM, IDM> {
+    fn take_candidate(&mut self, index: CandidateId) -> RuntimeNeighborhoodMove<'a, S, V, DM, IDM> {
         self.inner.take_candidate(index)
     }
 

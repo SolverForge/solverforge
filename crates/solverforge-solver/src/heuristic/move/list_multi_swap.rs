@@ -38,7 +38,7 @@ impl<S, V: Debug> Debug for ListMultiSwapMove<S, V> {
 
 impl<S, V> ListMultiSwapMove<S, V> {
     pub(crate) fn new(
-        swaps: &[(usize, usize, usize)],
+        swaps: MultiSwapCoordinates,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_set: fn(&mut S, usize, usize, V),
@@ -46,7 +46,8 @@ impl<S, V> ListMultiSwapMove<S, V> {
         descriptor_index: usize,
     ) -> Self {
         Self {
-            swaps: swaps.iter().copied().collect(),
+            indices: multi_swap_entity_indices(&swaps),
+            swaps,
             access: StaticListSwapAccess {
                 list_len,
                 list_get,
@@ -54,7 +55,7 @@ impl<S, V> ListMultiSwapMove<S, V> {
                 variable_name,
                 descriptor_index,
             },
-            indices: multi_swap_entity_indices(swaps),
+
             require_score_improvement: false,
         }
     }

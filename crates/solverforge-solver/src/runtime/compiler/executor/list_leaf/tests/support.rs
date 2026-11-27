@@ -25,6 +25,13 @@ use crate::builder::ListVariableSlot;
 mod dynamic;
 pub(super) use dynamic::{dynamic_slot, dynamic_slot_for, dynamic_variable_slot};
 
+pub(super) fn tracked_dynamic_slot(
+    kind: ListLeafKind,
+) -> (Slot, Arc<dyn DynamicListAccess<ListPlan>>) {
+    let (slot, access) = dynamic::tracked_dynamic_slot(kind == ListLeafKind::Precedence);
+    (Slot::from_dynamic(slot), access)
+}
+
 pub(super) type Slot = RuntimeListSlot<ListPlan, usize, PositionMetric, PositionMetric>;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -295,6 +302,8 @@ pub(super) fn config(kind: ListLeafKind) -> MoveSelectorConfig {
                 moves_per_step: Some(3),
                 max_source_list_len: None,
                 skip_empty_destinations: false,
+                source_strategy: solverforge_config::ListRuinSourceStrategy::Random,
+                max_source_routes: None,
                 max_member_distance: None,
                 max_group_owners: None,
                 target,

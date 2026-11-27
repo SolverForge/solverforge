@@ -85,7 +85,7 @@ fn multi_swap_applies_independent_intra_list_swaps_and_undoes() {
     let mut director = create_director(vehicles);
 
     let m = ListMultiSwapMove::<RoutingSolution, i32>::new(
-        &[(0, 0, 2), (1, 0, 1), (2, 1, 2)],
+        smallvec::smallvec![(0, 0, 2), (1, 0, 1), (2, 1, 2)],
         list_len,
         list_get,
         list_set,
@@ -122,7 +122,7 @@ fn multi_swap_rejects_overlapping_entities() {
     let director = create_director(vehicles);
 
     let m = ListMultiSwapMove::<RoutingSolution, i32>::new(
-        &[(0, 0, 1), (0, 1, 2)],
+        smallvec::smallvec![(0, 0, 1), (0, 1, 2)],
         list_len,
         list_get,
         list_set,
@@ -149,7 +149,7 @@ fn multi_swap_tabu_identity_is_swap_order_stable() {
     let director = create_director(vehicles);
 
     let first = ListMultiSwapMove::<RoutingSolution, i32>::new(
-        &[(2, 1, 2), (0, 0, 2), (1, 0, 1)],
+        smallvec::smallvec![(2, 1, 2), (0, 0, 2), (1, 0, 1)],
         list_len,
         list_get,
         list_set,
@@ -157,7 +157,7 @@ fn multi_swap_tabu_identity_is_swap_order_stable() {
         0,
     );
     let second = ListMultiSwapMove::<RoutingSolution, i32>::new(
-        &[(1, 0, 1), (2, 2, 1), (0, 2, 0)],
+        smallvec::smallvec![(1, 0, 1), (2, 2, 1), (0, 2, 0)],
         list_len,
         list_get,
         list_set,

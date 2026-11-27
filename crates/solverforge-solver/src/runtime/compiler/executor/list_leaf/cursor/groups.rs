@@ -66,12 +66,13 @@ where
 }
 
 /// The ruin emitter of a slot with element groups, or `None` without them.
-pub(super) fn runtime_grouped_ruin_emitter<S, V, DM, IDM>(
+pub(super) fn runtime_grouped_ruin_emitter<'a, S, V, DM, IDM>(
     slot: &RuntimeListSlot<S, V, DM, IDM>,
+    move_access: &'a super::super::move_access::RuntimeListMoveAccess<S, V>,
     solution: &S,
     skip_empty_destinations: bool,
     bounds: JointBounds,
-) -> Option<GroupedRuinEmitter<S, V, DM, IDM>>
+) -> Option<GroupedRuinEmitter<'a, S, V, DM, IDM>>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -84,7 +85,7 @@ where
         .map(|entity| ListAccess::list_len(slot, solution, entity))
         .collect();
     Some(GroupedRuinEmitter::new(
-        RuntimeListEmitter::new(slot, skip_empty_destinations),
+        RuntimeListEmitter::new(slot, move_access, skip_empty_destinations),
         groups,
         placement,
         &list_lens,

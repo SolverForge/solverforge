@@ -12,7 +12,7 @@ pub use composite::{
 pub use list::{
     KOptMoveSelectorConfig, ListChangeMoveConfig, ListGroupChangeMoveConfig,
     ListGroupSwapMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
-    ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
+    ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListRuinSourceStrategy, ListSwapMoveConfig,
     NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SublistChangeMoveConfig,
     SublistSwapMoveConfig,
 };

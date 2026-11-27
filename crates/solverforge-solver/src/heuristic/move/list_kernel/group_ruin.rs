@@ -65,9 +65,8 @@ where
     }
     let solution = score_director.working_solution();
     let descriptor_index = access.descriptor_index();
-    let mut removed = plan.removed.clone();
-    removed.sort_unstable();
-    if removed.windows(2).any(|pair| pair[0] == pair[1])
+    let removed = &plan.removed;
+    if super::group::has_duplicate(removed)
         || removed
             .iter()
             .any(|&(entity, position)| position >= access.list_len(solution, entity))
@@ -184,7 +183,7 @@ where
             .map(|entity| access.list_len(score_director.working_solution(), entity))
             .collect();
         let mut trial = JointTrial::new(
-            values[unit.clone()]
+            values[unit.start..unit.end]
                 .iter_mut()
                 .map(|value| value.take().expect("an unplaced member is held"))
                 .collect(),
@@ -196,7 +195,7 @@ where
             plan.bounds,
             |entity, positions| Some(trial.score(access, entity, positions, score_director)),
         );
-        for (slot, member) in values[unit.clone()]
+        for (slot, member) in values[unit.start..unit.end]
             .iter_mut()
             .zip(trial.into_members(access, score_director))
         {

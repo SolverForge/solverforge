@@ -4,7 +4,7 @@ use crate::builder::context::RuntimeListElement;
 use crate::heuristic::r#move::list_kernel::{
     multi_swap_entity_indices, ruin_entity_indices, RuinUndo,
 };
-use crate::heuristic::r#move::{ListUndoJournal, MAX_LIST_PERMUTE_WINDOW_SIZE};
+use crate::heuristic::r#move::ListUndoJournal;
 
 use super::move_access::RuntimeListMoveAccess;
 use super::spec::RuntimeListRecipe;
@@ -12,14 +12,13 @@ use super::spec::RuntimeListRecipe;
 #[derive(Clone, Debug)]
 pub(crate) enum RuntimeListMoveUndo<V> {
     None,
-    Permute(SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>),
     KOpt(ListUndoJournal<RuntimeListElement<V>>),
     Ruin(RuinUndo),
 }
 
-pub(super) fn recipe_access<S, V>(
-    recipe: &RuntimeListRecipe<S, V>,
-) -> &RuntimeListMoveAccess<S, V> {
+pub(super) fn recipe_access<'a, S, V>(
+    recipe: &RuntimeListRecipe<'a, S, V>,
+) -> &'a RuntimeListMoveAccess<S, V> {
     match recipe {
         RuntimeListRecipe::Change { access, .. }
         | RuntimeListRecipe::Swap { access, .. }
@@ -37,7 +36,7 @@ pub(super) fn recipe_access<S, V>(
 }
 
 pub(super) fn recipe_entity_indices<S, V>(
-    recipe: &RuntimeListRecipe<S, V>,
+    recipe: &RuntimeListRecipe<'_, S, V>,
 ) -> SmallVec<[usize; 8]> {
     let mut entities = match recipe {
         RuntimeListRecipe::Change { coordinates, .. } => {
@@ -74,7 +73,7 @@ pub(super) fn recipe_entity_indices<S, V>(
     entities
 }
 
-pub(super) fn recipe_family<S, V>(recipe: &RuntimeListRecipe<S, V>) -> &'static str {
+pub(super) fn recipe_family<S, V>(recipe: &RuntimeListRecipe<'_, S, V>) -> &'static str {
     match recipe {
         RuntimeListRecipe::Change { .. } => "change",
         RuntimeListRecipe::Swap { .. } => "swap",

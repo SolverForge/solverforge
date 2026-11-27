@@ -14,7 +14,7 @@ use super::super::spec::RuntimeScalarRecipe;
 use super::recipe_slot;
 
 pub(super) fn tabu_signature<S, D>(
-    recipe: &RuntimeScalarRecipe<S>,
+    recipe: &RuntimeScalarRecipe<'_, S>,
     director: &D,
 ) -> MoveTabuSignature
 where

@@ -33,6 +33,56 @@ impl RuinSourcePool {
             Self::OwnerRestricted(entities) => entities.is_empty(),
         }
     }
+
+    /// Number of source lists in the pool.
+    pub(super) fn route_count(&self) -> usize {
+        match self {
+            Self::Unrestricted(entities) => entities.len(),
+            Self::OwnerRestricted(entities) => entities.len(),
+        }
+    }
+
+    /// Entity index of pool entry `route`.
+    pub(super) fn entity(&self, route: usize) -> usize {
+        match self {
+            Self::Unrestricted(entities) => entities[route].0,
+            Self::OwnerRestricted(entities) => entities[route].0,
+        }
+    }
+
+    /// Number of eligible positions of pool entry `route`.
+    pub(super) fn position_count(&self, route: usize) -> usize {
+        match self {
+            Self::Unrestricted(entities) => entities[route].1,
+            Self::OwnerRestricted(entities) => entities[route].1.len(),
+        }
+    }
+
+    /// The `slot`-th eligible position of pool entry `route`, ascending.
+    pub(super) fn position(&self, route: usize, slot: usize) -> usize {
+        match self {
+            Self::Unrestricted(_) => slot,
+            Self::OwnerRestricted(entities) => entities[route].1[slot],
+        }
+    }
+
+    /// Whether `position` of pool entry `route` may be removed.
+    pub(super) fn is_eligible(&self, route: usize, position: usize) -> bool {
+        match self {
+            Self::Unrestricted(entities) => position < entities[route].1,
+            Self::OwnerRestricted(entities) => entities[route].1.binary_search(&position).is_ok(),
+        }
+    }
+
+    pub(super) fn contains(&self, entity: usize, position: usize) -> bool {
+        let route = match self {
+            Self::Unrestricted(entities) => entities.binary_search_by_key(&entity, |entry| entry.0),
+            Self::OwnerRestricted(entities) => {
+                entities.binary_search_by_key(&entity, |entry| entry.0)
+            }
+        };
+        route.is_ok_and(|route| self.is_eligible(route, position))
+    }
 }
 
 /// Canonical random ruin coordinate cursor.
@@ -85,39 +135,53 @@ where
         }
     }
 
-    fn next_unrestricted_move(&mut self) -> Option<E::Move> {
-        let RuinSourcePool::Unrestricted(entities) = &self.source_pool else {
-            return None;
-        };
-        let &(entity, list_len) = entities.get(self.rng.random_range(0..entities.len()))?;
-        let ruin_count = self.choose_ruin_count(list_len);
-        let mut indices: SmallVec<[usize; 8]> = (0..list_len).collect();
-        for index in 0..ruin_count {
-            let swap_index = self.rng.random_range(index..list_len);
-            indices.swap(index, swap_index);
-        }
-        indices.truncate(ruin_count);
-        Some(self.emitter.emit_ruin(entity, &indices))
-    }
-
-    fn next_owner_restricted_move(&mut self) -> Option<E::Move> {
-        let (entity, mut indices) = {
-            let RuinSourcePool::OwnerRestricted(entities) = &self.source_pool else {
-                return None;
-            };
-            let (entity, eligible_indices) =
-                entities.get(self.rng.random_range(0..entities.len()))?;
-            (*entity, eligible_indices.clone())
-        };
-        let eligible_len = indices.len();
+    fn next_ruin_move(&mut self) -> Option<E::Move> {
+        let route = self.rng.random_range(0..self.source_pool.route_count());
+        let eligible_len = self.source_pool.position_count(route);
         let ruin_count = self.choose_ruin_count(eligible_len);
-        for index in 0..ruin_count {
-            let swap_index = self.rng.random_range(index..eligible_len);
-            indices.swap(index, swap_index);
-        }
-        indices.truncate(ruin_count);
-        Some(self.emitter.emit_ruin(entity, &indices))
+        let indices = partial_shuffle_prefix(&mut self.rng, eligible_len, ruin_count, |slot| {
+            self.source_pool.position(route, slot)
+        });
+        Some(
+            self.emitter
+                .emit_ruin(self.source_pool.entity(route), indices),
+        )
     }
+}
+
+/// The first `count` entries of a partial Fisher-Yates shuffle of the
+/// sequence `value(0)..value(len)`, with the draws of an in-place shuffle.
+///
+/// Only the swapped slots are recorded, so the sequence itself is never
+/// materialized or copied.
+fn partial_shuffle_prefix(
+    rng: &mut SmallRng,
+    len: usize,
+    count: usize,
+    value: impl Fn(usize) -> usize,
+) -> SmallVec<[usize; 8]> {
+    let mut swapped = SmallVec::<[(usize, usize); 16]>::new();
+    let read = |swapped: &SmallVec<[(usize, usize); 16]>, slot: usize| {
+        swapped
+            .iter()
+            .find(|(candidate, _)| *candidate == slot)
+            .map_or_else(|| value(slot), |&(_, entry)| entry)
+    };
+    let mut prefix = SmallVec::with_capacity(count);
+    for slot in 0..count {
+        let swap_slot = rng.random_range(slot..len);
+        let drawn = read(&swapped, swap_slot);
+        let displaced = read(&swapped, slot);
+        match swapped
+            .iter_mut()
+            .find(|(candidate, _)| *candidate == swap_slot)
+        {
+            Some(entry) => entry.1 = displaced,
+            None => swapped.push((swap_slot, displaced)),
+        }
+        prefix.push(drawn);
+    }
+    prefix
 }
 
 impl<S, E> MoveCursor<S, E::Move> for RuinCursor<S, E>
@@ -130,10 +194,7 @@ where
             return None;
         }
         self.remaining_moves -= 1;
-        let move_value = match self.source_pool {
-            RuinSourcePool::Unrestricted(_) => self.next_unrestricted_move(),
-            RuinSourcePool::OwnerRestricted(_) => self.next_owner_restricted_move(),
-        }?;
+        let move_value = self.next_ruin_move()?;
         Some(self.store.push(move_value))
     }
 

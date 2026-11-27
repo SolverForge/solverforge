@@ -133,7 +133,7 @@ src/
 │   │       ├── list_swap.rs
 │   │       ├── list_permute.rs
 │   │       ├── list_reverse.rs
-│   │       ├── list_ruin.rs (+ list_ruin/transfer.rs zero-clone ownership-transfer contract)
+│   │       ├── list_ruin.rs (+ list_ruin/transfer.rs zero-clone ownership-transfer contract, list_ruin/rollback.rs failed-recreate restoration)
 │   │       ├── ruin.rs
 │   │       ├── sublist_change.rs
 │   │       ├── sublist_swap.rs
@@ -169,7 +169,7 @@ src/
 │       ├── nearby_list_support.rs      — Private selected-entity snapshots and bounded stable top-k nearby candidate ordering
 │       ├── nearby_list_swap.rs         — Test-only NearbyListSwapMoveSelector oracle
 │       ├── nearby_support.rs           — Shared nearest-candidate ordering and bounded stable top-k helpers for nearby neighborhoods
-│       ├── list_kernel/                — Shared list candidate enumeration/emission kernels, including precedence, k-opt, and group change/swap cursors
+│       ├── list_kernel/                — Shared list candidate enumeration/emission kernels, including precedence, k-opt, group change/swap, and random and contiguous ruin cursors
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── cartesian_product.rs    — Test-only CartesianProductCursor<S, M> and CartesianProductSelector<S, M, Left, Right> oracles

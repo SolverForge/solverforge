@@ -14,17 +14,45 @@ use super::support::{
     ListPlan, PositionMetric, ALL_KINDS,
 };
 
-type RuntimeMove = RuntimeListMove<ListPlan, usize, PositionMetric, PositionMetric>;
+type RuntimeMove<'a> = RuntimeListMove<'a, ListPlan, usize, PositionMetric, PositionMetric>;
 
-fn first_doable(
-    selector: &super::super::RuntimeListNeighborhoodSelector<
+#[test]
+fn runtime_list_candidates_do_not_retain_dynamic_access_copies() {
+    for kind in ALL_KINDS {
+        let (slot, access) = super::support::tracked_dynamic_slot(kind);
+        let selector = selector(kind, slot, Some(71));
+        let director = director(initial_plan());
+        let baseline = std::sync::Arc::strong_count(&access);
+        let mut state = selector.new_stream_state();
+        let mut cursor =
+            selector.open_cursor_with_stream_state(&mut state, &director, Default::default());
+        assert_eq!(
+            std::sync::Arc::strong_count(&access),
+            baseline,
+            "{kind:?} cursor open"
+        );
+        let mut moves = Vec::new();
+        while let Some(candidate) = cursor.next_owned_candidate(director.working_solution()) {
+            moves.push(candidate);
+            assert_eq!(
+                std::sync::Arc::strong_count(&access),
+                baseline,
+                "{kind:?} candidate emission"
+            );
+        }
+        assert!(!moves.is_empty(), "{kind:?} must exercise its emitter");
+    }
+}
+
+fn first_doable<'a>(
+    selector: &'a super::super::RuntimeListNeighborhoodSelector<
         ListPlan,
         usize,
         PositionMetric,
         PositionMetric,
     >,
     score_director: &mut solverforge_scoring::ScoreDirector<ListPlan, ()>,
-) -> RuntimeMove {
+) -> RuntimeMove<'a> {
     let mut stream_state = selector.new_stream_state();
     let mut cursor = selector.open_cursor_with_stream_state(
         &mut stream_state,

@@ -43,7 +43,7 @@ struct CartesianPair {
 pub(super) struct SelectorCompositionCartesianCursor<S, M>
 where
     S: PlanningSolution,
-    M: Move<S> + 'static,
+    M: Move<S>,
 {
     require_hard_improvement: bool,
     left: CompositionNodeId,
@@ -57,7 +57,7 @@ where
 impl<S, M> SelectorCompositionCartesianCursor<S, M>
 where
     S: PlanningSolution,
-    M: SequentialMoveCarrier<S> + 'static,
+    M: SequentialMoveCarrier<S>,
 {
     pub(super) fn new(
         require_hard_improvement: bool,
@@ -127,11 +127,11 @@ where
         }
     }
 
-    fn finish_active_row<Flat, FlatState, Resources>(
+    fn finish_active_row<'a, Flat, FlatState, Resources>(
         &mut self,
-        arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
+        arena: &mut SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>,
     ) where
-        Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
+        Flat: StatefulComposedFlat<'a, S, M, FlatState, Resources>,
     {
         let active = self
             .active_row
@@ -142,13 +142,13 @@ where
         self.release_row_if_unused(row_index);
     }
 
-    pub(super) fn take<Flat, FlatState, Resources>(
+    pub(super) fn take<'a, Flat, FlatState, Resources>(
         &mut self,
-        arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
+        arena: &mut SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>,
         index: CandidateId,
     ) -> M
     where
-        Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
+        Flat: StatefulComposedFlat<'a, S, M, FlatState, Resources>,
     {
         let pair = self
             .pairs
@@ -204,14 +204,14 @@ where
         M::from_sequential(selected)
     }
 
-    pub(super) fn next<Flat, FlatState, Resources, D>(
+    pub(super) fn next<'a, Flat, FlatState, Resources, D>(
         &mut self,
-        arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
+        arena: &mut SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>,
         director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId>
     where
-        Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
+        Flat: StatefulComposedFlat<'a, S, M, FlatState, Resources>,
         D: Director<S>,
     {
         loop {

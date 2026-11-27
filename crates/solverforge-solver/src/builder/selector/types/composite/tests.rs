@@ -21,6 +21,7 @@ struct CustomState {
     opens: usize,
 }
 type TestMove = RuntimeNeighborhoodMove<
+    'static,
     NQueensSolution,
     usize,
     DefaultCrossEntityDistanceMeter,
@@ -48,20 +49,27 @@ fn grouped_row_move(entity: usize, row: usize) -> TestMove {
         )],
     ))
 }
-type Graph = SelectorComposition<NQueensSolution, TestMove, CustomFlat, CustomState>;
+type Graph = SelectorComposition<NQueensSolution, CustomFlat, CustomState>;
 
-impl StatefulComposedFlat<NQueensSolution, TestMove, CustomState, ()> for CustomFlat {
-    type Cursor<'a> = UnitResourceCursor<ArenaMoveCursor<NQueensSolution, TestMove>>;
+impl ComposedFlat<NQueensSolution, CustomState> for CustomFlat {
     fn new_stream_state(&self) -> CustomState {
         CustomState { opens: 0 }
     }
-    fn open_cursor_with_stream_state<'a, D: Director<NQueensSolution>>(
+    fn size<D: Director<NQueensSolution>>(&self, _: &D) -> usize {
+        self.values.len()
+    }
+    fn validate_cursor<D: Director<NQueensSolution>>(&self, _: &D) {}
+}
+
+impl<'a> StatefulComposedFlat<'a, NQueensSolution, TestMove, CustomState, ()> for CustomFlat {
+    type Cursor = UnitResourceCursor<ArenaMoveCursor<NQueensSolution, TestMove>>;
+    fn open_cursor_with_stream_state<D: Director<NQueensSolution>>(
         &'a self,
         state: &mut CustomState,
         _: &mut (),
         director: &D,
         _: MoveStreamContext,
-    ) -> Self::Cursor<'a> {
+    ) -> Self::Cursor {
         state.opens += 1;
         let mut store = ArenaMoveCursor::new();
         for &value in &self.values {
@@ -74,10 +82,6 @@ impl StatefulComposedFlat<NQueensSolution, TestMove, CustomState, ()> for Custom
         }
         UnitResourceCursor::new(store)
     }
-    fn size<D: Director<NQueensSolution>>(&self, _: &D) -> usize {
-        self.values.len()
-    }
-    fn validate_cursor<D: Director<NQueensSolution>>(&self, _: &D) {}
 }
 
 #[test]
@@ -198,28 +202,30 @@ fn arena_cartesian_lends_the_left_preview_to_lazy_right_pulls() {
             self.store.release_candidate(id)
         }
     }
-    impl StatefulComposedFlat<NQueensSolution, TestMove, (), ()> for LazyFlat {
-        type Cursor<'a> = UnitResourceCursor<LazyCursor<'a>>;
+    impl ComposedFlat<NQueensSolution, ()> for LazyFlat {
         fn new_stream_state(&self) {}
-        fn open_cursor_with_stream_state<'a, D: Director<NQueensSolution>>(
+        fn size<D: Director<NQueensSolution>>(&self, _: &D) -> usize {
+            self.values.len()
+        }
+        fn validate_cursor<D: Director<NQueensSolution>>(&self, _: &D) {}
+    }
+    impl<'a> StatefulComposedFlat<'a, NQueensSolution, TestMove, (), ()> for LazyFlat {
+        type Cursor = UnitResourceCursor<LazyCursor<'a>>;
+        fn open_cursor_with_stream_state<D: Director<NQueensSolution>>(
             &'a self,
             _: &mut (),
             _: &mut (),
             _: &D,
             _: MoveStreamContext,
-        ) -> Self::Cursor<'a> {
+        ) -> Self::Cursor {
             UnitResourceCursor::new(LazyCursor {
                 flat: self,
                 position: 0,
                 store: CandidateStore::new(),
             })
         }
-        fn size<D: Director<NQueensSolution>>(&self, _: &D) -> usize {
-            self.values.len()
-        }
-        fn validate_cursor<D: Director<NQueensSolution>>(&self, _: &D) {}
     }
-    let mut graph = SelectorComposition::<NQueensSolution, TestMove, LazyFlat, ()>::new();
+    let mut graph = SelectorComposition::<NQueensSolution, LazyFlat, ()>::new();
     let left = graph.push(SelectorCompositionNode::Flat(LazyFlat {
         entity: 0,
         values: vec![1, 2],
@@ -481,7 +487,7 @@ fn arena_rejects_shared_mutable_child_nodes() {
         right: leaf,
         require_hard_improvement: false,
     });
-    let _ = SelectorCompositionState::<_, _, _, _, ()>::new(graph);
+    let _ = SelectorCompositionState::<_, _, _, ()>::new(graph);
 }
 
 #[path = "tests/union_weights.rs"]

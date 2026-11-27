@@ -6,12 +6,13 @@ use solverforge_core::score::Score;
 use crate::builder::context::{list_access::ListAccess, RuntimeListSlot};
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::selector::list_kernel::{
-    ChangeCursor, GroupChangeCursor, GroupSwapCursor, KOptCursor, NearbyChangeCursor,
-    NearbyKOptCursor, NearbySwapCursor, PermuteCursor, PrecedenceCursor, ReverseCursor, RuinCursor,
-    SublistChangeCursor, SublistSwapCursor, SwapCursor, DYNAMIC_CHANGE_SALTS, STATIC_CHANGE_SALTS,
-    STATIC_NEARBY_CHANGE_ENTITY_SALT, STATIC_NEARBY_CHANGE_SOURCE_SALT,
-    STATIC_NEARBY_SWAP_ENTITY_SALT, STATIC_NEARBY_SWAP_SOURCE_SALT, STATIC_REVERSE_ENTITY_SALT,
-    STATIC_SUBLIST_CHANGE_SALTS, STATIC_SUBLIST_SWAP_ENTITY_SALT, STATIC_SWAP_SALTS,
+    ChangeCursor, ContiguousRuinCursor, GroupChangeCursor, GroupSwapCursor, KOptCursor,
+    NearbyChangeCursor, NearbyKOptCursor, NearbySwapCursor, PermuteCursor, PrecedenceCursor,
+    ReverseCursor, RuinCursor, SublistChangeCursor, SublistSwapCursor, SwapCursor,
+    DYNAMIC_CHANGE_SALTS, STATIC_CHANGE_SALTS, STATIC_NEARBY_CHANGE_ENTITY_SALT,
+    STATIC_NEARBY_CHANGE_SOURCE_SALT, STATIC_NEARBY_SWAP_ENTITY_SALT,
+    STATIC_NEARBY_SWAP_SOURCE_SALT, STATIC_REVERSE_ENTITY_SALT, STATIC_SUBLIST_CHANGE_SALTS,
+    STATIC_SUBLIST_SWAP_ENTITY_SALT, STATIC_SWAP_SALTS,
 };
 use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveStreamContext,
@@ -20,12 +21,12 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 use super::super::emission::RuntimeListEmitter;
 use super::super::group_emission::GroupedRuinEmitter;
-use super::super::spec::RuntimeListNeighborhoodSpec;
+use super::super::spec::{RuinSourceShape, RuntimeListNeighborhoodSpec};
 use super::super::RuntimeListMove;
 use super::groups::{runtime_group_snapshots, runtime_grouped_ruin_emitter};
 use super::probe::{
     runtime_precedence_analysis, runtime_precedence_graph, runtime_ruin_source_pool,
-    runtime_selected_owners, RuntimeKOptProbe, RuntimeNearbyProbe,
+    runtime_selected_owners, RuntimeKOptProbe, RuntimeNearbyProbe, RuntimeRuinProbe,
 };
 
 mod open;
@@ -39,44 +40,58 @@ where
     DM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    Change(ChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
+    Change(ChangeCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
     NearbyChange(
         NearbyChangeCursor<
             S,
-            RuntimeListEmitter<S, V, DM, IDM>,
+            RuntimeListEmitter<'a, S, V, DM, IDM>,
             RuntimeNearbyProbe<'a, S, V, DM, IDM>,
         >,
     ),
-    Swap(SwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    Permute(PermuteCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    Precedence(PrecedenceCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
+    Swap(SwapCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    Permute(PermuteCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    Precedence(PrecedenceCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
     NearbySwap(
         NearbySwapCursor<
             S,
-            RuntimeListEmitter<S, V, DM, IDM>,
+            RuntimeListEmitter<'a, S, V, DM, IDM>,
             RuntimeNearbyProbe<'a, S, V, DM, IDM>,
         >,
     ),
-    SublistChange(SublistChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    SublistSwap(SublistSwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    Reverse(ReverseCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    KOpt(KOptCursor<'a, S, RuntimeListEmitter<S, V, DM, IDM>>),
+    SublistChange(SublistChangeCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    SublistSwap(SublistSwapCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    Reverse(ReverseCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    KOpt(KOptCursor<'a, S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
     NearbyKOpt(
         NearbyKOptCursor<
             'a,
             S,
-            RuntimeListEmitter<S, V, DM, IDM>,
+            RuntimeListEmitter<'a, S, V, DM, IDM>,
             RuntimeKOptProbe<'a, S, V, DM, IDM>,
         >,
     ),
-    Ruin(RuinCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    GroupRuin(RuinCursor<S, GroupedRuinEmitter<S, V, DM, IDM>>),
-    GroupChange(GroupChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
-    GroupSwap(GroupSwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
+    Ruin(RuinCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    GroupRuin(RuinCursor<S, GroupedRuinEmitter<'a, S, V, DM, IDM>>),
+    ContiguousRuin(
+        ContiguousRuinCursor<
+            S,
+            RuntimeListEmitter<'a, S, V, DM, IDM>,
+            RuntimeRuinProbe<'a, S, V, DM, IDM>,
+        >,
+    ),
+    ContiguousGroupRuin(
+        ContiguousRuinCursor<
+            S,
+            GroupedRuinEmitter<'a, S, V, DM, IDM>,
+            RuntimeRuinProbe<'a, S, V, DM, IDM>,
+        >,
+    ),
+    GroupChange(GroupChangeCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
+    GroupSwap(GroupSwapCursor<S, RuntimeListEmitter<'a, S, V, DM, IDM>>),
     Empty,
 }
 
-impl<S, V, DM, IDM> RuntimeListSlotCursor<'_, S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> RuntimeListSlotCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -84,7 +99,7 @@ where
     DM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    pub(super) fn next_move(&mut self, solution: &S) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+    pub(super) fn next_move(&mut self, solution: &S) -> Option<RuntimeListMove<'a, S, V, DM, IDM>> {
         match self {
             Self::Change(cursor) => cursor.next_owned_candidate(solution),
             Self::NearbyChange(cursor) => cursor.next_owned_candidate(solution),
@@ -99,6 +114,8 @@ where
             Self::NearbyKOpt(cursor) => cursor.next_owned_candidate(solution),
             Self::Ruin(cursor) => cursor.next_owned_candidate(solution),
             Self::GroupRuin(cursor) => cursor.next_owned_candidate(solution),
+            Self::ContiguousRuin(cursor) => cursor.next_owned_candidate(solution),
+            Self::ContiguousGroupRuin(cursor) => cursor.next_owned_candidate(solution),
             Self::GroupChange(cursor) => cursor.next_owned_candidate(solution),
             Self::GroupSwap(cursor) => cursor.next_owned_candidate(solution),
             Self::Empty => None,
@@ -106,8 +123,8 @@ where
     }
 }
 
-impl<S, V, DM, IDM> MoveCursor<S, RuntimeListMove<S, V, DM, IDM>>
-    for RuntimeListSlotCursor<'_, S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> MoveCursor<S, RuntimeListMove<'a, S, V, DM, IDM>>
+    for RuntimeListSlotCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -130,6 +147,8 @@ where
             Self::NearbyKOpt(cursor) => cursor.next_candidate(solution),
             Self::Ruin(cursor) => cursor.next_candidate(solution),
             Self::GroupRuin(cursor) => cursor.next_candidate(solution),
+            Self::ContiguousRuin(cursor) => cursor.next_candidate(solution),
+            Self::ContiguousGroupRuin(cursor) => cursor.next_candidate(solution),
             Self::GroupChange(cursor) => cursor.next_candidate(solution),
             Self::GroupSwap(cursor) => cursor.next_candidate(solution),
             Self::Empty => None,
@@ -139,7 +158,7 @@ where
     fn candidate(
         &self,
         id: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, RuntimeListMove<S, V, DM, IDM>>> {
+    ) -> Option<MoveCandidateRef<'_, S, RuntimeListMove<'a, S, V, DM, IDM>>> {
         match self {
             Self::Change(cursor) => cursor.candidate(id),
             Self::NearbyChange(cursor) => cursor.candidate(id),
@@ -154,13 +173,15 @@ where
             Self::NearbyKOpt(cursor) => cursor.candidate(id),
             Self::Ruin(cursor) => cursor.candidate(id),
             Self::GroupRuin(cursor) => cursor.candidate(id),
+            Self::ContiguousRuin(cursor) => cursor.candidate(id),
+            Self::ContiguousGroupRuin(cursor) => cursor.candidate(id),
             Self::GroupChange(cursor) => cursor.candidate(id),
             Self::GroupSwap(cursor) => cursor.candidate(id),
             Self::Empty => None,
         }
     }
 
-    fn take_candidate(&mut self, id: CandidateId) -> RuntimeListMove<S, V, DM, IDM> {
+    fn take_candidate(&mut self, id: CandidateId) -> RuntimeListMove<'a, S, V, DM, IDM> {
         match self {
             Self::Change(cursor) => cursor.take_candidate(id),
             Self::NearbyChange(cursor) => cursor.take_candidate(id),
@@ -175,13 +196,15 @@ where
             Self::NearbyKOpt(cursor) => cursor.take_candidate(id),
             Self::Ruin(cursor) => cursor.take_candidate(id),
             Self::GroupRuin(cursor) => cursor.take_candidate(id),
+            Self::ContiguousRuin(cursor) => cursor.take_candidate(id),
+            Self::ContiguousGroupRuin(cursor) => cursor.take_candidate(id),
             Self::GroupChange(cursor) => cursor.take_candidate(id),
             Self::GroupSwap(cursor) => cursor.take_candidate(id),
             Self::Empty => panic!("empty runtime list slot has no candidate to take"),
         }
     }
 
-    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeListMove<'a, S, V, DM, IDM>> {
         self.next_move(solution)
     }
 
@@ -200,6 +223,8 @@ where
             Self::NearbyKOpt(cursor) => cursor.release_candidate(id),
             Self::Ruin(cursor) => cursor.release_candidate(id),
             Self::GroupRuin(cursor) => cursor.release_candidate(id),
+            Self::ContiguousRuin(cursor) => cursor.release_candidate(id),
+            Self::ContiguousGroupRuin(cursor) => cursor.release_candidate(id),
             Self::GroupChange(cursor) => cursor.release_candidate(id),
             Self::GroupSwap(cursor) => cursor.release_candidate(id),
             Self::Empty => false,

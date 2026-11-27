@@ -30,6 +30,9 @@ pub(crate) enum ListMoveUnion<S, V> {
     ListRuin(ListRuinMove<S, V>),
 }
 
+/// Only ruin carries undo data; every other list move replays its own
+/// coordinates, so boxing the ruin journal would add an allocation per ruin.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ListMoveUnionUndo<S, V>
 where
     S: PlanningSolution,
@@ -98,7 +101,10 @@ where
                 m.do_move(score_director);
                 ListMoveUnionUndo::ListMultiSwap(())
             }
-            Self::ListPermute(m) => ListMoveUnionUndo::ListPermute(m.do_move(score_director)),
+            Self::ListPermute(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::ListPermute(())
+            }
             Self::SublistChange(m) => {
                 m.do_move(score_director);
                 ListMoveUnionUndo::SublistChange(())

@@ -328,7 +328,7 @@ fn ruin_recreate_restores_multiple_source_entities() {
     });
 
     let m = ListRuinMove::<VrpSolution, i32>::new_multi_source(
-        &[
+        smallvec::smallvec![
             (0, SmallVec::from_slice(&[1, 3])),
             (1, SmallVec::from_slice(&[0, 2])),
         ],
@@ -485,4 +485,5 @@ fn precedence_ruin_restores_original_when_recreate_has_no_safe_position() {
 }
 
 mod pinning;
+mod rollback;
 mod transfer;

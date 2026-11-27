@@ -76,36 +76,31 @@ where
     sub_pillars
 }
 
-pub(crate) fn intersect_legal_values_for_pillar<I, F>(
-    pillar: &Pillar,
-    mut values_for_entity: F,
-) -> Vec<usize>
-where
-    F: FnMut(usize) -> I,
-    I: IntoIterator<Item = usize>,
-{
-    let Some(first_entity) = pillar.first() else {
-        return Vec::new();
+pub(crate) fn intersect_legal_values_for_pillar(
+    entities: &[usize],
+    mut visit_values: impl FnMut(usize, &mut Vec<usize>),
+    intersection: &mut Vec<usize>,
+    scratch: &mut Vec<usize>,
+) {
+    intersection.clear();
+    let Some((&first, rest)) = entities.split_first() else {
+        return;
     };
-
-    let mut intersection = Vec::new();
-    for value in values_for_entity(first_entity.entity_index) {
+    scratch.clear();
+    visit_values(first, scratch);
+    for &value in scratch.iter() {
         if !intersection.contains(&value) {
             intersection.push(value);
         }
     }
 
-    for entity in pillar.iter().skip(1) {
-        // Sorted-scratch intersection: no per-entity hash-set allocation.
-        let mut legal_values: Vec<usize> =
-            values_for_entity(entity.entity_index).into_iter().collect();
-        legal_values.sort_unstable();
-        legal_values.dedup();
-        intersection.retain(|value| legal_values.binary_search(value).is_ok());
+    for &entity in rest {
+        scratch.clear();
+        visit_values(entity, scratch);
+        scratch.sort_unstable();
+        intersection.retain(|value| scratch.binary_search(value).is_ok());
         if intersection.is_empty() {
             break;
         }
     }
-
-    intersection
 }

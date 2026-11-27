@@ -9,7 +9,7 @@ use crate::builder::RuntimeScalarSlot;
 use super::super::spec::RuntimeScalarRecipe;
 use super::{recipe_slot, RuntimeScalarMoveUndo};
 
-pub(super) fn is_doable<S>(recipe: &RuntimeScalarRecipe<S>, solution: &S) -> bool
+pub(super) fn is_doable<S>(recipe: &RuntimeScalarRecipe<'_, S>, solution: &S) -> bool
 where
     S: PlanningSolution,
 {
@@ -93,7 +93,7 @@ where
 }
 
 pub(super) fn do_move<S, D>(
-    recipe: &RuntimeScalarRecipe<S>,
+    recipe: &RuntimeScalarRecipe<'_, S>,
     director: &mut D,
 ) -> RuntimeScalarMoveUndo
 where
@@ -175,7 +175,7 @@ where
 }
 
 pub(super) fn undo_move<S, D>(
-    recipe: &RuntimeScalarRecipe<S>,
+    recipe: &RuntimeScalarRecipe<'_, S>,
     director: &mut D,
     undo: RuntimeScalarMoveUndo,
 ) where

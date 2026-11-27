@@ -63,12 +63,12 @@ pub use move_selector::{
     ConflictRepairMoveSelectorConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig,
     LimitedNeighborhoodConfig, ListChangeMoveConfig, ListGroupChangeMoveConfig,
     ListGroupSwapMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
-    ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig,
-    NearbyChangeMoveConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
-    NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
-    RuinRecreateMoveSelectorConfig, SelectionOrder, SublistChangeMoveConfig, SublistSwapMoveConfig,
-    SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder, UnionWeighting,
-    VariableTargetConfig,
+    ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListRuinSourceStrategy, ListSwapMoveConfig,
+    MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
+    NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
+    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SelectionOrder, SublistChangeMoveConfig,
+    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
+    UnionWeighting, VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,

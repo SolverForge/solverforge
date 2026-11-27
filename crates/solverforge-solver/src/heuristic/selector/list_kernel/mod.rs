@@ -5,6 +5,7 @@
 //! boundary; it deliberately knows nothing about compiler lowering.
 
 mod change;
+mod contiguous_ruin;
 #[cfg(test)]
 mod dynamic_change_emission;
 mod emission;
@@ -27,6 +28,7 @@ mod swap;
 mod window_emission;
 
 pub(crate) use change::{ChangeCursor, DYNAMIC_CHANGE_SALTS, STATIC_CHANGE_SALTS};
+pub(crate) use contiguous_ruin::{ContiguousRuinCursor, RuinDistanceProbe};
 #[cfg(test)]
 pub(crate) use dynamic_change_emission::DynamicChangeEmitter;
 pub(crate) use emission::{ChangeEmitter, SwapEmitter};
@@ -63,7 +65,7 @@ pub(crate) use precedence::{
 };
 pub(crate) use reverse::{ReverseCursor, STATIC_REVERSE_ENTITY_SALT};
 pub(crate) use ruin::{RuinCursor, RuinSourcePool};
-pub(crate) use ruin_emission::RuinEmitter;
+pub(crate) use ruin_emission::{MultiRuinEmitter, RuinEmitter};
 pub(crate) use sublist_change::{SublistChangeCursor, STATIC_SUBLIST_CHANGE_SALTS};
 pub(crate) use sublist_swap::{SublistSwapCursor, STATIC_SUBLIST_SWAP_ENTITY_SALT};
 pub(crate) use swap::{SwapCursor, STATIC_SWAP_SALTS};

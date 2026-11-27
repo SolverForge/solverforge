@@ -16,18 +16,20 @@ use solverforge_scoring::Director;
 use crate::builder::context::list_access::ListAccess;
 use crate::heuristic::selector::decorator::VecUnionMoveCursor;
 use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveStreamContext,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::seed::scoped_seed;
 
 use self::slot::{open_slot_cursor, RuntimeListSlotCursor};
+use super::move_access::RuntimeListMoveAccess;
 use super::spec::{RuntimeListNeighborhoodPlan, RuntimeListNeighborhoodSpec};
 use super::RuntimeListMove;
 
 /// A compiled list leaf ready to open a per-step cursor.
 pub(crate) struct RuntimeListNeighborhoodSelector<S, V, DM, IDM> {
     plan: RuntimeListNeighborhoodPlan<S, V, DM, IDM>,
+    move_access: Vec<RuntimeListMoveAccess<S, V>>,
 }
 
 impl<S, V, DM, IDM> RuntimeListNeighborhoodSelector<S, V, DM, IDM>
@@ -39,7 +41,12 @@ where
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
     pub(crate) fn new(plan: RuntimeListNeighborhoodPlan<S, V, DM, IDM>) -> Self {
-        Self { plan }
+        let move_access = plan
+            .slots
+            .iter()
+            .map(RuntimeListMoveAccess::from_slot)
+            .collect();
+        Self { plan, move_access }
     }
 
     pub(crate) fn plan(&self) -> &RuntimeListNeighborhoodPlan<S, V, DM, IDM> {
@@ -79,7 +86,15 @@ where
                 open_slot_cursor(
                     self.plan.spec,
                     slot,
+                    &self.move_access[slot_index],
                     score_director.working_solution(),
+                    |entity| {
+                        crate::pinning::entity_is_pinned(
+                            score_director,
+                            slot.descriptor_index(),
+                            entity,
+                        )
+                    },
                     context,
                     &self.plan.kopt_patterns,
                     ruin_seeds.get(slot_index).copied(),
@@ -175,8 +190,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> MoveSelector<S, RuntimeListMove<S, V, DM, IDM>>
-    for RuntimeListNeighborhoodSelector<S, V, DM, IDM>
+impl<S, V, DM, IDM> RuntimeListNeighborhoodSelector<S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -184,20 +198,18 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    type Cursor<'a>
-        = RuntimeListNeighborhoodCursor<'a, S, V, DM, IDM>
-    where
-        Self: 'a;
-
-    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+    pub(crate) fn open_cursor<D: Director<S>>(
+        &self,
+        score_director: &D,
+    ) -> RuntimeListNeighborhoodCursor<'_, S, V, DM, IDM> {
         self.open_cursor_with_context(score_director, MoveStreamContext::default())
     }
 
-    fn open_cursor_with_context<'a, D: Director<S>>(
+    pub(crate) fn open_cursor_with_context<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
         context: MoveStreamContext,
-    ) -> Self::Cursor<'a> {
+    ) -> RuntimeListNeighborhoodCursor<'a, S, V, DM, IDM> {
         if matches!(self.plan.spec, RuntimeListNeighborhoodSpec::Ruin { .. }) {
             panic!(
                 "runtime list ruin leaves must be opened through their persistent composed stream state"
@@ -207,7 +219,7 @@ where
         self.open_cursor_with_stream_state(&mut stream_state, score_director, context)
     }
 
-    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
+    pub(crate) fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         match self.plan.spec {
             RuntimeListNeighborhoodSpec::Ruin { moves_per_step, .. } => self
                 .plan
@@ -240,13 +252,13 @@ where
 {
     inner: VecUnionMoveCursor<
         S,
-        RuntimeListMove<S, V, DM, IDM>,
+        RuntimeListMove<'a, S, V, DM, IDM>,
         RuntimeListSlotCursor<'a, S, V, DM, IDM>,
     >,
 }
 
-impl<S, V, DM, IDM> MoveCursor<S, RuntimeListMove<S, V, DM, IDM>>
-    for RuntimeListNeighborhoodCursor<'_, S, V, DM, IDM>
+impl<'a, S, V, DM, IDM> MoveCursor<S, RuntimeListMove<'a, S, V, DM, IDM>>
+    for RuntimeListNeighborhoodCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -261,23 +273,23 @@ where
     fn candidate(
         &self,
         id: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, RuntimeListMove<S, V, DM, IDM>>> {
+    ) -> Option<MoveCandidateRef<'_, S, RuntimeListMove<'a, S, V, DM, IDM>>> {
         self.inner.candidate(id)
     }
 
-    fn take_candidate(&mut self, id: CandidateId) -> RuntimeListMove<S, V, DM, IDM> {
+    fn take_candidate(&mut self, id: CandidateId) -> RuntimeListMove<'a, S, V, DM, IDM> {
         self.inner.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeListMove<'a, S, V, DM, IDM>> {
         self.inner.next_owned_candidate(solution)
     }
 
     fn next_owned_candidate_matching(
         &mut self,
         solution: &S,
-        predicate: for<'b> fn(MoveCandidateRef<'b, S, RuntimeListMove<S, V, DM, IDM>>) -> bool,
-    ) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+        predicate: for<'b> fn(MoveCandidateRef<'b, S, RuntimeListMove<'a, S, V, DM, IDM>>) -> bool,
+    ) -> Option<RuntimeListMove<'a, S, V, DM, IDM>> {
         self.inner
             .next_owned_candidate_matching(solution, predicate)
     }

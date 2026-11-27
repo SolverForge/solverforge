@@ -22,8 +22,8 @@ const NEARBY_CHANGE_VALUE_SALT: u64 = 0xC4A4_6E00_AAAA_0003;
 /// row's turn arrives, into one reusable scratch vec. Enumerated recipes and
 /// their order are identical to the historical eager collection because the
 /// per-row callbacks run in the same entity order with the same salts.
-pub(super) struct ChangeCursor<S> {
-    slot: RuntimeScalarSlot<S>,
+pub(super) struct ChangeCursor<'a, S> {
+    slot: &'a RuntimeScalarSlot<S>,
     context: MoveStreamContext,
     identity: u64,
     entity_order: Vec<usize>,
@@ -42,18 +42,18 @@ struct ChangeRow {
     current_assigned: bool,
 }
 
-impl<S> ChangeCursor<S>
+impl<'a, S> ChangeCursor<'a, S>
 where
     S: PlanningSolution,
 {
     pub(super) fn new(
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         solution: &S,
         context: MoveStreamContext,
         value_candidate_limit: Option<usize>,
     ) -> Self {
         let dynamic = slot.is_dynamic();
-        let identity = slot_identity(&slot);
+        let identity = slot_identity(slot);
         let value_salt = if dynamic {
             DYNAMIC_CHANGE_VALUE_SALT
         } else {
@@ -92,7 +92,7 @@ where
             entity_order.sort_by_key(|(order, entity_offset, _)| (*order, *entity_offset));
         }
         Self {
-            slot: slot.clone(),
+            slot,
             context,
             identity,
             entity_order: entity_order
@@ -109,7 +109,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<'a, S>> {
         loop {
             if self.current_row.is_none() {
                 let entity_index = *self.entity_order.get(self.row_offset)?;
@@ -154,7 +154,7 @@ where
             if let Some(&value) = row.values.get(self.value_offset) {
                 self.value_offset += 1;
                 return Some(RuntimeScalarRecipe::Change {
-                    slot: self.slot.clone(),
+                    slot: self.slot,
                     entity_index: row.entity_index,
                     to_value: Some(value),
                 });
@@ -162,7 +162,7 @@ where
             if !self.unassigned_pending && self.slot.allows_unassigned() && row.current_assigned {
                 self.unassigned_pending = true;
                 return Some(RuntimeScalarRecipe::Change {
-                    slot: self.slot.clone(),
+                    slot: self.slot,
                     entity_index: row.entity_index,
                     to_value: None,
                 });
@@ -181,8 +181,8 @@ where
 /// source callbacks (nearby values or the ordinary row fallback) at entry,
 /// into a reusable ranked scratch. Ranking, ordering, recipe ownership, and
 /// the no-substitution behavior are shared by both carriers.
-pub(super) struct NearbyChangeCursor<S> {
-    slot: RuntimeScalarSlot<S>,
+pub(super) struct NearbyChangeCursor<'a, S> {
+    slot: &'a RuntimeScalarSlot<S>,
     max_nearby: usize,
     source_limit: usize,
     context: MoveStreamContext,
@@ -194,12 +194,12 @@ pub(super) struct NearbyChangeCursor<S> {
     unassigned_pending: bool,
 }
 
-impl<S> NearbyChangeCursor<S>
+impl<'a, S> NearbyChangeCursor<'a, S>
 where
     S: PlanningSolution,
 {
     pub(super) fn new(
-        slot: RuntimeScalarSlot<S>,
+        slot: &'a RuntimeScalarSlot<S>,
         solution: &S,
         context: MoveStreamContext,
         max_nearby: usize,
@@ -220,7 +220,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<'a, S>> {
         while self.entity_offset < self.entity_count {
             let entity_index = ordered_entity(
                 self.entity_count,
@@ -228,11 +228,11 @@ where
                 self.context,
                 NEARBY_CHANGE_ENTITY_START_SALT,
                 NEARBY_CHANGE_ENTITY_STRIDE_SALT,
-                slot_identity(&self.slot),
+                slot_identity(self.slot),
             );
             if !self.source_loaded {
                 self.values = rank_nearby_values(
-                    &self.slot,
+                    self.slot,
                     solution,
                     entity_index,
                     self.max_nearby,
@@ -247,7 +247,7 @@ where
             if let Some(&value) = self.values.get(self.value_offset) {
                 self.value_offset += 1;
                 return Some(RuntimeScalarRecipe::Change {
-                    slot: self.slot.clone(),
+                    slot: self.slot,
                     entity_index,
                     to_value: Some(value),
                 });
@@ -255,7 +255,7 @@ where
             if self.unassigned_pending {
                 self.unassigned_pending = false;
                 return Some(RuntimeScalarRecipe::Change {
-                    slot: self.slot.clone(),
+                    slot: self.slot,
                     entity_index,
                     to_value: None,
                 });

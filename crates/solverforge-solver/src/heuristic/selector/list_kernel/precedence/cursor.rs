@@ -1,6 +1,6 @@
 //! Streamed mixed move cursor for a precedence-critical neighborhood.
 
-use smallvec::{smallvec, SmallVec};
+use smallvec::smallvec;
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::selector::move_selector::{
@@ -47,13 +47,13 @@ where
 {
     pub(crate) fn new(
         blocks: Vec<CriticalBlock>,
-        mut route_graph: PrecedenceRouteGraph,
+        route_graph: PrecedenceRouteGraph,
         context: MoveStreamContext,
         emitter: E,
         descriptor_index: usize,
     ) -> Self {
         let critical_swaps = critical_adjacent_swaps(&blocks);
-        let support_swaps = support_adjacent_swaps(&blocks, &mut route_graph);
+        let support_swaps = support_adjacent_swaps(&blocks, &route_graph);
         let multi_swap_count = multi_support_swap_count(&critical_swaps, &support_swaps);
         let multi_ruin_count = multi_critical_ruin_count(&blocks);
         Self {
@@ -124,9 +124,9 @@ where
                 block,
                 move_index - change_count - swap_count - reverse_count - sublist_swap_count,
             );
-            let sources: SmallVec<[(usize, SmallVec<[usize; 8]>); 1]> =
-                smallvec![(block.entity, indices)];
-            return self.store.push(self.emitter.emit_ruin(&sources));
+            return self
+                .store
+                .push(self.emitter.emit_ruin(smallvec![(block.entity, indices)]));
         }
         let sublist_change_count = block.sublist_change_move_count();
         if move_index
@@ -197,7 +197,7 @@ where
                 {
                     continue;
                 }
-                return Some(self.store.push(self.emitter.emit_multi_swap(&swaps)));
+                return Some(self.store.push(self.emitter.emit_multi_swap(swaps)));
             }
             if self.multi_ruin_index < self.multi_ruin_count {
                 let move_index = crate::heuristic::selector::list_support::ordered_index(
@@ -208,7 +208,7 @@ where
                 );
                 self.multi_ruin_index += 1;
                 let sources = multi_critical_ruin_sources(&self.blocks, move_index);
-                return Some(self.store.push(self.emitter.emit_ruin(&sources)));
+                return Some(self.store.push(self.emitter.emit_ruin(sources)));
             }
             if self.block_index >= self.blocks.len() {
                 return None;

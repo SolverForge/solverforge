@@ -105,6 +105,14 @@ impl<'p> PartitionBound<'p> {
         }
     }
 
+    /// The earliest deadline of this bound and the bounds enclosing it.
+    fn deadline(&self) -> Option<Instant> {
+        match (self.deadline, self.parent.and_then(PartitionBound::deadline)) {
+            (Some(own), Some(parent)) => Some(own.min(parent)),
+            (own, parent) => own.or(parent),
+        }
+    }
+
     /// Whether a limit of this bound or an enclosing one is reached.
     pub(crate) fn reached(&self) -> bool {
         self.deadline

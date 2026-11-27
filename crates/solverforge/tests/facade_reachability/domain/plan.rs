@@ -61,6 +61,8 @@ impl CustomSearchPhase<Plan> for ProbePhase {
         assert!(task < task_count);
         let _ = solver_scope.random_u64();
         let _: &solverforge::stats::SolverStats = solver_scope.stats();
+        // The probe solve sets a step limit only, so no time remains to count.
+        assert_eq!(solver_scope.remaining_time(), None);
         PROBE_PHASE_DRAWS.fetch_add(1, Ordering::SeqCst);
     }
 

@@ -25,17 +25,6 @@ fn test_solver_scope_creation() {
 }
 
 #[test]
-fn time_limit_reads_back_what_was_set() {
-    let director = create_simple_nqueens_director(2);
-    let mut scope = SolverScope::new(director);
-    assert_eq!(scope.time_limit(), None);
-
-    scope.set_time_limit(std::time::Duration::from_secs(30));
-
-    assert_eq!(scope.time_limit(), Some(std::time::Duration::from_secs(30)));
-}
-
-#[test]
 fn test_solver_scope_update_best() {
     let director = create_simple_nqueens_director(2);
     let mut scope = SolverScope::new(director);
@@ -484,4 +473,5 @@ fn working_solution_generation_is_monotonic_across_commits_and_replacement() {
 mod environment_mode;
 mod partition_bound;
 mod problem_change;
+mod remaining_time;
 mod weight_mode;

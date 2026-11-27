@@ -74,8 +74,35 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     /// The solve's time limit, when it has one.
-    pub fn time_limit(&self) -> Option<Duration> {
+    pub(crate) fn time_limit(&self) -> Option<Duration> {
         self.time_limit
+    }
+
+    /// How much longer this scope may run before a time limit ends it: the
+    /// solve's time limit minus solver-active time, or a deadline inherited
+    /// from an enclosing solve or partition, whichever ends first. `None`
+    /// when no time limit applies; zero once one is reached.
+    ///
+    /// A custom phase reads it to fit its own schedule to the time that is
+    /// left, for example a temperature that falls with the remaining time or
+    /// a phase that takes a share of it and then returns. It never needs to
+    /// change the solve's limit to do so.
+    pub fn remaining_time(&self) -> Option<Duration> {
+        let from_limit = self
+            .time_limit
+            .map(|limit| limit.saturating_sub(self.elapsed().unwrap_or_default()));
+        let deadline = match (
+            self.time_deadline,
+            self.partition_bound.and_then(PartitionBound::deadline),
+        ) {
+            (Some(own), Some(partition)) => Some(own.min(partition)),
+            (own, partition) => own.or(partition),
+        };
+        let from_deadline = deadline.map(|deadline| deadline.saturating_duration_since(Instant::now()));
+        match (from_limit, from_deadline) {
+            (Some(limit), Some(deadline)) => Some(limit.min(deadline)),
+            (limit, deadline) => limit.or(deadline),
+        }
     }
 
     /// Stops the solve once this much solver-active time has elapsed.

@@ -47,7 +47,7 @@ build: banner
 	@printf "$(CYAN)$(BOLD)║          Building Workspace          ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════╝$(RESET)\n\n"
 	@printf "$(ARROW) $(BOLD)Building all crates...$(RESET)\n"
-	@cargo build --workspace && \
+	@cargo build --workspace --all-features && \
 		printf "$(GREEN)$(CHECK) Build successful$(RESET)\n\n" || \
 		(printf "$(RED)$(CROSS) Build failed$(RESET)\n\n" && exit 1)
 
@@ -79,7 +79,7 @@ test: banner
 	@printf "$(CYAN)$(BOLD)║         Full Test Suite              ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════╝$(RESET)\n\n"
 	@printf "$(ARROW) $(BOLD)Running all tests...$(RESET)\n"
-	@cargo test --workspace && \
+	@cargo test --workspace --all-features && \
 		printf "\n$(GREEN)$(CHECK) All tests passed$(RESET)\n\n" || \
 		(printf "\n$(RED)$(CROSS) Tests failed$(RESET)\n\n" && exit 1)
 
@@ -162,7 +162,7 @@ file-length:
 
 clippy:
 	@printf "$(PROGRESS) Running clippy...\n"
-	@cargo clippy --workspace -- -D warnings && \
+	@cargo clippy --workspace --all-targets --all-features -- -D warnings && \
 		printf "$(GREEN)$(CHECK) Clippy passed$(RESET)\n" || \
 		(printf "$(RED)$(CROSS) Clippy warnings found$(RESET)\n" && exit 1)
 

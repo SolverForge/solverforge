@@ -157,7 +157,9 @@ leaves the rest to local search, whose optional-assignment moves keep filling
 optional rows. The step reports the share it got as `time_budget_seconds`. On
 the rostering bench the pass needs about 7 s: uncapped it leaves a 10 s solve
 2 s of search, and capped at a tenth it costs a 60 s solve quality; a fifth
-does neither. A solve without a time limit runs the pass to completion.
+does neither. A partition's construction takes a fifth of the time its
+inherited deadline leaves it. A solve without a time limit runs the pass to
+completion.
 
 An explicit scalar construction target that names an assignment-owned variable
 must use the owning `group_name`.

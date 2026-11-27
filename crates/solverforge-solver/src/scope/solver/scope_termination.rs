@@ -73,11 +73,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.inphase_score_calc_count_limit_reached()
     }
 
-    /// The solve's time limit, when it has one.
-    pub(crate) fn time_limit(&self) -> Option<Duration> {
-        self.time_limit
-    }
-
     /// How much longer this scope may run before a time limit ends it: the
     /// solve's time limit minus solver-active time, or a deadline inherited
     /// from an enclosing solve or partition, whichever ends first. `None`

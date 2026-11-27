@@ -43,11 +43,6 @@ fn remaining_time_in_a_partition_counts_the_inherited_deadline() {
         .child_config(Some(&budget))
         .build_scope(create_simple_nqueens_director(4), 7);
 
-    assert_eq!(
-        child.time_limit(),
-        None,
-        "a partition carries a deadline, not a limit"
-    );
     let remaining = child
         .remaining_time()
         .expect("the solve's deadline applies");

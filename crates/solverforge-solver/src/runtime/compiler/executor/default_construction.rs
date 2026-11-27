@@ -142,8 +142,11 @@ where
 /// Optional rows stay reachable to local search's optional-assignment moves.
 const OPTIONAL_CONSTRUCTION_BUDGET_PERCENT: u32 = 20;
 
-/// The optional pass's remaining share of the solve's time limit, rounded up
-/// to whole seconds, or `None` when the solve has no time limit.
+/// The optional pass's remaining share of the scope's time span, rounded up
+/// to whole seconds, or `None` when no time limit applies. The span is the
+/// solver-active time so far plus the remaining time, so a top-level solve
+/// shares its time limit and a partition shares the time its inherited
+/// deadline leaves it.
 pub(super) fn optional_construction_termination<S, D, ProgressCb>(
     solver_scope: &SolverScope<'_, S, D, ProgressCb>,
 ) -> Option<solverforge_config::TerminationConfig>
@@ -152,8 +155,10 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    let share = solver_scope.time_limit()? * OPTIONAL_CONSTRUCTION_BUDGET_PERCENT / 100;
-    let remaining = share.saturating_sub(solver_scope.elapsed().unwrap_or_default());
+    let elapsed = solver_scope.elapsed().unwrap_or_default();
+    let span = elapsed + solver_scope.remaining_time()?;
+    let share = span * OPTIONAL_CONSTRUCTION_BUDGET_PERCENT / 100;
+    let remaining = share.saturating_sub(elapsed);
     Some(solverforge_config::TerminationConfig {
         seconds_spent_limit: Some(remaining.as_millis().div_ceil(1000) as u64),
         ..solverforge_config::TerminationConfig::default()

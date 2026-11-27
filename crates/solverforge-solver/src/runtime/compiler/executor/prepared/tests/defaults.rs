@@ -249,3 +249,30 @@ fn optional_construction_keeps_its_share_of_a_time_limited_solve() {
         "the 0.8 s share rounds up to whole seconds"
     );
 }
+
+#[test]
+fn optional_construction_in_a_partition_shares_the_inherited_deadline() {
+    use crate::runtime::compiler::executor::default_construction::optional_construction_termination;
+
+    let director =
+        ScoreDirector::simple(plan(vec![7], vec![Vec::new()]), descriptor(), |plan, _| {
+            entity_count(plan)
+        });
+    let mut parent = SolverScope::new(director);
+    parent.set_time_limit(std::time::Duration::from_secs(60));
+    parent.start_solving();
+    let budget = parent.child_phase_budget();
+    let child_director =
+        ScoreDirector::simple(plan(vec![7], vec![Vec::new()]), descriptor(), |plan, _| {
+            entity_count(plan)
+        });
+    let mut child = parent
+        .child_config(Some(&budget))
+        .build_scope(child_director, 7);
+    child.start_solving();
+    assert_eq!(
+        optional_construction_termination(&child).and_then(|config| config.seconds_spent_limit),
+        Some(12),
+        "a fifth of the 60 s the partition inherits"
+    );
+}

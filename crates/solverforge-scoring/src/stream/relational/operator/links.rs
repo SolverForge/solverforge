@@ -1,20 +1,20 @@
 use crate::stream::relational::{HandleMap, RowHandle};
 
-/// Output links of each input row, with a pool of emptied buckets.
+/// Output links of each input row, kept in place across notifications.
 ///
 /// A row that leaves and re-enters a node on every move would otherwise drop
-/// its bucket on retraction and allocate a new one on insertion; the pool
-/// keeps those buckets, so steady-state notification allocates nothing.
+/// its bucket on retraction and allocate a new one on insertion. Emptied
+/// buckets stay in their slot instead, and a later handle of the same slot
+/// takes the bucket over, so steady-state notification allocates nothing and
+/// holds no memory beyond one bucket per slot.
 pub(super) struct Links<T> {
     buckets: HandleMap<Vec<T>>,
-    retired: Vec<Vec<T>>,
 }
 
 impl<T> Links<T> {
     pub(super) fn new() -> Self {
         Self {
             buckets: HandleMap::new(),
-            retired: Vec::new(),
         }
     }
 
@@ -30,31 +30,34 @@ impl<T> Links<T> {
         self.buckets.get_mut(input)
     }
 
-    /// The bucket of `input`, taken from the pool when it has none.
+    /// The bucket of `input`, taking over the bucket a stale handle of the
+    /// same slot left behind.
     #[inline]
     pub(super) fn bucket(&mut self, input: RowHandle) -> &mut Vec<T> {
-        let Self { buckets, retired } = self;
-        buckets.get_or_insert_with(input, || retired.pop().unwrap_or_default())
+        self.buckets.get_or_reuse(input, Vec::new, Vec::clear)
     }
 
-    /// Detaches the bucket of `input`; hand it back with [`Links::retire`].
+    /// Detaches the links of `input`, leaving its slot empty until
+    /// [`Links::restore`] hands the bucket back.
     #[inline]
     pub(super) fn take(&mut self, input: RowHandle) -> Option<Vec<T>> {
-        self.buckets.remove(input)
+        self.buckets.get_mut(input).map(std::mem::take)
     }
 
-    /// Returns an emptied bucket to the pool.
+    /// Puts a detached bucket back into the slot of `input`, emptied.
     #[inline]
-    pub(super) fn retire(&mut self, mut bucket: Vec<T>) {
+    pub(super) fn restore(&mut self, input: RowHandle, mut bucket: Vec<T>) {
         bucket.clear();
-        self.retired.push(bucket);
+        if let Some(slot) = self.buckets.get_mut(input) {
+            *slot = bucket;
+        }
     }
 }
 
 impl Links<RowHandle> {
     /// Removes `output` from the bucket of `input` at `position` by swap
-    /// removal and returns the output moved into that position. An emptied
-    /// bucket goes back to the pool.
+    /// removal and returns the output moved into that position. A detached
+    /// bucket has nothing to remove.
     #[inline]
     pub(super) fn remove_link(
         &mut self,
@@ -63,14 +66,11 @@ impl Links<RowHandle> {
         position: usize,
     ) -> Option<RowHandle> {
         let bucket = self.buckets.get_mut(input)?;
+        if position >= bucket.len() {
+            return None;
+        }
         debug_assert_eq!(bucket[position], output);
         bucket.swap_remove(position);
-        let moved = bucket.get(position).copied();
-        if bucket.is_empty() {
-            if let Some(bucket) = self.buckets.remove(input) {
-                self.retired.push(bucket);
-            }
-        }
-        moved
+        bucket.get(position).copied()
     }
 }

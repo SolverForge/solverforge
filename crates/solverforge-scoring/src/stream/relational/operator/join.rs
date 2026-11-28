@@ -77,7 +77,7 @@ where
                         removed.push(output);
                     }
                 }
-                self.left_outputs.retire(outputs);
+                self.left_outputs.restore(handle, outputs);
             }
         }
         for handle in right_removed.iter().copied() {
@@ -89,7 +89,7 @@ where
                         removed.push(output);
                     }
                 }
-                self.right_outputs.retire(outputs);
+                self.right_outputs.restore(handle, outputs);
             }
         }
         for handle in left_inserted.iter().copied() {

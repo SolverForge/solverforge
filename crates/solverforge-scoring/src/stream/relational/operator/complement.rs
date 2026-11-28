@@ -158,7 +158,7 @@ where
                         removed.push(h);
                     }
                 }
-                self.left_outputs.retire(outputs);
+                self.left_outputs.restore(handle, outputs);
             }
         }
         // Keys of the result rows this event removes, read back from the
@@ -178,7 +178,7 @@ where
                         removed.push(h);
                     }
                 }
-                self.right_outputs.retire(outputs);
+                self.right_outputs.restore(handle, outputs);
             }
         }
         for handle in left_inserted.iter().copied() {

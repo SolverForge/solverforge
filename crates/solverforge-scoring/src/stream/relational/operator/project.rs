@@ -84,7 +84,7 @@ impl<O, F, T: 'static> ProjectNode<O, F, T> {
                     self.rows.retract(h);
                     removed.push(h);
                 }
-                self.outputs.retire(outputs);
+                self.outputs.restore(input, outputs);
             }
         }
         for input in input_inserted.iter().copied() {

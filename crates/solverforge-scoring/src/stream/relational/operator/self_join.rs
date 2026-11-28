@@ -275,7 +275,7 @@ where
                 removed.push(output);
             }
         }
-        self.of_input.retire(tuples);
+        self.of_input.restore(handle, tuples);
         if let Some(index) = self.handle_index.remove(handle) {
             if let Some(key) = self
                 .by_key

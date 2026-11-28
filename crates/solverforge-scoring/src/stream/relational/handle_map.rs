@@ -42,6 +42,27 @@ impl<T> HandleMap<T> {
             None
         }
     }
+    /// The entry of `h`. A stale entry an earlier handle left in the slot is
+    /// prepared for `h` with `reset` instead of being dropped, so its
+    /// allocation is kept; `make` builds the value of a slot that never held
+    /// one.
+    pub(crate) fn get_or_reuse(
+        &mut self,
+        h: RowHandle,
+        make: impl FnOnce() -> T,
+        reset: impl FnOnce(&mut T),
+    ) -> &mut T {
+        let slot = h.slot() as usize;
+        if slot >= self.slots.len() {
+            self.slots.resize_with(slot + 1, || None);
+        }
+        let entry = self.slots[slot].get_or_insert_with(|| (h.generation(), make()));
+        if entry.0 != h.generation() {
+            entry.0 = h.generation();
+            reset(&mut entry.1);
+        }
+        &mut entry.1
+    }
     pub(crate) fn get_or_insert_with(&mut self, h: RowHandle, make: impl FnOnce() -> T) -> &mut T {
         if self.get(h).is_none() {
             self.insert(h, make());

@@ -3,7 +3,7 @@
 Serde-based configuration system for loading solver settings from TOML files.
 
 **Location:** `crates/solverforge-config/`
-**Workspace Release:** `0.31.3`
+**Workspace Release:** `0.31.4`
 
 ## Dependencies
 

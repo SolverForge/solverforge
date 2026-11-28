@@ -1,6 +1,31 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.31.4](https://github.com/SolverForge/solverforge/compare/v0.31.3...v0.31.4) (2026-11-28)
+
+
+### Features
+
+* **solver:** lend frozen access to moves and add contiguous list ruin ([5cfc8f9](https://github.com/SolverForge/solverforge/commit/5cfc8f96c57ec912dec12c5cff9ab06e446c5b7c)), closes #279
+* **solver:** read the solve's time limit from SolverScope ([0dff3ef](https://github.com/SolverForge/solverforge/commit/0dff3ef1ce216b9593063b95719f9c47dc9178a4))
+
+
+### Bug Fixes
+
+* **solver:** budget a partition's optional construction from its deadline ([6f69330](https://github.com/SolverForge/solverforge/commit/6f69330b3292480887a144e5aca7309601e07301))
+
+
+### Performance Improvements
+
+* **scoring:** keep emptied link buckets in their slot instead of a pool ([68eb2c3](https://github.com/SolverForge/solverforge/commit/68eb2c320fceed951db737467116cdc7e7e8a9f2))
+* **scoring:** reuse emptied output-link buckets across notifications ([145def1](https://github.com/SolverForge/solverforge/commit/145def1989403d3439fc8e715b17db648e1d36be))
+
+
+### Code Refactoring
+
+* **solver:** expose remaining time instead of the raw time limit ([abd313f](https://github.com/SolverForge/solverforge/commit/abd313f20efe3da1e67a8fde2702cdb9b88e7ef6))
+
+
 ## [0.31.3](https://github.com/SolverForge/solverforge/compare/v0.31.2...v0.31.3) (2026-11-26)
 
 

@@ -1,5 +1,5 @@
-use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use super::{links::remove_link, GroupedOperator, Operator, Pair, PairDelta};
+use super::super::{DenseRowStore, JoinedIdentity, RowHandle};
+use super::{links::Links, GroupedOperator, Operator, Pair, PairDelta};
 use super::{ExplainOperator, RowOrigin};
 use crate::api::analysis::EntityRef;
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
@@ -21,8 +21,8 @@ pub struct JoinNode<S, L, R, P: IndexedPlan> {
     indexes: P::Indexes,
     rows: DenseRowStore<JoinedRow>,
     outputs: FastMap<JoinedIdentity, RowHandle>,
-    left_outputs: HandleMap<Vec<RowHandle>>,
-    right_outputs: HandleMap<Vec<RowHandle>>,
+    left_outputs: Links<RowHandle>,
+    right_outputs: Links<RowHandle>,
     /// Child notification scratch, reused across events (L/R, removed/inserted).
     child_l_removed: Vec<RowHandle>,
     child_l_inserted: Vec<RowHandle>,
@@ -46,8 +46,8 @@ where
             indexes,
             rows: DenseRowStore::new(),
             outputs: FastMap::default(),
-            left_outputs: HandleMap::new(),
-            right_outputs: HandleMap::new(),
+            left_outputs: Links::new(),
+            right_outputs: Links::new(),
             child_l_removed: Vec::new(),
             child_l_inserted: Vec::new(),
             child_r_removed: Vec::new(),
@@ -70,20 +70,26 @@ where
         } = delta;
         for handle in left_removed.iter().copied() {
             self.plan.remove_left(&mut self.indexes, handle);
-            for output in self.left_outputs.remove(handle).unwrap_or_default() {
-                if self.rows.get(output).is_some() {
-                    self.remove_output(output);
-                    removed.push(output);
+            if let Some(mut outputs) = self.left_outputs.take(handle) {
+                for output in outputs.drain(..) {
+                    if self.rows.get(output).is_some() {
+                        self.remove_output(output);
+                        removed.push(output);
+                    }
                 }
+                self.left_outputs.retire(outputs);
             }
         }
         for handle in right_removed.iter().copied() {
             self.plan.remove_right(&mut self.indexes, handle);
-            for output in self.right_outputs.remove(handle).unwrap_or_default() {
-                if self.rows.get(output).is_some() {
-                    self.remove_output(output);
-                    removed.push(output);
+            if let Some(mut outputs) = self.right_outputs.take(handle) {
+                for output in outputs.drain(..) {
+                    if self.rows.get(output).is_some() {
+                        self.remove_output(output);
+                        removed.push(output);
+                    }
                 }
+                self.right_outputs.retire(outputs);
             }
         }
         for handle in left_inserted.iter().copied() {
@@ -110,23 +116,19 @@ where
     fn remove_output(&mut self, handle: RowHandle) {
         if let Some(row) = self.rows.retract(handle) {
             self.outputs.remove(&row.identity);
-            if let Some(moved) = remove_link(
-                &mut self.left_outputs,
-                row.identity.left(),
-                handle,
-                row.left_position,
-            ) {
+            if let Some(moved) =
+                self.left_outputs
+                    .remove_link(row.identity.left(), handle, row.left_position)
+            {
                 self.rows
                     .get_mut(moved)
                     .expect("moved left output")
                     .left_position = row.left_position;
             }
-            if let Some(moved) = remove_link(
-                &mut self.right_outputs,
-                row.identity.right(),
-                handle,
-                row.right_position,
-            ) {
+            if let Some(moved) =
+                self.right_outputs
+                    .remove_link(row.identity.right(), handle, row.right_position)
+            {
                 self.rows
                     .get_mut(moved)
                     .expect("moved right output")
@@ -143,8 +145,8 @@ where
     fn emit_output(
         rows: &mut DenseRowStore<JoinedRow>,
         outputs: &mut FastMap<JoinedIdentity, RowHandle>,
-        left_outputs: &mut HandleMap<Vec<RowHandle>>,
-        right_outputs: &mut HandleMap<Vec<RowHandle>>,
+        left_outputs: &mut Links<RowHandle>,
+        right_outputs: &mut Links<RowHandle>,
         left: RowHandle,
         right: RowHandle,
     ) -> Option<RowHandle> {
@@ -152,8 +154,8 @@ where
         if outputs.contains_key(&identity) {
             return None;
         }
-        let left_bucket = left_outputs.get_or_insert_with(left, Vec::new);
-        let right_bucket = right_outputs.get_or_insert_with(right, Vec::new);
+        let left_bucket = left_outputs.bucket(left);
+        let right_bucket = right_outputs.bucket(right);
         let handle = rows.insert(JoinedRow {
             identity,
             left_position: left_bucket.len(),

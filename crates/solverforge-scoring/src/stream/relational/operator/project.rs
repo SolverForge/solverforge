@@ -1,7 +1,8 @@
+use super::links::Links;
 use super::Operator;
 use super::{ExplainOperator, RowOrigin};
 use crate::api::analysis::EntityRef;
-use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
+use crate::stream::relational::{DenseRowStore, RowHandle};
 
 /// Borrowed owned output with its entire upstream row and emission position.
 pub struct ProjectView<'a, V, T> {
@@ -29,7 +30,7 @@ pub struct ProjectNode<O, F, T> {
     input: O,
     mapper: F,
     rows: DenseRowStore<Output<T>>,
-    outputs: HandleMap<Vec<RowHandle>>,
+    outputs: Links<RowHandle>,
     /// Child notification scratch, reused across events.
     child_removed: Vec<RowHandle>,
     child_inserted: Vec<RowHandle>,
@@ -47,13 +48,13 @@ impl<O, F, T> ProjectNode<O, F, T> {
             input,
             mapper,
             rows: DenseRowStore::new(),
-            outputs: HandleMap::new(),
+            outputs: Links::new(),
             child_removed: Vec::new(),
             child_inserted: Vec::new(),
         }
     }
     fn add(&mut self, input: RowHandle, values: Vec<T>, inserted: &mut Vec<RowHandle>) {
-        let outputs = self.outputs.get_or_insert_with(input, Vec::new);
+        let outputs = self.outputs.bucket(input);
         for (emission, value) in values.into_iter().enumerate() {
             let h = self.rows.insert(Output {
                 input,
@@ -78,9 +79,12 @@ impl<O, F, T: 'static> ProjectNode<O, F, T> {
         F: for<'a> Fn(&S, &O::View<'a>) -> Vec<T> + 'static,
     {
         for input in input_removed.iter().copied() {
-            for h in self.outputs.remove(input).unwrap_or_default() {
-                self.rows.retract(h);
-                removed.push(h);
+            if let Some(mut outputs) = self.outputs.take(input) {
+                for h in outputs.drain(..) {
+                    self.rows.retract(h);
+                    removed.push(h);
+                }
+                self.outputs.retire(outputs);
             }
         }
         for input in input_inserted.iter().copied() {

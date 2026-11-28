@@ -1,3 +1,4 @@
+use super::links::Links;
 use super::{ComplementView, GroupedOperator, Operator, Pair, PairDelta, ProjectView};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::hash::FastMap;
@@ -48,8 +49,8 @@ pub struct ComplementNode<
     rows: DenseRowStore<Output<T>>,
     real_outputs: FastMap<JoinedIdentity, RowHandle>,
     default_outputs: HandleMap<RowHandle>,
-    left_outputs: HandleMap<Vec<RowHandle>>,
-    right_outputs: HandleMap<Vec<RowHandle>>,
+    left_outputs: Links<RowHandle>,
+    right_outputs: Links<RowHandle>,
     /// Child notification scratch, reused across events (targets/results).
     child_l_removed: Vec<RowHandle>,
     child_l_inserted: Vec<RowHandle>,
@@ -82,8 +83,8 @@ where
             rows: DenseRowStore::new(),
             real_outputs: FastMap::default(),
             default_outputs: HandleMap::new(),
-            left_outputs: HandleMap::new(),
-            right_outputs: HandleMap::new(),
+            left_outputs: Links::new(),
+            right_outputs: Links::new(),
             child_l_removed: Vec::new(),
             child_l_inserted: Vec::new(),
             child_r_removed: Vec::new(),
@@ -150,11 +151,14 @@ where
         } = delta;
         for handle in left.iter().copied() {
             self.plan.remove_left(&mut self.indexes, handle);
-            for h in self.left_outputs.remove(handle).unwrap_or_default() {
-                if self.rows.get(h).is_some() {
-                    self.remove_output(h);
-                    removed.push(h);
+            if let Some(mut outputs) = self.left_outputs.take(handle) {
+                for h in outputs.drain(..) {
+                    if self.rows.get(h).is_some() {
+                        self.remove_output(h);
+                        removed.push(h);
+                    }
                 }
+                self.left_outputs.retire(outputs);
             }
         }
         // Keys of the result rows this event removes, read back from the
@@ -167,11 +171,14 @@ where
             .collect();
         for handle in right.iter().copied() {
             self.plan.remove_right(&mut self.indexes, handle);
-            for h in self.right_outputs.remove(handle).unwrap_or_default() {
-                if self.rows.get(h).is_some() {
-                    self.remove_output(h);
-                    removed.push(h);
+            if let Some(mut outputs) = self.right_outputs.take(handle) {
+                for h in outputs.drain(..) {
+                    if self.rows.get(h).is_some() {
+                        self.remove_output(h);
+                        removed.push(h);
+                    }
                 }
+                self.right_outputs.retire(outputs);
             }
         }
         for handle in left_inserted.iter().copied() {

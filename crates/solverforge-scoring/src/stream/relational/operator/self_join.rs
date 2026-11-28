@@ -9,6 +9,7 @@
 //! input handle tuples; identities resolve on demand, and provenance falls out of
 //! each member's own provenance.
 
+use super::links::Links;
 use super::Operator;
 use super::{ExplainOperator, RowOrigin};
 use crate::api::analysis::EntityRef;
@@ -82,7 +83,7 @@ pub struct SelfJoinNode<S, A, O, K, KE, const N: usize> {
     handle_index: HandleMap<usize>,
     rows: DenseRowStore<[RowHandle; N]>,
     combos: FastMap<[RowHandle; N], RowHandle>,
-    of_input: HandleMap<Vec<[RowHandle; N]>>,
+    of_input: Links<[RowHandle; N]>,
     /// Child notification scratch, reused across events.
     child_removed: Vec<RowHandle>,
     child_inserted: Vec<RowHandle>,
@@ -99,7 +100,7 @@ impl<S, A, O, K, KE, const N: usize> SelfJoinNode<S, A, O, K, KE, N> {
             handle_index: HandleMap::new(),
             rows: DenseRowStore::new(),
             combos: FastMap::default(),
-            of_input: HandleMap::new(),
+            of_input: Links::new(),
             child_removed: Vec::new(),
             child_inserted: Vec::new(),
             marker: PhantomData,
@@ -260,7 +261,8 @@ where
     /// the retracted handles.
     fn retract_row(&mut self, handle: RowHandle) -> Vec<RowHandle> {
         let mut removed = Vec::new();
-        for tuple in self.of_input.remove(handle).unwrap_or_default() {
+        let mut tuples = self.of_input.take(handle).unwrap_or_default();
+        for tuple in tuples.drain(..) {
             if let Some(output) = self.combos.remove(&tuple) {
                 self.rows.retract(output);
                 for member in tuple {
@@ -273,6 +275,7 @@ where
                 removed.push(output);
             }
         }
+        self.of_input.retire(tuples);
         if let Some(index) = self.handle_index.remove(handle) {
             if let Some(key) = self
                 .by_key
@@ -319,9 +322,7 @@ where
             let output = self.rows.insert(tuple);
             self.combos.insert(tuple, output);
             for member in tuple {
-                self.of_input
-                    .get_or_insert_with(member, Vec::new)
-                    .push(tuple);
+                self.of_input.bucket(member).push(tuple);
             }
             inserted.push(output);
         }
